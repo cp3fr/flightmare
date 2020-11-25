@@ -21,7 +21,16 @@ _posts
 _site
 externals/*
 
-#Flightmare
+# Flightmare
 flightlib
 flightrl
 flighros
+
+# include new files
+!flightlib/configs/
+!flightlib/include/flightlib/envs/racing_env/
+!flightlib/src/envs/racing_env/
+!flightlib/src/wrapper/
+
+# PyCharm
+.idea
