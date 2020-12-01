@@ -11,6 +11,9 @@ class TestEnvWrapper(gym.Env):
         self.num_obs = env.getObsDim()
         self.num_act = env.getActDim()
 
+        self.image_height = env.getImageHeight()
+        self.image_width = env.getImageWidth()
+
         self._observation_space = gym.spaces.Box(
             np.ones(self.num_obs) * -np.Inf,
             np.ones(self.num_obs) * np.Inf,
@@ -21,6 +24,7 @@ class TestEnvWrapper(gym.Env):
             high=np.ones(self.num_act) * 1.,
             dtype=np.float32)
         self.observation = np.zeros(self.num_obs, dtype=np.float32)
+        self.image = np.zeros((self.image_height * self.image_width * 3,), dtype=np.uint8)
         self.reward = np.float32(0.0)
         self.done = False
 
@@ -28,20 +32,32 @@ class TestEnvWrapper(gym.Env):
         #
         self._max_episode_steps = 300
 
+    def _reshape_image(self):
+        return np.reshape(self.image, (3, self.image_height, self.image_width)).transpose((1, 2, 0))
+
     def seed(self, seed=None):
         self.env.setSeed(seed)
 
+    """
+    def test(self):
+        # print(self.image.shape)
+        self.env.test(self.image)
+        # print("\nImage test:")
+        # print(self.image.shape)
+        # return np.reshape(self.image, (self.image_height, self.image_width, 3))
+        # print(self.image.shape)
+        # print(image_test)
+        return np.reshape(self.image, (3, self.image_height, self.image_width)).transpose((1, 2, 0))
+    """
+
     def step(self, action):
-        self.reward = self.env.step(action, self.observation)
-        terminal_reward = 0.0
-        self.done = self.env.isTerminalState(terminal_reward)
-        return self.observation.copy(), self.reward, \
-            self.done, [dict(reward_run=self.reward, reward_ctrl=0.0)]
+        self.reward = self.env.step(action, self.observation, self.image)
+        return self.observation.copy(), self._reshape_image()
 
     def reset(self):
         self.reward = 0.0
-        self.env.reset(self.observation, True)
-        return self.observation.copy()
+        self.env.reset(self.observation, self.image, True)
+        return self.observation.copy(), self._reshape_image()
 
     def reset_and_update_info(self):
         return self.reset(),

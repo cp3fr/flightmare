@@ -62,6 +62,19 @@ using Ref = Eigen::Ref<Derived>;
 template<class Derived>
 using Map = Eigen::Map<Derived>;
 
+
+// ------------ Image Stuff------------
+
+//
+template<int rows = Dynamic>
+using ImageFlat = Eigen::Matrix<uint8_t, rows, 1>;
+// using ImageFlat = Eigen::Matrix<uint8_t, Dynamic, 1>;
+
+//
+template<int rows = Dynamic, int cols = Dynamic>
+using ImageChannel = Eigen::Matrix<uint8_t, rows, cols, Eigen::RowMajor>;
+
+
 static constexpr Scalar Gz = -9.81;
 const Vector<3> GVEC{0.0, 0.0, Gz};
 

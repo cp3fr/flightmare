@@ -1,6 +1,7 @@
 from ruamel.yaml import YAML, dump, RoundTripDumper
 
 #
+import cv2
 import os
 import numpy as np
 from time import time
@@ -20,11 +21,22 @@ def main():
 
     # load a model to get some decent output
     model = PPO2.load("../flightrl/examples/saved/quadrotor_env.zip")
+    # model = None
 
     # get the environment
     env = TestEnvWrapper(RacingTestEnv_v0())
     env.connectUnity()
-    observation = env.reset()
+    observation, image = env.reset()
+
+    action = np.array([0.0, 0.0, 0.0, 0.0], dtype=np.float32)
+    """
+    observation, image = env.step(action)
+    cv2.imwrite("/home/simon/Desktop/flightmare_cam_test/test.png", image)
+
+    # env.test()
+
+    exit()
+    """
 
     # run loop with predictions from trained model
     start = time()
@@ -33,7 +45,10 @@ def main():
     test = []
     while (time() - start) < 10:
         action, _ = model.predict(observation, deterministic=True)
-        observation, _, _, _ = env.step(action)
+        observation, image = env.step(action)
+
+        # cv2.imshow("camera", image)
+        # cv2.waitKey(30)
 
         current = time()
         test.append(current - last)

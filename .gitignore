@@ -28,8 +28,8 @@ flighros
 
 # include new files
 !flightlib/configs/
-!flightlib/include/flightlib/envs/racing_env/
-!flightlib/src/envs/racing_env/
+!flightlib/include/flightlib/envs/
+!flightlib/src/envs/
 !flightlib/src/wrapper/
 
 # PyCharm

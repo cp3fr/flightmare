@@ -7,9 +7,12 @@ RacingTestEnv::RacingTestEnv()
                  std::string("/flightlib/configs/racing_test_env.yaml")) {}
 
 RacingTestEnv::RacingTestEnv(const std::string &cfg_path)
-  : EnvBase() {
+  : EnvBaseCamera() {
   // load configuration file
   YAML::Node cfg_ = YAML::LoadFile(cfg_path);
+
+  // load parameters
+  loadParam(cfg_);
 
   quadrotor_ptr_ = std::make_shared<Quadrotor>();
   // update dynamics
@@ -18,7 +21,7 @@ RacingTestEnv::RacingTestEnv(const std::string &cfg_path)
   quadrotor_ptr_->updateDynamics(dynamics);
 
   // define a bounding box
-  world_box_ << -20, 20, -20, 20, 0, 20;
+  world_box_ << -30, 30, -30, 30, 0, 30;
   quadrotor_ptr_->setWorldBox(world_box_);
 
   // define input and output dimension for the environment
@@ -26,16 +29,48 @@ RacingTestEnv::RacingTestEnv(const std::string &cfg_path)
   act_dim_ = racingenv::kNAct;
 
   // add camera
-  image_counter_ = 0;
   rgb_camera_ = std::make_unique<RGBCamera>();
-  Vector<3> B_r_BC(0.0, 0.0, -0.3);
+  Vector<3> B_r_BC(0.0, 0.5, 0.3);
   Matrix<3, 3> R_BC = Quaternion(1.0, 0.0, 0.0, 0.0).toRotationMatrix();
-  rgb_camera_->setFOV(90);
-  rgb_camera_->setWidth(720);
-  rgb_camera_->setHeight(480);
+  rgb_camera_->setFOV(racingenv::fov);
+  rgb_camera_->setHeight(racingenv::image_height);
+  rgb_camera_->setWidth(racingenv::image_width);
   rgb_camera_->setRelPose(B_r_BC, R_BC);
   rgb_camera_->setPostProcesscing(std::vector<bool>{false, false, false});
   quadrotor_ptr_->addRGBCamera(rgb_camera_);
+
+  // add gates, hard-coded for now
+  float positions[racingenv::num_gates][3] = {
+    {-18.0,  10.0, 2.5},
+    {-25.0,   0.0, 2.5},
+    {-18.0, -10.0, 2.5},
+    { -1.3,  -1.3, 2.5},
+    {  1.3,   1.3, 2.5},
+    { 18.0,  10.0, 2.5},
+    { 25.0,   0.0, 2.5},
+    { 18.0, -10.0, 2.5},
+    {  1.3,  -1.3, 2.5},
+    { -1.3,   1.3, 2.5},
+  };
+  // only need the rotation angle around the z-axis
+  float orientations[racingenv::num_gates] = {
+    -0.75 * M_PI_2,
+    -0.50 * M_PI_2,
+    -0.25 * M_PI_2,
+     0.25 * M_PI_2,
+     0.25 * M_PI_2,
+    -0.25 * M_PI_2,
+    -0.50 * M_PI_2,
+    -0.75 * M_PI_2,
+     0.75 * M_PI_2,
+     0.75 * M_PI_2,
+  };
+  for (int i = 0; i < racingenv::num_gates; i++) {
+    std::cout << orientations[i] << std::endl;
+    gates_[i] = std::make_shared<StaticGate>("test_gate_" + std::to_string(i), "rpg_gate");
+    gates_[i]->setPosition(Eigen::Vector3f(positions[i][1], positions[i][0], positions[i][2]));
+    gates_[i]->setRotation(Quaternion(std::cos(-orientations[i]), 0.0, 0.0, std::sin(-orientations[i])));
+  }
 
   // add unity
   setUnity(true);
@@ -43,14 +78,46 @@ RacingTestEnv::RacingTestEnv(const std::string &cfg_path)
   Scalar mass = quadrotor_ptr_->getMass();
   act_mean_ = Vector<racingenv::kNAct>::Ones() * (-mass * Gz) / 4;
   act_std_ = Vector<racingenv::kNAct>::Ones() * (-mass * 2 * Gz) / 4;
-
-  // load parameters
-  loadParam(cfg_);
 }
 
 RacingTestEnv::~RacingTestEnv() {}
 
-bool RacingTestEnv::reset(Ref<Vector<>> obs, const bool random) {
+/*
+void RacingTestEnv::test(Ref<ImageFlat<>> image_test) {
+  // taken from https://stackoverflow.com/a/45057328
+
+  cv::split(cv_image_, cv_channels_);
+  for (int i = 0; i < cv_image_.channels(); i++) {
+    cv::cv2eigen(cv_channels_[i], channels_[i]);
+    Map<ImageFlat<>> image_(channels_[i].data(), channels_[i].size());
+    image_test.block<racingenv::image_height * racingenv::image_width, 1>(i * racingenv::image_height * racingenv::image_width, 0) = image_;
+  }
+
+  /*
+  constexpr uint32_t height = 3;
+  constexpr uint32_t width = 7;
+
+  cv::Mat img(height, width, CV_32FC3, cv::Scalar(1.0f, 2.0f, 3.0f));
+
+  using MatrixXfRowMajor = Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
+  using C3Stride = Eigen::Stride<Eigen::Dynamic, 3>;
+  C3Stride c3Stride(width * 3, 3);
+
+  using cvMap = Eigen::Map<MatrixXfRowMajor, Eigen::Unaligned, C3Stride>;
+  cvMap imgC1(reinterpret_cast<Scalar*>(img.data) + 0, img.rows, img.cols, c3Stride);
+  cvMap imgC2(reinterpret_cast<Scalar*>(img.data) + 1, img.rows, img.cols, c3Stride);
+  cvMap imgC3(reinterpret_cast<Scalar*>(img.data) + 2, img.rows, img.cols, c3Stride);
+
+  std::cout << "'Image' channels:" << std::endl;
+  std::cout << imgC1 << std::endl << std::endl;
+  std::cout << imgC2 << std::endl << std::endl;
+  std::cout << imgC3 << std::endl << std::endl;
+
+  channel_test = imgC1;
+}
+*/
+
+bool RacingTestEnv::reset(Ref<Vector<>> obs, Ref<ImageFlat<>> image, const bool random) {
   image_counter_ = 0;
   quad_state_.setZero();
   quad_act_.setZero();
@@ -82,11 +149,11 @@ bool RacingTestEnv::reset(Ref<Vector<>> obs, const bool random) {
   cmd_.thrusts.setZero();
 
   // obtain observations
-  getObs(obs);
+  getObs(obs, image);
   return true;
 }
 
-bool RacingTestEnv::getObs(Ref<Vector<>> obs) {
+bool RacingTestEnv::getObs(Ref<Vector<>> obs, Ref<ImageFlat<>> image) {
   quadrotor_ptr_->getState(&quad_state_);
 
   // convert quaternion to euler angle
@@ -105,22 +172,31 @@ bool RacingTestEnv::getObs(Ref<Vector<>> obs) {
     unity_bridge_ptr_->getRender(0);
     unity_bridge_ptr_->handleOutput();
 
-    // cv::Mat img;
-    bool rgb_success = rgb_camera_->getRGBImage(image_);
-    // std::cout << "CAMERA IMAGE" << std::endl;
-    // std::cout << "success: " << rgb_success << " rows: " << img.rows << ", cols: " << img.cols << std::endl;
+    bool rgb_success = rgb_camera_->getRGBImage(cv_image_);
+
     if (rgb_success) {
-      cv::imwrite("~/Desktop/flightmare_cam_test/" + std::to_string(image_counter_) + ".png", image_);
+      cv::split(cv_image_, cv_channels_);
+      for (int i = 0; i < cv_image_.channels(); i++) {
+        cv::cv2eigen(cv_channels_[i], channels_[i]);
+        Map<ImageFlat<>> image_(channels_[i].data(), channels_[i].size());
+        image.block(i * cam_height_ * cam_width_, 0, cam_height_ * cam_width_, 1) = image_;
+      }
     }
-    image_counter_++;
+    // std::cout << "image data type: " << this->type2str(image_.type()) << std::endl;
+    // std::cout << "CAMERA IMAGE" << std::endl;
+    // std::cout << "success: " << rgb_success << ", rows: " << cv_image_.rows << ", cols: " << cv_image_.cols << std::endl;
+    /*if (rgb_success) {
+      cv::imwrite("/home/simon/Desktop/flightmare_cam_test/" + std::to_string(image_counter_) + ".png", cv_image_);
+    }
+    image_counter_++;*/
   } else {
-    std::cout << "no unity render or anything like that available" << std::endl;
+    std::cout << "Unity rendering not available; cannot get images." << std::endl;
   }
 
   return true;
 }
 
-Scalar RacingTestEnv::step(const Ref<Vector<>> act, Ref<Vector<>> obs) {
+Scalar RacingTestEnv::step(const Ref<Vector<>> act, Ref<Vector<>> obs, Ref<ImageFlat<>> image) {
   quad_act_ = act.cwiseProduct(act_std_) + act_mean_;
   cmd_.t += sim_dt_;
   cmd_.thrusts = quad_act_;
@@ -129,20 +205,32 @@ Scalar RacingTestEnv::step(const Ref<Vector<>> act, Ref<Vector<>> obs) {
   quadrotor_ptr_->run(cmd_, sim_dt_);
 
   // update observations
-  getObs(obs);
+  getObs(obs, image);
 
   return 0.0;
-}
-
-bool RacingTestEnv::isTerminalState(Scalar &reward) {
-  return false;
 }
 
 bool RacingTestEnv::loadParam(const YAML::Node &cfg) {
   if (cfg["racing_test_env"]) {
     sim_dt_ = cfg["racing_test_env"]["sim_dt"].as<Scalar>();
     max_t_ = cfg["racing_test_env"]["max_t"].as<Scalar>();
-    // std::cout << "camera set in yaml: " << cfg["racing_test_env"]["camera"] << std::endl;
+  } else {
+    return false;
+  }
+
+  if (cfg["gate_position"]) {
+    x_ = cfg["gate_position"]["x"].as<Scalar>();
+    y_ = cfg["gate_position"]["y"].as<Scalar>();
+    z_ = cfg["gate_position"]["z"].as<Scalar>();
+  } else {
+    return false;
+  }
+
+  if (cfg["gate_orientation"]) {
+    or_w_ = cfg["gate_orientation"]["w"].as<Scalar>();
+    or_x_ = cfg["gate_orientation"]["x"].as<Scalar>();
+    or_y_ = cfg["gate_orientation"]["y"].as<Scalar>();
+    or_z_ = cfg["gate_orientation"]["z"].as<Scalar>();
   } else {
     return false;
   }
@@ -164,8 +252,20 @@ bool RacingTestEnv::getAct(Command *const cmd) const {
   return true;
 }
 
+int RacingTestEnv::getImageHeight() const {
+  return cam_height_;
+}
+
+int RacingTestEnv::getImageWidth() const {
+  return cam_width_;
+}
+
 void RacingTestEnv::addObjectsToUnity(std::shared_ptr<UnityBridge> bridge) {
   bridge->addQuadrotor(quadrotor_ptr_);
+  //bridge->addStaticObject(gate_);
+  for (int i = 0; i < racingenv::num_gates; i++) {
+    bridge->addStaticObject(gates_[i]);
+  }
 }
 
 bool RacingTestEnv::setUnity(bool render) {

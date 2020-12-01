@@ -6,6 +6,7 @@
 
 // flightlib
 #include "flightlib/envs/env_base.hpp"
+#include "flightlib/envs/env_base_camera.hpp"
 #include "flightlib/envs/quadrotor_env/quadrotor_env.hpp"
 #include "flightlib/envs/test_env.hpp"
 #include "flightlib/envs/vec_env.hpp"
@@ -48,8 +49,8 @@ PYBIND11_MODULE(flightgym, m) {
     .def("step", &RacingTestEnv::step)
     .def("setSeed", &RacingTestEnv::setSeed)
     .def("close", &RacingTestEnv::close)
-    .def("isTerminalState", &RacingTestEnv::isTerminalState)
-    .def("curriculumUpdate", &RacingTestEnv::curriculumUpdate)
+    .def("getImageHeight", &RacingTestEnv::getImageHeight)
+    .def("getImageWidth", &RacingTestEnv::getImageWidth)
     .def("connectUnity", &RacingTestEnv::connectUnity)
     .def("disconnectUnity", &RacingTestEnv::disconnectUnity)
     .def("getObsDim", &RacingTestEnv::getObsDim)
