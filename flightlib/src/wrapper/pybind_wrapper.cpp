@@ -11,6 +11,7 @@
 #include "flightlib/envs/test_env.hpp"
 #include "flightlib/envs/vec_env.hpp"
 #include "flightlib/envs/racing_env/racing_test_env.hpp"
+#include "flightlib/envs/test_mpc_env.hpp"
 
 namespace py = pybind11;
 using namespace flightlib;
@@ -57,5 +58,17 @@ PYBIND11_MODULE(flightgym, m) {
     .def("getActDim", &RacingTestEnv::getActDim)
     .def("__repr__", [](const RacingTestEnv& a) {
       return "Drone Racing Test Environment";
+    });
+
+    py::class_<MPCTest>(m, "MPCTest_v0")
+    .def(py::init<>())
+    .def(py::init<const std::string&>())
+    .def("step", &MPCTest::step)
+    .def("getImageHeight", &MPCTest::getImageHeight)
+    .def("getImageWidth", &MPCTest::getImageWidth)
+    .def("connectUnity", &MPCTest::connectUnity)
+    .def("disconnectUnity", &MPCTest::disconnectUnity)
+    .def("__repr__", [](const MPCTest& a) {
+      return "MPC Test Environment";
     });
 }

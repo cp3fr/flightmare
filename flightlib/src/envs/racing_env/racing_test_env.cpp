@@ -30,7 +30,8 @@ RacingTestEnv::RacingTestEnv(const std::string &cfg_path)
 
   // add camera
   rgb_camera_ = std::make_unique<RGBCamera>();
-  Vector<3> B_r_BC(0.0, 0.5, 0.3);
+  image_counter_ = 0;
+  Vector<3> B_r_BC(0.0, -0.5, 0.3);
   Matrix<3, 3> R_BC = Quaternion(1.0, 0.0, 0.0, 0.0).toRotationMatrix();
   rgb_camera_->setFOV(racingenv::fov);
   rgb_camera_->setHeight(racingenv::image_height);
@@ -66,7 +67,6 @@ RacingTestEnv::RacingTestEnv(const std::string &cfg_path)
      0.75 * M_PI_2,
   };
   for (int i = 0; i < racingenv::num_gates; i++) {
-    std::cout << orientations[i] << std::endl;
     gates_[i] = std::make_shared<StaticGate>("test_gate_" + std::to_string(i), "rpg_gate");
     gates_[i]->setPosition(Eigen::Vector3f(positions[i][1], positions[i][0], positions[i][2]));
     gates_[i]->setRotation(Quaternion(std::cos(-orientations[i]), 0.0, 0.0, std::sin(-orientations[i])));
@@ -179,13 +179,20 @@ bool RacingTestEnv::getObs(Ref<Vector<>> obs, Ref<ImageFlat<>> image) {
       for (int i = 0; i < cv_image_.channels(); i++) {
         cv::cv2eigen(cv_channels_[i], channels_[i]);
         Map<ImageFlat<>> image_(channels_[i].data(), channels_[i].size());
-        image.block(i * cam_height_ * cam_width_, 0, cam_height_ * cam_width_, 1) = image_;
+        image.block<racingenv::image_height * racingenv::image_width, 1>(i * racingenv::image_height * racingenv::image_width, 0) = image_;
       }
+    }
+    /*
+    std::cout << image << std::endl;
+    Eigen::Matrix<uint8_t, 10, 1> test = image.block(1000, 0, 1010, 1);
+    std::cout << "C++: " << std::endl;
+    for (int i = 0; i < 10; i++) {
+      std::cout << image[1000 + i] << std::endl;
     }
     // std::cout << "image data type: " << this->type2str(image_.type()) << std::endl;
     // std::cout << "CAMERA IMAGE" << std::endl;
     // std::cout << "success: " << rgb_success << ", rows: " << cv_image_.rows << ", cols: " << cv_image_.cols << std::endl;
-    /*if (rgb_success) {
+    if (rgb_success) {
       cv::imwrite("/home/simon/Desktop/flightmare_cam_test/" + std::to_string(image_counter_) + ".png", cv_image_);
     }
     image_counter_++;*/
@@ -253,11 +260,11 @@ bool RacingTestEnv::getAct(Command *const cmd) const {
 }
 
 int RacingTestEnv::getImageHeight() const {
-  return cam_height_;
+  return racingenv::image_height;
 }
 
 int RacingTestEnv::getImageWidth() const {
-  return cam_width_;
+  return racingenv::image_width;
 }
 
 void RacingTestEnv::addObjectsToUnity(std::shared_ptr<UnityBridge> bridge) {

@@ -33,6 +33,7 @@ class TestEnvWrapper(gym.Env):
         self._max_episode_steps = 300
 
     def _reshape_image(self):
+        # print("python:", self.image[1000:1010])
         return np.reshape(self.image, (3, self.image_height, self.image_width)).transpose((1, 2, 0))
 
     def seed(self, seed=None):

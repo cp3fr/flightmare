@@ -22,15 +22,15 @@ _site
 externals/*
 
 # Flightmare
-flightlib
-flightrl
-flighros
+flightros
+
+test_mpc_env.*
 
 # include new files
-!flightlib/configs/
-!flightlib/include/flightlib/envs/
-!flightlib/src/envs/
-!flightlib/src/wrapper/
+# !flightlib/configs
+# !flightlib/include/flightlib/envs
+# !./flightlib/src/envs
+# !flightlib/src/wrapper
 
 # PyCharm
 .idea
