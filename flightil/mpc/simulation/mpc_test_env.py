@@ -83,4 +83,4 @@ class MPCTestEnv(object):
         # print("action[0] >= 9.81:", optimal_action.squeeze()[0] >= 9.81)
         # print("predicted action:", predicted_action)
 
-        return self.quad_state
+        return self.quad_state, optimal_action.squeeze()

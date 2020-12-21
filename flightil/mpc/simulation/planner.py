@@ -18,7 +18,7 @@ def row_to_state(row):
     state = np.array([
         row["position_x [m]"],
         row["position_y [m]"],
-        row["position_z [m]"],
+        row["position_z [m]"] + 0.75,
         row["rotation_w [quaternion]"],
         row["rotation_x [quaternion]"],
         row["rotation_y [quaternion]"],
@@ -51,14 +51,11 @@ class TrajectoryPlanner:
 
             if time <= self._final_time_stamp:
                 state = self._sample_from_trajectory(current_time + step * self._plan_time_step).tolist()
-                # TODO: right now this should work nicely, because once we reach the end of the trajectory, this method
-                #  simply returns the final state over and over again => once interpolation is implemented this might change
-                #  => might actually also want to hover rather than "repeat" the final state, otherwise weird stuff
-                #     will likely happen, because the controller can't stabilise the quadrotor in one position
                 planned_trajectory += state
                 latest_non_hover_state = state
             else:
                 # hover
+                # TODO: probably some kind of interpolation between the last "proper" state and a hover state
                 planned_trajectory += latest_non_hover_state[:2] + [3.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
         planned_trajectory = np.array(planned_trajectory)
 
@@ -74,7 +71,10 @@ class TrajectoryPlanner:
         return row_to_state(self._trajectory.iloc[-1])
 
     def _ensure_quaternion_consistency(self):
-        tolerance = 0.01
+        flipped = 0
+        self._trajectory["flipped"] = 0
+        self._trajectory.loc[0, "flipped"] = flipped
+
         quat_columns = ["rotation_{} [quaternion]".format(c) for c in ["w", "x", "y", "z"]]
         prev_quaternion = self._trajectory.loc[0, quat_columns]
         prev_signs_positive = prev_quaternion >= 0
@@ -83,15 +83,15 @@ class TrajectoryPlanner:
             current_quaternion = self._trajectory.loc[i, quat_columns]
             current_signs_positive = current_quaternion >= 0
             condition_sign = prev_signs_positive == ~current_signs_positive
-            condition_zero_crossing = np.abs(current_quaternion - prev_quaternion) < tolerance
-            if all(condition_sign | condition_zero_crossing):
-                # flip the quaternion
-                self._trajectory.loc[i, quat_columns] *= -1.0
-                # print(self._trajectory.loc[i, "time-since-start [s]"])
-            else:
-                prev_signs_positive = current_signs_positive
-            prev_quaternion = self._trajectory.loc[i, quat_columns]
-        # exit()
+
+            if np.sum(condition_sign) >= 3:
+                flipped = 1 - flipped
+            self._trajectory.loc[i, "flipped"] = flipped
+
+            prev_signs_positive = current_signs_positive
+            # prev_quaternion = self._trajectory.loc[i, quat_columns]
+
+        self._trajectory.loc[self._trajectory["flipped"] == 1, quat_columns] *= -1.0
 
     def _sample_from_trajectory(self, time_stamp, interpolation="nearest_below"):
         # TODO: implement some sort of interpolation

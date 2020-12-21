@@ -24,7 +24,7 @@ externals/*
 # Flightmare
 flightros
 
-test_mpc_env.*
+# test_mpc_env.*
 
 # include new files
 # !flightlib/configs

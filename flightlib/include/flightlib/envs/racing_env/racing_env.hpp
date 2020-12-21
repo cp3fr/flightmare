@@ -34,7 +34,7 @@ using ChannelStride = Eigen::Stride<Eigen::Dynamic, 3>;
 template<typename S>
 using ChannelMap = Eigen::Map<ChannelMatrix, Eigen::Unaligned, S>;
 
-namespace racingtestenv {
+namespace racingenv {
 
 enum Ctl : int {
   // observations
@@ -55,30 +55,29 @@ enum Ctl : int {
   // image dimensions
   image_height = 600,
   image_width = 800,
-  fov = 90,
+  fov = 120,
   // track info (should probably be loaded)
   num_gates = 10,
 };
 };
-class RacingTestEnv final : public EnvBaseCamera {
+class RacingEnv final : public EnvBaseCamera {
  public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-  RacingTestEnv();
-  RacingTestEnv(const std::string &cfg_path);
-  ~RacingTestEnv();
+  RacingEnv();
+  RacingEnv(const std::string &cfg_path);
+  ~RacingEnv();
 
   // - public OpenAI-gym-style functions
-  bool reset(Ref<Vector<>> obs, Ref<ImageFlat<>> image, const bool random = true) override;
-  Scalar step(const Ref<Vector<>> act, Ref<Vector<>> obs, Ref<ImageFlat<>> image) override;
+  bool reset(Ref<Vector<>> state_obs, Ref<ImageFlat<>> image_obs, const bool random = true) override;
+  Scalar step(const Ref<Vector<>> act, Ref<Vector<>> state_obs, Ref<ImageFlat<>> image_obs) override;
+  bool getObs(Ref<Vector<>> state_obs, Ref<ImageFlat<>> image_obs) override;
 
   // - public set functions
+  bool setReducedState(Ref<Vector<10>> reduced_state);
   bool loadParam(const YAML::Node &cfg);
 
   // - public get functions
-  bool getObs(Ref<Vector<>> obs, Ref<ImageFlat<>> image) override;
-  bool getAct(Ref<Vector<>> act) const;
-  bool getAct(Command *const cmd) const;
   int getImageHeight() const;
   int getImageWidth() const;
 
@@ -88,49 +87,43 @@ class RacingTestEnv final : public EnvBaseCamera {
   bool connectUnity();
   void disconnectUnity();
 
-  friend std::ostream &operator<<(std::ostream &os, const RacingTestEnv &quad_env);
+  friend std::ostream &operator<<(std::ostream &os, const RacingEnv &quad_env);
 
  private:
   // quadrotor
   std::shared_ptr<Quadrotor> quadrotor_ptr_;
   QuadState quad_state_;
   Command cmd_;
-  Logger logger_{"RacingTestEnv"};
+  Matrix<3, 2> world_box_;
+
+  // ?
+  Vector<racingenv::kNAct> act_mean_;
+  Vector<racingenv::kNAct> act_std_;
 
   // observations and actions (for RL)
-  Vector<racingtestenv::kNObs> quad_obs_;
-  Vector<racingtestenv::kNAct> quad_act_;
+  Vector<racingenv::kNObs> quad_obs_;
+  Vector<racingenv::kNAct> quad_act_;
 
   // camera
-  int cam_height_, cam_width_, cam_fov_;
   std::shared_ptr<RGBCamera> rgb_camera_;
 
   // image observations
-  int image_counter_;
-  ImageChannel<racingtestenv::image_height, racingtestenv::image_width> channels_[3];
+  ImageChannel<racingenv::image_height, racingenv::image_width> channels_[3];
   cv::Mat cv_image_;
   cv::Mat cv_channels_[3];
 
   // gate(s)
   std::shared_ptr<StaticGate> gates_[10];
-  std::shared_ptr<StaticGate> gate_;
-  float x_, y_, z_;
-  float or_w_, or_x_, or_y_, or_z_;
 
-  // unity
+  // Unity
   std::shared_ptr<UnityBridge> unity_bridge_ptr_;
   SceneID scene_id_{UnityScene::WAREHOUSE};
   bool unity_ready_{false};
   bool unity_render_{false};
 
-  // action and observation normalization (for learning)
-  Vector<racingtestenv::kNAct> act_mean_;
-  Vector<racingtestenv::kNAct> act_std_;
-  Vector<racingtestenv::kNObs> obs_mean_ = Vector<racingtestenv::kNObs>::Zero();
-  Vector<racingtestenv::kNObs> obs_std_ = Vector<racingtestenv::kNObs>::Ones();
-
+  // IO
   YAML::Node cfg_;
-  Matrix<3, 2> world_box_;
+  Logger logger_{"RacingEnv"};
 };
 
 }  // namespace flightlib

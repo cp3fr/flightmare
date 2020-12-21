@@ -11,6 +11,7 @@
 #include "flightlib/envs/test_env.hpp"
 #include "flightlib/envs/vec_env.hpp"
 #include "flightlib/envs/racing_env/racing_test_env.hpp"
+#include "flightlib/envs/racing_env/racing_env.hpp"
 #include "flightlib/envs/test_mpc_env.hpp"
 
 namespace py = pybind11;
@@ -62,7 +63,7 @@ PYBIND11_MODULE(flightgym, m) {
 
     py::class_<MPCTest>(m, "MPCTest_v0")
     .def(py::init<>())
-    .def(py::init<const std::string&>())
+    .def(py::init<const std::string&, const bool>())
     .def("step", &MPCTest::step)
     .def("getImageHeight", &MPCTest::getImageHeight)
     .def("getImageWidth", &MPCTest::getImageWidth)
@@ -70,5 +71,23 @@ PYBIND11_MODULE(flightgym, m) {
     .def("disconnectUnity", &MPCTest::disconnectUnity)
     .def("__repr__", [](const MPCTest& a) {
       return "MPC Test Environment";
+    });
+
+    py::class_<RacingEnv>(m, "RacingEnv")
+    .def(py::init<>())
+    .def(py::init<const std::string&>())
+    .def("getObs", &RacingEnv::getObs)
+    .def("step", &RacingEnv::step)
+    .def("reset", &RacingEnv::reset)
+    .def("setReducedState", &RacingEnv::setReducedState)
+    .def("getImageHeight", &RacingEnv::getImageHeight)
+    .def("getImageWidth", &RacingEnv::getImageWidth)
+    .def("getObsDim", &RacingEnv::getObsDim)
+    .def("getActDim", &RacingEnv::getActDim)
+    .def("getSimTimeStep", &RacingEnv::getSimTimeStep)
+    .def("connectUnity", &RacingEnv::connectUnity)
+    .def("disconnectUnity", &RacingEnv::disconnectUnity)
+    .def("__repr__", [](const RacingEnv& a) {
+      return "Drone Racing Environment";
     });
 }

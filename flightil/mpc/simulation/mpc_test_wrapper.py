@@ -5,9 +5,9 @@ from flightgym import MPCTest_v0
 
 class MPCTestWrapper:
 
-    def __init__(self, env=None):
+    def __init__(self, wave_track=False, env=None):
         if env is None:
-            self.env = MPCTest_v0()
+            self.env = MPCTest_v0("/home/simon/Git/flightmare/flightlib/configs/quadrotor_env.yaml", wave_track)
         else:
             self.env = env
 

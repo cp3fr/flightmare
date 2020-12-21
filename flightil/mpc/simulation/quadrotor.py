@@ -18,6 +18,7 @@ class QuadRotor:
         self._gravity = 9.81
         self._simulation_time_step = simulation_time_step
         self._arm_length = 0.3  # m
+        self._mass = 1.0  # 3.2
 
         # Sampling range of the quadrotor's initial position
         # TODO: this would have to be around some (probably specified initial starting point)
@@ -105,6 +106,7 @@ class QuadRotor:
         System dynamics: ds = f(x, u)
         """
         thrust, wx, wy, wz = action
+        thrust /= self._mass
 
         state_dot = np.zeros(shape=self.state_dim)
 

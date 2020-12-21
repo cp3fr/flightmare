@@ -23,12 +23,19 @@ class MPCSolver(object):
 
         # Gravity
         self._gravity = 9.81
+        self._mass = 1.0  # 3.2
 
         # Quadrotor constants
-        self._w_max_yaw = 6.0
-        self._w_max_xy = 6.0
-        self._thrust_min = 2.0
-        self._thrust_max = 20.0
+        # self._w_max_yaw = 6.0
+        # self._w_max_xy = 6.0
+        # self._thrust_min = 2.0
+        # self._thrust_max = 20.0
+
+        # parameters from alphapilot:
+        self._w_max_yaw = 3.0
+        self._w_max_xy = 3.0
+        self._thrust_min = 0.5
+        self._thrust_max = 16.0
 
         # state dimension (px, py, pz,           # quadrotor position
         #                  qw, qx, qy, qz,       # quadrotor quaternion
@@ -46,9 +53,15 @@ class MPCSolver(object):
 
         # cost matrix for following the trajectory
         self._cost_matrix_traj = np.diag([
-            200, 200, 500,     # position
+            200, 200, 500,          # position
             100, 100, 100, 100,     # rotation (as quaternion)
-            50, 50, 50,        # velocity
+            50, 50, 50,             # velocity
+        ])
+
+        self._cost_matrix_traj = np.diag([
+            200, 200, 500,              # position
+            1000, 1000, 1000, 2000,     # rotation (as quaternion)
+            50, 50, 50,                 # velocity
         ])
 
         """
@@ -106,9 +119,9 @@ class MPCSolver(object):
             0.5 * (wx * quat_w + wz * quat_y - wy * quat_z),
             0.5 * (wy * quat_w - wz * quat_x + wx * quat_z),
             0.5 * (wz * quat_w + wy * quat_x - wx * quat_y),
-            2 * (quat_w * quat_y + quat_x * quat_z) * thrust,
-            2 * (quat_y * quat_z - quat_w * quat_x) * thrust,
-            (quat_w * quat_w - quat_x * quat_x - quat_y * quat_y + quat_z * quat_z) * thrust - self._gravity
+            2 * (quat_w * quat_y + quat_x * quat_z) * (thrust / self._mass),
+            2 * (quat_y * quat_z - quat_w * quat_x) * (thrust / self._mass),
+            (quat_w * quat_w - quat_x * quat_x - quat_y * quat_y + quat_z * quat_z) * (thrust / self._mass) - self._gravity
         )
 
         self.quad_dynamics = ca.Function(

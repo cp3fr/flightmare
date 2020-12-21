@@ -25,23 +25,23 @@ RacingTestEnv::RacingTestEnv(const std::string &cfg_path)
   quadrotor_ptr_->setWorldBox(world_box_);
 
   // define input and output dimension for the environment
-  obs_dim_ = racingenv::kNObs;
-  act_dim_ = racingenv::kNAct;
+  obs_dim_ = racingtestenv::kNObs;
+  act_dim_ = racingtestenv::kNAct;
 
   // add camera
   rgb_camera_ = std::make_unique<RGBCamera>();
   image_counter_ = 0;
   Vector<3> B_r_BC(0.0, -0.5, 0.3);
   Matrix<3, 3> R_BC = Quaternion(1.0, 0.0, 0.0, 0.0).toRotationMatrix();
-  rgb_camera_->setFOV(racingenv::fov);
-  rgb_camera_->setHeight(racingenv::image_height);
-  rgb_camera_->setWidth(racingenv::image_width);
+  rgb_camera_->setFOV(racingtestenv::fov);
+  rgb_camera_->setHeight(racingtestenv::image_height);
+  rgb_camera_->setWidth(racingtestenv::image_width);
   rgb_camera_->setRelPose(B_r_BC, R_BC);
   rgb_camera_->setPostProcesscing(std::vector<bool>{false, false, false});
   quadrotor_ptr_->addRGBCamera(rgb_camera_);
 
   // add gates, hard-coded for now
-  float positions[racingenv::num_gates][3] = {
+  float positions[racingtestenv::num_gates][3] = {
     {-18.0,  10.0, 2.5},
     {-25.0,   0.0, 2.5},
     {-18.0, -10.0, 2.5},
@@ -54,7 +54,7 @@ RacingTestEnv::RacingTestEnv(const std::string &cfg_path)
     { -1.3,   1.3, 2.5},
   };
   // only need the rotation angle around the z-axis
-  float orientations[racingenv::num_gates] = {
+  float orientations[racingtestenv::num_gates] = {
     -0.75 * M_PI_2,
     -0.50 * M_PI_2,
     -0.25 * M_PI_2,
@@ -66,7 +66,7 @@ RacingTestEnv::RacingTestEnv(const std::string &cfg_path)
      0.75 * M_PI_2,
      0.75 * M_PI_2,
   };
-  for (int i = 0; i < racingenv::num_gates; i++) {
+  for (int i = 0; i < racingtestenv::num_gates; i++) {
     gates_[i] = std::make_shared<StaticGate>("test_gate_" + std::to_string(i), "rpg_gate");
     gates_[i]->setPosition(Eigen::Vector3f(positions[i][1], positions[i][0], positions[i][2]));
     gates_[i]->setRotation(Quaternion(std::cos(-orientations[i]), 0.0, 0.0, std::sin(-orientations[i])));
@@ -76,8 +76,8 @@ RacingTestEnv::RacingTestEnv(const std::string &cfg_path)
   setUnity(true);
 
   Scalar mass = quadrotor_ptr_->getMass();
-  act_mean_ = Vector<racingenv::kNAct>::Ones() * (-mass * Gz) / 4;
-  act_std_ = Vector<racingenv::kNAct>::Ones() * (-mass * 2 * Gz) / 4;
+  act_mean_ = Vector<racingtestenv::kNAct>::Ones() * (-mass * Gz) / 4;
+  act_std_ = Vector<racingtestenv::kNAct>::Ones() * (-mass * 2 * Gz) / 4;
 }
 
 RacingTestEnv::~RacingTestEnv() {}
@@ -90,7 +90,7 @@ void RacingTestEnv::test(Ref<ImageFlat<>> image_test) {
   for (int i = 0; i < cv_image_.channels(); i++) {
     cv::cv2eigen(cv_channels_[i], channels_[i]);
     Map<ImageFlat<>> image_(channels_[i].data(), channels_[i].size());
-    image_test.block<racingenv::image_height * racingenv::image_width, 1>(i * racingenv::image_height * racingenv::image_width, 0) = image_;
+    image_test.block<racingtestenv::image_height * racingtestenv::image_width, 1>(i * racingtestenv::image_height * racingtestenv::image_width, 0) = image_;
   }
 
   /*
@@ -164,7 +164,7 @@ bool RacingTestEnv::getObs(Ref<Vector<>> obs, Ref<ImageFlat<>> image) {
   // see here: https://eigen.tuxfamily.org/dox/group__TutorialBlockOperations.html
   // apparently this just means that we assign to a segment of kNObs entries, starting at position
   //  kObs of the vector obs (in this case this just seems to be the start of the vector)
-  obs.segment<racingenv::kNObs>(racingenv::kObs) = quad_obs_;
+  obs.segment<racingtestenv::kNObs>(racingtestenv::kObs) = quad_obs_;
 
   // also capture an image
   // for now just print some information, since I don't know how the conversion from C++ to numpy should work
@@ -179,7 +179,7 @@ bool RacingTestEnv::getObs(Ref<Vector<>> obs, Ref<ImageFlat<>> image) {
       for (int i = 0; i < cv_image_.channels(); i++) {
         cv::cv2eigen(cv_channels_[i], channels_[i]);
         Map<ImageFlat<>> image_(channels_[i].data(), channels_[i].size());
-        image.block<racingenv::image_height * racingenv::image_width, 1>(i * racingenv::image_height * racingenv::image_width, 0) = image_;
+        image.block<racingtestenv::image_height * racingtestenv::image_width, 1>(i * racingtestenv::image_height * racingtestenv::image_width, 0) = image_;
       }
     }
     /*
@@ -260,17 +260,17 @@ bool RacingTestEnv::getAct(Command *const cmd) const {
 }
 
 int RacingTestEnv::getImageHeight() const {
-  return racingenv::image_height;
+  return racingtestenv::image_height;
 }
 
 int RacingTestEnv::getImageWidth() const {
-  return racingenv::image_width;
+  return racingtestenv::image_width;
 }
 
 void RacingTestEnv::addObjectsToUnity(std::shared_ptr<UnityBridge> bridge) {
   bridge->addQuadrotor(quadrotor_ptr_);
   //bridge->addStaticObject(gate_);
-  for (int i = 0; i < racingenv::num_gates; i++) {
+  for (int i = 0; i < racingtestenv::num_gates; i++) {
     bridge->addStaticObject(gates_[i]);
   }
 }

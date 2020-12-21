@@ -20,6 +20,7 @@ using json = nlohmann::json;
 
 namespace flightlib {
 
+/*
 enum UnityScene {
   INDUSTRIAL = 0,
   WAREHOUSE = 1,
@@ -28,6 +29,18 @@ enum UnityScene {
   NATUREFOREST = 3,
   // total number of environment
   SceneNum = 5
+};
+*/
+
+enum UnityScene {
+  INDUSTRIAL = 0,
+  ALPHAPILOT = 1,
+  WAREHOUSE = 2,
+  GARAGE = 3,
+  TUNELS = 4,
+  NATUREFOREST = 5,
+  // total number of environment
+  SceneNum = 6
 };
 
 // Unity Camera, should not be used alone.
