@@ -50,7 +50,7 @@ namespace mpcenv {
       // for testing
       image_height = 600,
       image_width = 800,
-      fov = 120,
+      fov = 90,
       // track info (should probably be loaded)
       num_gates = 10,
     };

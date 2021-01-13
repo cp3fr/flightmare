@@ -66,17 +66,18 @@ MPCTest::MPCTest(const std::string &cfg_path, const bool wave_track) {
   quadrotor_ptr_->addRGBCamera(rgb_camera_);
 
   // add gates, hard-coded for now
+  float gate_z = 2.1f;
   float positions[mpcenv::num_gates][3] = {
-    {-18.0,  10.0, 2.5},
-    {-25.0,   0.0, 2.5},
-    {-18.0, -10.0, 2.5},
-    { -1.3,  -1.3, 2.5},
-    {  1.3,   1.3, 2.5},
-    { 18.0,  10.0, 2.5},
-    { 25.0,   0.0, 2.5},
-    { 18.0, -10.0, 2.5},
-    {  1.3,  -1.3, 2.5},
-    { -1.3,   1.3, 2.5},
+    {-18.0,  10.0, gate_z},
+    {-25.0,   0.0, gate_z},
+    {-18.0, -10.0, gate_z},
+    { -1.3,  -1.3, gate_z},
+    {  1.3,   1.3, gate_z},
+    { 18.0,  10.0, gate_z},
+    { 25.0,   0.0, gate_z},
+    { 18.0, -10.0, gate_z},
+    {  1.3,  -1.3, gate_z},
+    { -1.3,   1.3, gate_z},
   };
   if (wave_track) {
     int temp[6] = {1, 3, 4, 6, 8, 9};
@@ -111,7 +112,7 @@ MPCTest::MPCTest(const std::string &cfg_path, const bool wave_track) {
     gates_[i] = std::make_shared<StaticGate>("test_gate_" + std::to_string(i), "rpg_gate");
     gates_[i]->setPosition(Eigen::Vector3f(positions[i][0], positions[i][1], positions[i][2]));
     gates_[i]->setRotation(Quaternion(std::cos(orientations[i]), 0.0, 0.0, std::sin(orientations[i])));
-    gates_[i]->setSize(Vector<3>(1.2, 1.0, 1.2));
+    // gates_[i]->setSize(Vector<3>(1.2, 1.0, 1.2));
   }
 
   // gates_[0] = std::make_shared<StaticGate>("test_gate", "rpg_gate");

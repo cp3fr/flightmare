@@ -68,7 +68,7 @@ def row_to_state(row):
     state = np.array([
         -row["position_y [m]"],
         row["position_x [m]"],
-        row["position_z [m]"] + 0.75,
+        row["position_z [m]"],  # + 0.75,
         quaternion_rot[0],
         quaternion_rot[1],
         quaternion_rot[2],
@@ -85,7 +85,7 @@ def row_to_state(row):
     state_original = np.array([
         row["position_x [m]"],
         row["position_y [m]"],
-        row["position_z [m]"] + 0.75,
+        row["position_z [m]"],  # + 0.75,
         row["rotation_w [quaternion]"],
         row["rotation_x [quaternion]"],
         row["rotation_y [quaternion]"],
@@ -132,12 +132,17 @@ def ensure_quaternion_consistency(trajectory):
     return trajectory
 
 
-def visualise_states(states, trajectory, simulation_time_horizon, simulation_time_step):
+def visualise_states(states, trajectory, simulation_time_horizon, simulation_time_step, exclude_first=False):
     subplot_labels = ["Position [m]", "Rotation [quaternion]", "Velocity [m/s]"]
     labels = [r"$x_{pos}$", r"$y_{pos}$", r"$z_{pos}$",
               r"$q_{w}$", r"$q_{x}$", r"$q_{y}$", r"$q_{z}$",
               r"$x_{vel}$", r"$y_{vel}$", r"$z_{vel}$"]
-    time_steps = np.arange(0.0, simulation_time_horizon + simulation_time_step, step=simulation_time_step)
+    time_start = simulation_time_step if exclude_first else 0.0
+    time_steps = np.arange(time_start, simulation_time_horizon + simulation_time_step, step=simulation_time_step)
+
+    states = states[:100]
+    trajectory = trajectory[:100]
+    time_steps = time_steps[:100]
 
     fig, ax = plt.subplots(nrows=3, ncols=1, sharex=True, figsize=(16, 8), dpi=100)
     for i in range(len(labels)):
@@ -159,9 +164,13 @@ def visualise_states(states, trajectory, simulation_time_horizon, simulation_tim
     plt.show()
 
 
-def visualise_actions(actions, simulation_time_horizon, simulation_time_step):
+def visualise_actions(actions, simulation_time_horizon, simulation_time_step, exclude_first=False):
     labels = ["thrust", "roll", "pitch", "yaw"]
-    time_steps = np.arange(0.0, simulation_time_horizon + simulation_time_step, step=simulation_time_step)
+    time_start = simulation_time_step if exclude_first else 0.0
+    time_steps = np.arange(time_start, simulation_time_horizon + simulation_time_step, step=simulation_time_step)
+
+    actions = actions[:100]
+    time_steps = time_steps[:100]
 
     fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(16, 3), dpi=100)
     for i in range(len(labels)):
@@ -184,7 +193,7 @@ def test_manual_trajectory():
     trajectory_path_wave_slow = "/home/simon/Downloads/trajectory_s010_r13_wave_li03.csv"
     trajectory_path_wave_slowest = "/home/simon/Downloads/trajectory_s007_r14_wave_li00.csv"
 
-    trajectory_path = trajectory_path_flat_slow
+    trajectory_path = trajectory_path_flat_medium
     trajectory = pd.read_csv(trajectory_path)
 
     # set the mode
@@ -205,6 +214,7 @@ def test_manual_trajectory():
     # create video writer for the onboard camera
     writer = cv2.VideoWriter(
         "/home/simon/Desktop/flightmare_cam_test/alphapilot_arena_test.mp4",
+        # "/home/simon/Desktop/flightmare_cam_test/fov_test/final_colours_9.mp4",
         cv2.VideoWriter_fourcc("m", "p", "4", "v"),
         fps,
         (env.image_width, env.image_height),
@@ -299,7 +309,7 @@ def test_simulation():
 
     # display parameters
     use_unity = True
-    show_plots = True
+    show_plots = False
     write_video = True
 
     # planner and MPC solver
@@ -328,7 +338,7 @@ def test_simulation():
     writer = None
     if use_unity and write_video:
         writer = cv2.VideoWriter(
-            "/home/simon/Desktop/flightmare_cam_test/flat_medium_mpc_mass_norm_test_pos_weight.mp4",
+            "/home/simon/Desktop/flightmare_cam_test/arena_test.mp4",
             cv2.VideoWriter_fourcc("m", "p", "4", "v"),
             1.0 / simulation_time_step,
             (wrapper.image_width, wrapper.image_height),
@@ -395,22 +405,23 @@ def test_simulation():
 def test_feature_tracker():
     video_path = "/home/simon/Desktop/weekly_meeting/meeting11/video_flat_medium_s016_r05_flat_li01.mp4"
     # video_path = "/home/simon/Desktop/weekly_meeting/meeting11/flat_medium_original.mp4"
-    video_path = "/home/simon/Desktop/flightmare_cam_test/alphapilot_arena_test.mp4"
-    # flightmare_video_path = "/home/simon/Desktop/weekly_meeting/meeting11/flat_medium_original.mp4"
+    video_path = "/home/simon/Desktop/weekly_meeting/meeting12/flat_medium_original.mp4"
+    flightmare_video_path = "/home/simon/Desktop/weekly_meeting/meeting12/flat_medium_alphapilot_arena.mp4"
 
     # some parameters
     show_tracks = True
-    show_plots = False
+    show_plots = True
     write_video = True
 
     # video stuff
     video_capture = cv2.VideoCapture(video_path)
-    # flightmare_video_capture = cv2.VideoCapture(flightmare_video_path)
+    flightmare_video_capture = cv2.VideoCapture(flightmare_video_path)
     w, h, fps, fourcc, num_frames = (video_capture.get(i) for i in range(3, 8))
     video_writer = None
     if write_video:
         video_writer = cv2.VideoWriter(
             "/home/simon/Desktop/flightmare_cam_test/features_alphapilot_arena_test.mp4",
+            # "/home/simon/Desktop/weekly_meeting/meeting11/video_flat_medium_features.mp4",
             int(fourcc),
             fps,
             (int(w), int(h)),
@@ -422,12 +433,12 @@ def test_feature_tracker():
     corner_mask = np.full_like(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY), 255)
     corner_mask[530:, 700:] = 0
     video_capture.set(cv2.CAP_PROP_POS_FRAMES, 0)
-    # flightmare_video_capture.set(cv2.CAP_PROP_POS_FRAMES, 0)
+    flightmare_video_capture.set(cv2.CAP_PROP_POS_FRAMES, 0)
 
     # create the trackers
     features_to_track = 100
     tracker = FeatureTracker(max_features_to_track=features_to_track, static_mask=corner_mask)
-    # flightmare_tracker = FeatureTracker(max_features_to_track=features_to_track, static_mask=corner_mask)
+    flightmare_tracker = FeatureTracker(max_features_to_track=features_to_track, static_mask=corner_mask)
 
     # create some random colors
     np.random.seed(127)
@@ -454,16 +465,16 @@ def test_feature_tracker():
     test_dict = {}
     while True:
         ret, frame = video_capture.read()
-        # flightmare_ret, flightmare_frame = flightmare_video_capture.read()
-        # if not (ret and flightmare_ret):
-        if not ret:
+        flightmare_ret, flightmare_frame = flightmare_video_capture.read()
+        # if not ret:
+        if not (ret and flightmare_ret):
             break
         frame_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        # flightmare_frame_gray = cv2.cvtColor(flightmare_frame, cv2.COLOR_BGR2GRAY)
+        flightmare_frame_gray = cv2.cvtColor(flightmare_frame, cv2.COLOR_BGR2GRAY)
 
         # extract the features
         features, previous_points, current_points, matched_points = tracker.process_image(frame_gray, return_image_points=True)
-        # flightmare_features = flightmare_tracker.process_image(flightmare_frame_gray)
+        flightmare_features = flightmare_tracker.process_image(flightmare_frame_gray)
 
         if show_tracks:
             for f_idx, f in enumerate(features):
@@ -495,14 +506,12 @@ def test_feature_tracker():
         tracking_stds.append(np.std(features[:, 1]))
         counts.append(features.shape[0])
 
-        """
         flightmare_tracking_min.append(np.min(flightmare_features[:, 1]))
         flightmare_tracking_max.append(np.max(flightmare_features[:, 1]))
         flightmare_tracking_medians.append(np.median(flightmare_features[:, 1]))
         flightmare_tracking_means.append(np.mean(flightmare_features[:, 1]))
         flightmare_tracking_stds.append(np.std(flightmare_features[:, 1]))
         flightmare_counts.append(flightmare_features.shape[0])
-        """
 
         mask = np.zeros_like(frame)
         if show_tracks:
@@ -532,7 +541,7 @@ def test_feature_tracker():
         counter += 1
 
     video_capture.release()
-    # flightmare_video_capture.release()
+    flightmare_video_capture.release()
     if write_video:
         video_writer.release()
 
@@ -703,8 +712,8 @@ if __name__ == "__main__":
     # test_manual_trajectory()
     # test_mpc()
     # test_planner()
-    # test_simulation()
+    test_simulation()
     # test_features()
-    test_feature_tracker()
+    # test_feature_tracker()
     # test_gate_size()
 
