@@ -69,6 +69,7 @@ PYBIND11_MODULE(flightgym, m) {
     .def("getImageWidth", &MPCTest::getImageWidth)
     .def("connectUnity", &MPCTest::connectUnity)
     .def("disconnectUnity", &MPCTest::disconnectUnity)
+    .def("setWaveTrack", &MPCTest::setWaveTrack)
     .def("__repr__", [](const MPCTest& a) {
       return "MPC Test Environment";
     });

@@ -46,13 +46,13 @@ namespace mpcenv {
       // image dimensions
       // image_height = 600,
       // image_width = 800,
-      // fov = 90,
       // for testing
       image_height = 600,
       image_width = 800,
-      fov = 90,
+      fov = 80,
       // track info (should probably be loaded)
       num_gates = 10,
+      num_elevated_gates = 6,
     };
 };
 
@@ -68,12 +68,15 @@ class MPCTest {
   // Unity methods
   void addObjectsToUnity(std::shared_ptr<UnityBridge> bridge);
   bool setUnity(bool render);
-  bool connectUnity();
+  bool connectUnity(const int pub_port = 10253, const int sub_port = 10254);
   void disconnectUnity();
 
   // getter methods
   int getImageHeight() const;
   int getImageWidth() const;
+
+  // setter methods
+  void setWaveTrack(bool wave_track);
 
   bool loadParam(const YAML::Node &cfg);
 
@@ -105,6 +108,33 @@ class MPCTest {
   bool unity_render_{false};
 
   std::vector<std::vector<Scalar>> test_yaml_;
+
+  // constants?
+  float POSITIONS[mpcenv::num_gates][3] = {
+    {-18.0,  10.0, 2.1},
+    {-25.0,   0.0, 2.1},
+    {-18.0, -10.0, 2.1},
+    { -1.3,  -1.3, 2.1},
+    {  1.3,   1.3, 2.1},
+    { 18.0,  10.0, 2.1},
+    { 25.0,   0.0, 2.1},
+    { 18.0, -10.0, 2.1},
+    {  1.3,  -1.3, 2.1},
+    { -1.3,   1.3, 2.1},
+  };
+  float ORIENTATIONS[mpcenv::num_gates] = {
+    0.75 * M_PI_2,
+    1.00 * M_PI_2,
+    0.25 * M_PI_2,
+    -0.25 * M_PI_2,
+    -0.25 * M_PI_2,
+    0.25 * M_PI_2,
+    1.00 * M_PI_2,
+    0.75 * M_PI_2,
+    -0.75 * M_PI_2,
+    -0.75 * M_PI_2,
+  };
+  int ELEVATED_GATES_INDICES[mpcenv::num_elevated_gates] = {1, 3, 4, 6, 8, 9};
 };
 
 }  // namespace flightlib

@@ -38,7 +38,7 @@ class UnityBridge {
   ~UnityBridge(){};
 
   // connect function
-  bool connectUnity(const SceneID scene_id);
+  bool connectUnity(const SceneID scene_id, const int pub_port = 10253, const int sub_port = 10254);
   bool disconnectUnity(void);
 
   // public get functions
@@ -96,5 +96,6 @@ class UnityBridge {
   // axuiliary variables
   const Scalar unity_connection_time_out_{10.0};
   bool unity_ready_{false};
+  bool connections_initialized_{false};
 };
 }  // namespace flightlib

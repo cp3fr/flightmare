@@ -13,7 +13,7 @@ UnityBridge::UnityBridge()
     u_packet_latency_(0),
     unity_ready_(false) {
   // initialize connections upon creating unity bridge
-  initializeConnections();
+  // initializeConnections();
 }
 
 bool UnityBridge::initializeConnections() {
@@ -34,7 +34,16 @@ bool UnityBridge::initializeConnections() {
   return true;
 }
 
-bool UnityBridge::connectUnity(const SceneID scene_id) {
+bool UnityBridge::connectUnity(const SceneID scene_id, const int pub_port, const int sub_port) {
+  pub_port_ = std::to_string(pub_port);
+  sub_port_ = std::to_string(sub_port);
+
+  // initialize connections
+  if (!connections_initialized_) {
+    initializeConnections();
+    connections_initialized_ = true;
+  }
+
   Scalar time_out_count = 0;
   Scalar sleep_useconds = 0.2 * 1e5;
   setScene(scene_id);
@@ -234,7 +243,7 @@ bool UnityBridge::handleOutput() {
 
         // Tell OpenCv that the input is RGB.
         if (cam.channels == 3) {
-          cv::cvtColor(new_image, new_image, CV_RGB2BGR);
+          cv::cvtColor(new_image, new_image, cv::COLOR_RGB2BGR);
         }
         unity_quadrotors_[idx]->getCameras()[cam.output_index]->feedImageQueue(
           layer_idx, new_image);

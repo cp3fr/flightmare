@@ -26,8 +26,8 @@ class MPCTestWrapper:
         self.env.step(new_state, self.image)
         return self._reshape_image()
 
-    def connect_unity(self):
-        self.env.connectUnity()
+    def connect_unity(self, pub_port=10253, sub_port=10254):
+        self.env.connectUnity(pub_port, sub_port)
 
     def disconnect_unity(self):
         self.env.disconnectUnity()

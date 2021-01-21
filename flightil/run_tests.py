@@ -100,7 +100,10 @@ def row_to_state(row):
 
 def sample_from_trajectory(trajectory, time_stamp):
     # probably just take the closest ts for now, might do interpolation later
-    index = trajectory.loc[trajectory["time-since-start [s]"] <= time_stamp, "time-since-start [s]"].idxmax()
+    if time_stamp < trajectory["time-since-start [s]"].min():
+        index = 0
+    else:
+        index = trajectory.loc[trajectory["time-since-start [s]"] <= time_stamp, "time-since-start [s]"].idxmax()
     return row_to_state(trajectory.iloc[index])
     # return np.array([0, 0, 5, 1, 0, 0, 0, 0, 0, 0], dtype=np.float32)
     # return row_to_state(trajectory.iloc[0])
@@ -132,7 +135,7 @@ def ensure_quaternion_consistency(trajectory):
     return trajectory
 
 
-def visualise_states(states, trajectory, simulation_time_horizon, simulation_time_step, exclude_first=False):
+def visualise_states(states, trajectory, simulation_time_horizon, simulation_time_step, exclude_first=False, skip_show=False):
     subplot_labels = ["Position [m]", "Rotation [quaternion]", "Velocity [m/s]"]
     labels = [r"$x_{pos}$", r"$y_{pos}$", r"$z_{pos}$",
               r"$q_{w}$", r"$q_{x}$", r"$q_{y}$", r"$q_{z}$",
@@ -140,9 +143,14 @@ def visualise_states(states, trajectory, simulation_time_horizon, simulation_tim
     time_start = simulation_time_step if exclude_first else 0.0
     time_steps = np.arange(time_start, simulation_time_horizon + simulation_time_step, step=simulation_time_step)
 
-    states = states[:100]
-    trajectory = trajectory[:100]
-    time_steps = time_steps[:100]
+    print(time_start)
+    print(simulation_time_horizon)
+    print(simulation_time_step)
+    print(time_steps.shape)
+
+    # states = states[:100]
+    # trajectory = trajectory[:100]
+    # time_steps = time_steps[:100]
 
     fig, ax = plt.subplots(nrows=3, ncols=1, sharex=True, figsize=(16, 8), dpi=100)
     for i in range(len(labels)):
@@ -161,16 +169,17 @@ def visualise_states(states, trajectory, simulation_time_horizon, simulation_tim
         a.set_ylabel(lab)
     ax[2].set_xlabel("Time [s]")
     fig.tight_layout()
-    plt.show()
+    if not skip_show:
+        plt.show()
 
 
-def visualise_actions(actions, simulation_time_horizon, simulation_time_step, exclude_first=False):
+def visualise_actions(actions, simulation_time_horizon, simulation_time_step, exclude_first=False, skip_show=False):
     labels = ["thrust", "roll", "pitch", "yaw"]
     time_start = simulation_time_step if exclude_first else 0.0
     time_steps = np.arange(time_start, simulation_time_horizon + simulation_time_step, step=simulation_time_step)
 
-    actions = actions[:100]
-    time_steps = time_steps[:100]
+    # actions = actions[:100]
+    # time_steps = time_steps[:100]
 
     fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(16, 3), dpi=100)
     for i in range(len(labels)):
@@ -179,7 +188,8 @@ def visualise_actions(actions, simulation_time_horizon, simulation_time_step, ex
     ax.set_ylabel("Control input")
     ax.set_xlabel("Time [s]")
     fig.tight_layout()
-    plt.show()
+    if not skip_show:
+        plt.show()
 
 
 def test_manual_trajectory():
@@ -213,8 +223,10 @@ def test_manual_trajectory():
 
     # create video writer for the onboard camera
     writer = cv2.VideoWriter(
-        "/home/simon/Desktop/flightmare_cam_test/alphapilot_arena_test.mp4",
+        # "/home/simon/Desktop/flightmare_cam_test/alphapilot_arena_test.mp4",
         # "/home/simon/Desktop/flightmare_cam_test/fov_test/final_colours_9.mp4",
+        # "/home/simon/Desktop/flightmare_cam_test/flightmare_original.mp4",
+        "/home/simon/Desktop/flightmare_cam_test/flightmare_original_fov_74.mp4",
         cv2.VideoWriter_fourcc("m", "p", "4", "v"),
         fps,
         (env.image_width, env.image_height),
@@ -237,6 +249,9 @@ def test_manual_trajectory():
 
             time_current = time.time()
     else:
+        for _ in range(20):
+            sample = sample_from_trajectory(trajectory, 0.0)
+            image = env.step(sample)
         time_current = 0.0
         time_step = 1.0 / fps
         while time_current <= time_total:
@@ -273,7 +288,7 @@ def test_mpc():
     pprint(planned_traj.reshape((-1, 10))[:, :3])
 
     # construct the MPC solver and solve with these states
-    mpc_solver = MPCSolver(plan_time_horizon, plan_time_step, os.path.join(os.path.abspath("../"), "mpc/mpc/saved/mpc_v2.so"))
+    mpc_solver = MPCSolver(plan_time_horizon, plan_time_step, os.path.join(os.path.abspath("/"), "mpc/mpc/saved/mpc_v2.so"))
     optimal_action, predicted_traj = mpc_solver.solve(planned_traj)
 
     print(optimal_action.shape, optimal_action.squeeze())
@@ -301,7 +316,7 @@ def test_simulation():
     trajectory_path_wave_slowest = "/home/simon/Downloads/trajectory_s007_r14_wave_li00.csv"
 
     trajectory_path = trajectory_path_flat_medium
-    mpc_binary_path = os.path.join(os.path.abspath("../"), "mpc/mpc/saved/mpc_v2.so")
+    mpc_binary_path = os.path.join(os.path.abspath("/"), "mpc/mpc/saved/mpc_v2.so")
 
     # planning parameters
     plan_time_horizon = 3.0
@@ -709,10 +724,10 @@ def test_gate_size():
 
 
 if __name__ == "__main__":
-    # test_manual_trajectory()
+    test_manual_trajectory()
     # test_mpc()
     # test_planner()
-    test_simulation()
+    # test_simulation()
     # test_features()
     # test_feature_tracker()
     # test_gate_size()

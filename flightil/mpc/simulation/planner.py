@@ -31,35 +31,13 @@ def row_to_state(row):
     return state
 
 
-class TrajectoryPlanner:
+class TrajectorySampler:
 
-    def __init__(self, trajectory_path, plan_time_horizon=2.0, plan_time_step=0.1):
+    def __init__(self, trajectory_path):
         self._trajectory = pd.read_csv(trajectory_path)
         self._ensure_quaternion_consistency()
-
-        self._plan_time_horizon = plan_time_horizon
-        self._plan_time_step = plan_time_step
-        self._num_plan_steps = int(self._plan_time_horizon / self._plan_time_step)
-
         self._final_time_stamp = self._trajectory["time-since-start [s]"].max()
-
-    def plan(self, current_state, current_time):
-        latest_non_hover_state = current_state.tolist()
-        planned_trajectory = list(current_state)
-        for step in range(self._num_plan_steps + 1):
-            time = current_time + step * self._plan_time_step
-
-            if time <= self._final_time_stamp:
-                state = self._sample_from_trajectory(current_time + step * self._plan_time_step).tolist()
-                planned_trajectory += state
-                latest_non_hover_state = state
-            else:
-                # hover
-                # TODO: probably some kind of interpolation between the last "proper" state and a hover state
-                planned_trajectory += latest_non_hover_state[:2] + [3.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-        planned_trajectory = np.array(planned_trajectory)
-
-        return planned_trajectory
+        # TODO: maybe implement other ways of sampling from the trajectory, e.g. using the position as well
 
     def get_final_time_stamp(self):
         return self._final_time_stamp
@@ -69,6 +47,15 @@ class TrajectoryPlanner:
 
     def get_final_state(self):
         return row_to_state(self._trajectory.iloc[-1])
+
+    def sample_from_trajectory(self, time_stamp, interpolation="nearest_below"):
+        # TODO: implement some sort of interpolation
+        row_idx = self._trajectory["time-since-start [s]"] <= time_stamp
+        if all(~row_idx):
+            index = 0
+        else:
+            index = self._trajectory.loc[row_idx, "time-since-start [s]"].idxmax()
+        return row_to_state(self._trajectory.iloc[index])
 
     def _ensure_quaternion_consistency(self):
         flipped = 0
@@ -89,15 +76,45 @@ class TrajectoryPlanner:
             self._trajectory.loc[i, "flipped"] = flipped
 
             prev_signs_positive = current_signs_positive
-            # prev_quaternion = self._trajectory.loc[i, quat_columns]
 
         self._trajectory.loc[self._trajectory["flipped"] == 1, quat_columns] *= -1.0
 
-    def _sample_from_trajectory(self, time_stamp, interpolation="nearest_below"):
-        # TODO: implement some sort of interpolation
-        row_idx = self._trajectory["time-since-start [s]"] <= time_stamp
-        index = self._trajectory.loc[row_idx, "time-since-start [s]"].idxmax()
-        return row_to_state(self._trajectory.iloc[index])
+
+class TrajectoryPlanner:
+
+    def __init__(self, trajectory_path, plan_time_horizon=2.0, plan_time_step=0.1):
+        self._trajectory_sampler = TrajectorySampler(trajectory_path)
+
+        self._plan_time_horizon = plan_time_horizon
+        self._plan_time_step = plan_time_step
+        self._num_plan_steps = int(self._plan_time_horizon / self._plan_time_step)
+
+    def plan(self, current_state, current_time):
+        latest_non_hover_state = current_state.tolist()
+        planned_trajectory = list(current_state)
+        for step in range(self._num_plan_steps + 1):
+            time = current_time + step * self._plan_time_step
+
+            if time <= self.get_final_time_stamp():
+                state = self._trajectory_sampler.sample_from_trajectory(current_time + step * self._plan_time_step).tolist()
+                planned_trajectory += state
+                latest_non_hover_state = state
+            else:
+                # hover
+                # TODO: probably some kind of interpolation between the last "proper" state and a hover state
+                planned_trajectory += latest_non_hover_state[:2] + [3.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        planned_trajectory = np.array(planned_trajectory)
+
+        return planned_trajectory
+
+    def get_final_time_stamp(self):
+        return self._trajectory_sampler.get_final_time_stamp()
+
+    def get_initial_state(self):
+        return self._trajectory_sampler.get_initial_state()
+
+    def get_final_state(self):
+        return self._trajectory_sampler.get_final_state()
 
 
 class HoverPlanner:

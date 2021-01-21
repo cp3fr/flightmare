@@ -47,7 +47,8 @@ MPCTest::MPCTest(const std::string &cfg_path, const bool wave_track) {
   // Matrix<3, 3> R_BC = Quaternion(std::cos(-0.5 * M_PI_2), 0.0, 0.0, std::sin(-0.5 * M_PI_2)).toRotationMatrix();
 
   // airsim
-  float uptilt_angle = -(30.0 / 90.0) * M_PI_2;
+  float uptilt_angle = 30.0;
+  uptilt_angle = -(uptilt_angle / 90.0) * M_PI_2;
   Vector<3> B_r_BC(0.2, 0.0, 0.1);
   // Vector<3> B_r_BC(0.2, 0.032, 0.1);
   // Matrix<3, 3> R_BC = Quaternion(std::cos(0.5 * uptilt_angle), std::sin(0.5 * uptilt_angle), 0.0, 0.0).toRotationMatrix();
@@ -62,63 +63,15 @@ MPCTest::MPCTest(const std::string &cfg_path, const bool wave_track) {
   rgb_camera_->setWidth(mpcenv::image_width);
   rgb_camera_->setRelPose(B_r_BC, R_BC);
   rgb_camera_->setPostProcesscing(std::vector<bool>{false, false, false});
-  // camera_dummy_->addRGBCamera(rgb_camera_);
   quadrotor_ptr_->addRGBCamera(rgb_camera_);
 
   // add gates, hard-coded for now
-  float gate_z = 2.1f;
-  float positions[mpcenv::num_gates][3] = {
-    {-18.0,  10.0, gate_z},
-    {-25.0,   0.0, gate_z},
-    {-18.0, -10.0, gate_z},
-    { -1.3,  -1.3, gate_z},
-    {  1.3,   1.3, gate_z},
-    { 18.0,  10.0, gate_z},
-    { 25.0,   0.0, gate_z},
-    { 18.0, -10.0, gate_z},
-    {  1.3,  -1.3, gate_z},
-    { -1.3,   1.3, gate_z},
-  };
-  if (wave_track) {
-    int temp[6] = {1, 3, 4, 6, 8, 9};
-    for (int i = 0; i < 6; i++) {
-      positions[temp[i]][2] += 3.0;
-    }
-  }
-  // only need the rotation angle around the z-axis
-  float orientations[mpcenv::num_gates] = {
-    0.75 * M_PI_2,
-    1.00 * M_PI_2,
-    0.25 * M_PI_2,
-     -0.25 * M_PI_2,
-     -0.25 * M_PI_2,
-    0.25 * M_PI_2,
-    1.00 * M_PI_2,
-    0.75 * M_PI_2,
-     -0.75 * M_PI_2,
-     -0.75 * M_PI_2,
-  };
-  /*float orientations_quat[mpcenv::num_gates][4] = {
-    {-1.13142612047032E-16	-0.923879539192906	0.382683416234233	2.09060288562188E-16},
-    {},
-    {}
-    {}
-    {}
-    {}
-    {}
-  }*/
-
   for (int i = 0; i < mpcenv::num_gates; i++) {
     gates_[i] = std::make_shared<StaticGate>("test_gate_" + std::to_string(i), "rpg_gate");
-    gates_[i]->setPosition(Eigen::Vector3f(positions[i][0], positions[i][1], positions[i][2]));
-    gates_[i]->setRotation(Quaternion(std::cos(orientations[i]), 0.0, 0.0, std::sin(orientations[i])));
-    // gates_[i]->setSize(Vector<3>(1.2, 1.0, 1.2));
+    gates_[i]->setPosition(Eigen::Vector3f(POSITIONS[i][0], POSITIONS[i][1], POSITIONS[i][2]));
+    gates_[i]->setRotation(Quaternion(std::cos(ORIENTATIONS[i]), 0.0, 0.0, std::sin(ORIENTATIONS[i])));
   }
-
-  // gates_[0] = std::make_shared<StaticGate>("test_gate", "rpg_gate");
-  // gates_[0]->setPosition(Eigen::Vector3f(0.0, 0.0, 3.35 * 0.5 + 0.36));
-  // gates_[0]->setRotation(Quaternion(std::cos(orientations[i]), 0.0, 0.0, std::sin(orientations[i])));
-  // gates_[i]->setSize(Vector<3>(1.2, 1.0, 1.2));
+  setWaveTrack(wave_track);
 
   std::cout << "Gate size: " << gates_[0]->getSize().transpose() << std::endl;
 
@@ -175,9 +128,9 @@ bool MPCTest::setUnity(bool render) {
   return true;
 }
 
-bool MPCTest::connectUnity(void) {
+bool MPCTest::connectUnity(const int pub_port, const int sub_port) {
   if (unity_bridge_ptr_ == nullptr) return false;
-  unity_ready_ = unity_bridge_ptr_->connectUnity(scene_id_);
+  unity_ready_ = unity_bridge_ptr_->connectUnity(scene_id_, pub_port, sub_port);
   return unity_ready_;
 }
 
@@ -196,6 +149,20 @@ int MPCTest::getImageHeight() const {
 
 int MPCTest::getImageWidth() const {
   return mpcenv::image_width;
+}
+
+void MPCTest::setWaveTrack(bool wave_track) {
+  float pos_z;
+  int i;
+  for (int j = 0; j < mpcenv::num_elevated_gates; j++) {
+    i = ELEVATED_GATES_INDICES[j];
+    pos_z = POSITIONS[i][2];
+    if (wave_track) {
+      pos_z += 3.0;
+    }
+    std::cout << pos_z << std::endl;
+    gates_[i]->setPosition(Eigen::Vector3f(POSITIONS[i][0], POSITIONS[i][1], pos_z));
+  }
 }
 
 bool MPCTest::loadParam(const YAML::Node &cfg) {

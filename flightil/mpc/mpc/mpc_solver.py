@@ -32,10 +32,10 @@ class MPCSolver(object):
         # self._thrust_max = 20.0
 
         # parameters from alphapilot:
-        self._w_max_yaw = 3.0
-        self._w_max_xy = 3.0
+        self._w_max_yaw = 6.0  # 3.0
+        self._w_max_xy = 6.0  # 3.0
         self._thrust_min = 0.5
-        self._thrust_max = 16.0
+        self._thrust_max = 20.0  # 16.0
 
         # state dimension (px, py, pz,           # quadrotor position
         #                  qw, qx, qy, qz,       # quadrotor quaternion
@@ -58,11 +58,13 @@ class MPCSolver(object):
             50, 50, 50,             # velocity
         ])
 
+        """
         self._cost_matrix_traj = np.diag([
             200, 200, 500,              # position
             1000, 1000, 1000, 2000,     # rotation (as quaternion)
             50, 50, 50,                 # velocity
         ])
+        """
 
         """
         self._cost_matrix_traj = np.diag([
@@ -71,6 +73,12 @@ class MPCSolver(object):
             0, 0, 0,  # velocity
         ])
         """
+
+        self._cost_matrix_traj = np.diag([
+            100, 100, 300,  # position
+            100, 100, 100, 100,  # rotation (as quaternion)
+            50, 50, 50,  # velocity
+        ])
 
         # cost matrix for the action
         self._cost_matrix_action = np.diag([0.1, 0.1, 0.1, 0.1])  # T, wx, wy, wz

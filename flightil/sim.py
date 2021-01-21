@@ -1,16 +1,16 @@
 import os
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 import cv2
 
+from time import time
 from mpc.mpc.mpc_solver import MPCSolver
-from mpc.simulation.planner import TrajectoryPlanner, HoverPlanner, RisePlanner
+from mpc.simulation.planner import TrajectoryPlanner
 from mpc.simulation.mpc_test_env import MPCTestEnv
 from mpc.simulation.mpc_test_wrapper import MPCTestWrapper
-from envs.racing_env_wrapper import RacingEnvWrapper
-from features.feature_tracker import FeatureTracker
 
-from mpc.run_tests import ensure_quaternion_consistency, visualise_states, visualise_actions
+from run_tests import ensure_quaternion_consistency, visualise_actions, visualise_states
 
 
 # simulation interface (should provide getter methods for sensor data and accept commands of some form)
@@ -53,10 +53,10 @@ class CommandInterface:
 
 if __name__ == "__main__":
     # timings
-    base_frequency = 150.0
-    state_frequency = 30.0
-    image_frequency = 30.0
-    command_frequency = 30.0
+    base_frequency = 50.0
+    state_frequency = 50.0
+    image_frequency = 50.0
+    command_frequency = 25.0
 
     base_time_step = 1.0 / base_frequency
     state_time_step = 1.0 / state_frequency
@@ -64,7 +64,10 @@ if __name__ == "__main__":
     command_time_step = 1.0 / command_frequency
 
     # paths
-    trajectory_path = "/home/simon/Downloads/trajectory_s016_r05_flat_li01.csv"
+    # trajectory_path = "/home/simon/Downloads/trajectory_s016_r05_flat_li01.csv"  # medium (median)
+    # trajectory_path = "/home/simon/Downloads/trajectory_s024_r08_flat_li09.csv"  # fast
+    # trajectory_path = "/home/simon/Downloads/trajectory_s018_r09_wave_li04.csv"  # medium wave
+    trajectory_path = "/home/simon/Downloads/trajectory_s020_r13_wave_li04.csv"  # fast wave
     mpc_binary_path = os.path.join(os.path.abspath("../"), "mpc/mpc/saved/mpc_v2.so")
 
     # planning parameters
@@ -84,12 +87,15 @@ if __name__ == "__main__":
     env.reset()
 
     # wrapper (always used for now?)
-    wrapper = MPCTestWrapper(wave_track=False)
-    wrapper.connect_unity()
+    wrapper = MPCTestWrapper(wave_track=True)
+    # wrapper.env.setWaveTrack(False)
+    wrapper.connect_unity(pub_port=30253, sub_port=30254)
 
     # video writer (also always used for now?)
     writer = cv2.VideoWriter(
-        "/home/simon/Desktop/flightmare_cam_test/async_sim_test.mp4",
+        # "/home/simon/Desktop/flightmare_cam_test/alphapilot_arena_mpc_async_5.mp4",
+        # "/home/simon/Desktop/weekly_meeting/meeting14/cam_angle_test_mpc_wave_fast_rot.mp4",
+        "/home/simon/Desktop/flightmare_cam_test/test_headless_mode.mp4",
         cv2.VideoWriter_fourcc("m", "p", "4", "v"),
         1.0 / image_time_step,
         (wrapper.image_width, wrapper.image_height),
@@ -121,7 +127,10 @@ if __name__ == "__main__":
     state, action, image = None, None, None
 
     # loop with "halting" (maybe change to for-loop?)
+    total_time_command = 0.0
+    total_time_image = 0.0
     while base_time <= total_time:
+        start_command = time()
         if command_time <= base_time:
             # current_command = command_interface.get_command(current_state)
             # simulation_interface.step(current_command)
@@ -135,6 +144,7 @@ if __name__ == "__main__":
         else:
             # not using the new interfaces
             state, _ = env.step(action)
+        total_time_command += time() - start_command
 
         if state_time <= base_time:
             # current_state["state"] = simulation_interface.get_state()
@@ -144,6 +154,7 @@ if __name__ == "__main__":
             # not using the new interfaces
             # states.append(state)
 
+        start_image = time()
         if image_time <= base_time:
             # current_state["image"] = simulation_interface.get_image()
             image_time += image_time_step
@@ -152,6 +163,7 @@ if __name__ == "__main__":
             # not using the new interfaces; TODO: need separate get_image and get_imu (see interfaces above)
             image = wrapper.step(state)
             writer.write(image)
+        total_time_image += time() - start_image
 
         base_time += base_time_step
         counter[0] += 1
@@ -159,6 +171,10 @@ if __name__ == "__main__":
         # record these with the base frequency to see actions work as intended
         actions.append(action)
         states.append(state)
+
+    print("results for {} FPS".format(image_frequency))
+    print("command - total: {}s, average: {}s".format(total_time_command, total_time_command / counter[3]))
+    print(" image  - total: {}s, average: {}s".format(total_time_image, total_time_image / counter[2]))
 
     # "clean up"
     wrapper.disconnect_unity()
@@ -191,6 +207,10 @@ if __name__ == "__main__":
             "time-since-start [s]",
         ]].values
 
-        # visualise_states(states, trajectory, simulation_time_horizon, base_time_step, True)
-        visualise_actions(actions, simulation_time_horizon, base_time_step, True)
+        # visualise_states(states, trajectory, simulation_time_horizon, base_time_step, True, False)
+        # plt.savefig("/home/simon/Desktop/weekly_meeting/meeting14/cam_angle_test_mpc_wave_fast_rot_states.png")
+        # plt.close()
+        # visualise_actions(actions, simulation_time_horizon, base_time_step, True, False)
+        # plt.savefig("/home/simon/Desktop/weekly_meeting/meeting14/cam_angle_test_mpc_wave_fast_rot_actions.png")
+        # plt.close()
 
