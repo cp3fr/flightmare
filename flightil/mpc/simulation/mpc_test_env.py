@@ -40,8 +40,9 @@ class MPCTestEnv(object):
 
         return self.quad_state
 
-    def step(self, action=None):
+    def step(self, action=None, return_previous_state=False):
         self.current_time += self.simulation_time_step
+        previous_state = self.quad_rotor.get_state()
 
         optimal_action = action
         if optimal_action is None:
@@ -76,14 +77,19 @@ class MPCTestEnv(object):
             print("predicted:", predicted_state)
             """
 
+        optimal_action = optimal_action.squeeze()
+
         # optimal_action = np.array([15.0, 0.0, 0.0, 0.0])
 
         # run the actual control command on the quadrotor
         self.quad_state = self.quad_rotor.run(optimal_action)
-        # self.quad_state = self.quad_rotor.get_state()
+        self.quad_state = self.quad_rotor.get_state()
 
         # print("action:", optimal_action.squeeze())
         # print("action[0] >= 9.81:", optimal_action.squeeze()[0] >= 9.81)
         # print("predicted action:", predicted_action)
 
-        return self.quad_state, optimal_action.squeeze()
+        if return_previous_state:
+            return previous_state, self.quad_state, optimal_action
+
+        return self.quad_state, optimal_action

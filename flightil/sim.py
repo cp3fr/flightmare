@@ -4,6 +4,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import cv2
 
+from tqdm import tqdm
 from time import time
 from mpc.mpc.mpc_solver import MPCSolver
 from mpc.simulation.planner import TrajectoryPlanner
@@ -89,7 +90,7 @@ if __name__ == "__main__":
     # wrapper (always used for now?)
     wrapper = MPCTestWrapper(wave_track=True)
     # wrapper.env.setWaveTrack(False)
-    wrapper.connect_unity(pub_port=30253, sub_port=30254)
+    wrapper.connect_unity(pub_port=10253, sub_port=10254)
 
     # video writer (also always used for now?)
     writer = cv2.VideoWriter(
@@ -207,10 +208,10 @@ if __name__ == "__main__":
             "time-since-start [s]",
         ]].values
 
-        # visualise_states(states, trajectory, simulation_time_horizon, base_time_step, True, False)
+        visualise_states(states, trajectory, simulation_time_horizon, base_time_step, True, False)
         # plt.savefig("/home/simon/Desktop/weekly_meeting/meeting14/cam_angle_test_mpc_wave_fast_rot_states.png")
         # plt.close()
-        # visualise_actions(actions, simulation_time_horizon, base_time_step, True, False)
+        visualise_actions(actions, simulation_time_horizon, base_time_step, True, False)
         # plt.savefig("/home/simon/Desktop/weekly_meeting/meeting14/cam_angle_test_mpc_wave_fast_rot_actions.png")
         # plt.close()
 

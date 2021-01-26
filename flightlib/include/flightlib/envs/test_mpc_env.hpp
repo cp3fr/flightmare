@@ -83,14 +83,15 @@ class MPCTest {
  private:
   // quadrotor
   std::shared_ptr<Quadrotor> quadrotor_ptr_;
-  std::shared_ptr<Quadrotor> camera_dummy_;
+  std::shared_ptr<Quadrotor> camera_dummy_[3];
   QuadState quad_state_;
-  QuadState camera_dummy_state_;
+  QuadState camera_dummy_state_[3];
   Matrix<3, 2> world_box_;
 
   // camera
   int cam_height_, cam_width_, cam_fov_;
   std::shared_ptr<RGBCamera> rgb_camera_;
+  std::shared_ptr<RGBCamera> dummy_camera_[3];
 
   // image observations
   int image_counter_;

@@ -19,6 +19,7 @@ class QuadRotor:
         self._simulation_time_step = simulation_time_step
         self._arm_length = 0.3  # m
         self._mass = 1.0  # 3.2
+        # self._mass = 3.2
 
         # Sampling range of the quadrotor's initial position
         # TODO: this would have to be around some (probably specified initial starting point)
@@ -83,6 +84,7 @@ class QuadRotor:
         """
         Apply the control command on the quadrotor and transits the system to the next state
         """
+        # print(action)
 
         refine_steps = 4
         refine_dt = self._simulation_time_step / refine_steps
@@ -106,13 +108,14 @@ class QuadRotor:
         System dynamics: ds = f(x, u)
         """
         thrust, wx, wy, wz = action
+        # print(thrust)
         thrust /= self._mass
 
         state_dot = np.zeros(shape=self.state_dim)
 
         state_dot[kPosX:kPosZ + 1] = state[kVelX:kVelZ + 1]
 
-        qw, qx, qy, qz = self.get_quaternion()
+        qw, qx, qy, qz = self.get_quaternion(state)
 
         state_dot[kQuatW] = 0.5 * (-wx * qx - wy * qy - wz * qz)
         state_dot[kQuatX] = 0.5 * (wx * qw + wz * qy - wy * qz)
@@ -159,11 +162,13 @@ class QuadRotor:
         """
         return self._state[kVelX:kVelZ + 1]
 
-    def get_quaternion(self):
+    def get_quaternion(self, state=None):
         """
         Retrieve Quaternion
         """
-        quat = self._state[kQuatW:kQuatZ + 1]
+        if state is None:
+            state = self._state
+        quat = state[kQuatW:kQuatZ + 1]
         quat = quat / np.linalg.norm(quat)
         return quat
 

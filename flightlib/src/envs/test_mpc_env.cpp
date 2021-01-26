@@ -27,7 +27,29 @@ MPCTest::MPCTest(const std::string &cfg_path, const bool wave_track) {
   world_box_ << -30, 30, -30, 30, 0, 30;
   quadrotor_ptr_->setWorldBox(world_box_);
 
-  // add camera
+  // add dummy cameras
+  /*
+  Vector<3> dummy_translation(0.0, 0.5, 0.3);
+  Matrix<3, 3> dummy_rotation = Quaternion(1.0, 0.0, 0.0, 0.0).toRotationMatrix();
+  for (int i = 0; i < 3; i++) {
+    camera_dummy_[i] = std::make_shared<Quadrotor>();
+    camera_dummy_[i]->setWorldBox(world_box_);
+
+    camera_dummy_state_[i].x = Vector<25>::Zero();
+    camera_dummy_state_[i].t = (Scalar) 0.0f;
+    camera_dummy_state_[i].x.segment<3>(0) << 0.0, -15.0, ((Scalar) i) * 3.0;
+    camera_dummy_state_[i].x.segment<2>(3) << std::cos(M_PI_2 * -0.25), std::sin(M_PI_2 * -0.25);
+    camera_dummy_[i]->setState(camera_dummy_state_[i]);
+
+    dummy_camera_[i] = std::make_unique<RGBCamera>();
+    dummy_camera_[i]->setFOV(mpcenv::fov);
+    dummy_camera_[i]->setHeight(mpcenv::image_height);
+    dummy_camera_[i]->setWidth(mpcenv::image_width);
+    dummy_camera_[i]->setRelPose(dummy_translation, dummy_rotation);
+    dummy_camera_[i]->setPostProcesscing(std::vector<bool>{false, false, false});
+    camera_dummy_[i]->addRGBCamera(dummy_camera_[i]);
+  }*/
+
   /*
   camera_dummy_ = std::make_shared<Quadrotor>();
   camera_dummy_->setWorldBox(world_box_);
@@ -115,6 +137,11 @@ void MPCTest::addObjectsToUnity(std::shared_ptr<UnityBridge> bridge) {
   for (int i = 0; i < mpcenv::num_gates; i++) {
     bridge->addStaticObject(gates_[i]);
   }
+  /*
+  for (int i = 0; i < 3; i++) {
+    bridge->addQuadrotor(camera_dummy_[i]);
+  }
+  */
 }
 
 bool MPCTest::setUnity(bool render) {

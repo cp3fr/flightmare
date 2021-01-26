@@ -151,7 +151,6 @@ dependencies:
   - pip:
     - atari-py==0.2.6
     - cloudpickle==1.6.0
-    - flightgym==0.0.1
     - future==0.18.2
     - gym==0.18.0
     - joblib==1.0.0

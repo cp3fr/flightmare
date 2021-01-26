@@ -17,113 +17,99 @@
 #include <opencv2/core/eigen.hpp>
 
 // flightlib
-#include "flightlib/bridges/unity_bridge.hpp"
-#include "flightlib/common/command.hpp"
-#include "flightlib/common/logger.hpp"
-#include "flightlib/common/quad_state.hpp"
-#include "flightlib/common/types.hpp"
 #include "flightlib/envs/env_base_camera.hpp"
-#include "flightlib/objects/quadrotor.hpp"
 #include "flightlib/objects/static_gate.hpp"
-#include "flightlib/sensors/rgb_camera.hpp"
 
 namespace flightlib {
 
-using ChannelMatrix = Eigen::Matrix<uint8_t, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
-using ChannelStride = Eigen::Stride<Eigen::Dynamic, 3>;
-template<typename S>
-using ChannelMap = Eigen::Map<ChannelMatrix, Eigen::Unaligned, S>;
-
 namespace racingenv {
+    enum Ctl : int {
+      // observations
+      kObs = 0,
+      //
+      kPos = 0,
+      kNPos = 3,
+      kOri = 3,
+      kNOri = 3,
+      kLinVel = 6,
+      kNLinVel = 3,
+      kAngVel = 9,
+      kNAngVel = 3,
+      kNObs = 12,
+      // control actions
+      kAct = 0,
+      kNAct = 4,
+      // image dimensions
+      // image_height = 600,
+      // image_width = 800,
+      // for testing
+      image_height = 600,
+      image_width = 800,
+      fov = 80,
+      // track info (should maybe be loaded)
+      num_gates = 10,
+      num_elevated_gates = 6,
+    };
+};
 
-enum Ctl : int {
-  // observations
-  kObs = 0,
-  //
-  kPos = 0,
-  kNPos = 3,
-  kOri = 3,
-  kNOri = 3,
-  kLinVel = 6,
-  kNLinVel = 3,
-  kAngVel = 9,
-  kNAngVel = 3,
-  kNObs = 12,
-  // control actions
-  kAct = 0,
-  kNAct = 4,
-  // image dimensions
-  image_height = 600,
-  image_width = 800,
-  fov = 120,
-  // track info (should probably be loaded)
-  num_gates = 10,
-};
-};
 class RacingEnv final : public EnvBaseCamera {
  public:
-  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-
   RacingEnv();
-  RacingEnv(const std::string &cfg_path);
+  RacingEnv(const std::string &cfg_path, const bool wave_track = false);
   ~RacingEnv();
 
-  // - public OpenAI-gym-style functions
-  bool reset(Ref<Vector<>> state_obs, Ref<ImageFlat<>> image_obs, const bool random = true) override;
-  Scalar step(const Ref<Vector<>> act, Ref<Vector<>> state_obs, Ref<ImageFlat<>> image_obs) override;
-  bool getObs(Ref<Vector<>> state_obs, Ref<ImageFlat<>> image_obs) override;
+  // method to set the quadrotor state and get a rendered image
+  void step(const Ref<Vector<>> action) override;
+  bool getImage(Ref<ImageFlat<>> image) override;
+  void getState(Ref<Vector<>> state) override;
 
-  // - public set functions
-  bool setReducedState(Ref<Vector<10>> reduced_state);
+  // Unity methods
+  void addObjectsToUnity(std::shared_ptr<UnityBridge> bridge) override;
+  bool setUnity(bool render) override;
+  bool connectUnity(const int pub_port = 10253, const int sub_port = 10254) override;
+  void disconnectUnity() override;
+
+  // setter methods
+  void setReducedState(const Ref<Vector<>> new_state);
+  void setWaveTrack(bool wave_track);
+
   bool loadParam(const YAML::Node &cfg);
 
-  // - public get functions
-  int getImageHeight() const;
-  int getImageWidth() const;
-
-  // - auxiliary functions
-  void addObjectsToUnity(std::shared_ptr<UnityBridge> bridge);
-  bool setUnity(bool render);
-  bool connectUnity();
-  void disconnectUnity();
-
-  friend std::ostream &operator<<(std::ostream &os, const RacingEnv &quad_env);
-
  private:
-  // quadrotor
-  std::shared_ptr<Quadrotor> quadrotor_ptr_;
-  QuadState quad_state_;
-  Command cmd_;
-  Matrix<3, 2> world_box_;
-
-  // ?
-  Vector<racingenv::kNAct> act_mean_;
-  Vector<racingenv::kNAct> act_std_;
-
-  // observations and actions (for RL)
-  Vector<racingenv::kNObs> quad_obs_;
-  Vector<racingenv::kNAct> quad_act_;
-
-  // camera
-  std::shared_ptr<RGBCamera> rgb_camera_;
-
-  // image observations
+  // image observations (better way of doing this?)
   ImageChannel<racingenv::image_height, racingenv::image_width> channels_[3];
-  cv::Mat cv_image_;
-  cv::Mat cv_channels_[3];
 
-  // gate(s)
-  std::shared_ptr<StaticGate> gates_[10];
+  // gates
+  std::shared_ptr<StaticGate> gates_[racingenv::num_gates];
 
-  // Unity
-  std::shared_ptr<UnityBridge> unity_bridge_ptr_;
-  SceneID scene_id_{UnityScene::WAREHOUSE};
-  bool unity_ready_{false};
-  bool unity_render_{false};
+  std::vector<std::vector<Scalar>> test_yaml_;
 
-  // IO
-  YAML::Node cfg_;
-  Logger logger_{"RacingEnv"};
+  // constants?
+  float POSITIONS[racingenv::num_gates][3] = {
+    {-18.0,  10.0, 2.1},
+    {-25.0,   0.0, 2.1},
+    {-18.0, -10.0, 2.1},
+    { -1.3,  -1.3, 2.1},
+    {  1.3,   1.3, 2.1},
+    { 18.0,  10.0, 2.1},
+    { 25.0,   0.0, 2.1},
+    { 18.0, -10.0, 2.1},
+    {  1.3,  -1.3, 2.1},
+    { -1.3,   1.3, 2.1},
+  };
+  float ORIENTATIONS[racingenv::num_gates] = {
+    0.75 * M_PI_2,
+    1.00 * M_PI_2,
+    0.25 * M_PI_2,
+    -0.25 * M_PI_2,
+    -0.25 * M_PI_2,
+    0.25 * M_PI_2,
+    1.00 * M_PI_2,
+    0.75 * M_PI_2,
+    -0.75 * M_PI_2,
+    -0.75 * M_PI_2,
+  };
+  int ELEVATED_GATES_INDICES[racingenv::num_elevated_gates] = {1, 3, 4, 6, 8, 9};
 };
 
 }  // namespace flightlib

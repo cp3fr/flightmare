@@ -1,4 +1,4 @@
-#include "flightlib/envs/racing_env/racing_test_env.hpp"
+/*#include "flightlib/envs/racing_env/racing_test_env.hpp"
 
 namespace flightlib {
 
@@ -115,7 +115,7 @@ void RacingTestEnv::test(Ref<ImageFlat<>> image_test) {
 
   channel_test = imgC1;
 }
-*/
+*//*
 
 bool RacingTestEnv::reset(Ref<Vector<>> obs, Ref<ImageFlat<>> image, const bool random) {
   image_counter_ = 0;
@@ -195,7 +195,7 @@ bool RacingTestEnv::getObs(Ref<Vector<>> obs, Ref<ImageFlat<>> image) {
     if (rgb_success) {
       cv::imwrite("/home/simon/Desktop/flightmare_cam_test/" + std::to_string(image_counter_) + ".png", cv_image_);
     }
-    image_counter_++;*/
+    image_counter_++;*//*
   } else {
     std::cout << "Unity rendering not available; cannot get images." << std::endl;
   }
@@ -318,3 +318,4 @@ std::ostream &operator<<(std::ostream &os, const RacingTestEnv &quad_env) {
 }
 
 }  // namespace flightlib
+*/

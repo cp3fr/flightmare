@@ -80,6 +80,7 @@ bool UnityBridge::disconnectUnity() {
   // create new message object
   pub_.close();
   sub_.close();
+  // connections_initialized_ = false;
   return true;
 }
 

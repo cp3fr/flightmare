@@ -24,6 +24,7 @@ class MPCSolver(object):
         # Gravity
         self._gravity = 9.81
         self._mass = 1.0  # 3.2
+        # self._mass = 3.2
 
         # Quadrotor constants
         # self._w_max_yaw = 6.0
@@ -36,6 +37,7 @@ class MPCSolver(object):
         self._w_max_xy = 6.0  # 3.0
         self._thrust_min = 0.5
         self._thrust_max = 20.0  # 16.0
+        # self._thrust_max = 16.0 * 4
 
         # state dimension (px, py, pz,           # quadrotor position
         #                  qw, qx, qy, qz,       # quadrotor quaternion
@@ -79,6 +81,8 @@ class MPCSolver(object):
             100, 100, 100, 100,  # rotation (as quaternion)
             50, 50, 50,  # velocity
         ])
+
+        self._cost_quaternion_norm = 10000
 
         # cost matrix for the action
         self._cost_matrix_action = np.diag([0.1, 0.1, 0.1, 0.1])  # T, wx, wy, wz
@@ -155,15 +159,18 @@ class MPCSolver(object):
         # - regularisation penalty for the control input (compared to a hovering, i.e. only counter-acting gravity)
         delta_goal = ca.SX.sym("delta_goal", self._state_dim)
         delta_traj = ca.SX.sym("delta_traj", self._state_dim)
+        delta_norm = ca.SX.sym("delta_norm", 4)
         delta_action = ca.SX.sym("delta_action", self._action_dim)
 
         # these are cost matrices for optimising with the MPC (probably don't need to cost_gap for the pendulum)
         cost_goal = delta_goal.T @ self._cost_matrix_goal @ delta_goal
         cost_traj = delta_traj.T @ self._cost_matrix_traj @ delta_traj
+        cost_norm = ((ca.norm_2(delta_norm) - 1) ** 2) * self._cost_quaternion_norm
         cost_action = delta_action.T @ self._cost_matrix_action @ delta_action
 
         cost_goal = ca.Function("cost_goal", [delta_goal], [cost_goal])
         cost_traj = ca.Function("cost_traj", [delta_traj], [cost_traj])
+        cost_norm = ca.Function("cost_norm", [delta_norm], [cost_norm])
         cost_action = ca.Function("cost_action", [delta_action], [cost_action])
 
         # all of the above is just used to define input-output relationships and the cost functions it seems
@@ -187,8 +194,10 @@ class MPCSolver(object):
         action_max = [self._thrust_max, self._w_max_xy, self._w_max_xy, self._w_max_yaw]
 
         state_bound = ca.inf
-        state_min = [-state_bound for _ in range(self._state_dim)]
-        state_max = [+state_bound for _ in range(self._state_dim)]
+        # state_min = [-state_bound for _ in range(self._state_dim)]
+        # state_max = [+state_bound for _ in range(self._state_dim)]
+        state_min = ([-state_bound] * 3) + ([-1.1] * 4) + ([-state_bound] * 3)
+        state_max = ([state_bound] * 3) + ([1.1] * 4) + ([state_bound] * 3)
 
         constraint_min = [0 for _ in range(self._state_dim)]
         constraint_max = [0 for _ in range(self._state_dim)]
@@ -236,10 +245,15 @@ class MPCSolver(object):
             delta_traj_k = (traj_states[:, k + 1] - traj_input[(self._state_dim * (k + 1)):(self._state_dim * (k + 2))])
             cost_traj_k = cost_traj(delta_traj_k)
 
+            # cost for deviating from the 1 norm
+            delta_norm_k = traj_states[3:7, k + 1]
+            cost_norm_k = cost_norm(delta_norm_k)
+
             # just the regularisation cost for the control command (try to keep it close to hovering)
             delta_action_k = traj_actions[:, k] - [self._gravity, 0.0, 0.0, 0.0]
             cost_action_k = cost_action(delta_action_k)
 
+            # self.objective = self.objective + cost_traj_k + cost_norm_k + cost_action_k
             self.objective = self.objective + cost_traj_k + cost_action_k
 
             # New NLP variable for state at end of interval <= after applying the control command I guess
@@ -255,6 +269,10 @@ class MPCSolver(object):
             self.constraints += [traj_states_next[:, k] - traj_states[:, k + 1]]
             self.constraints_lower_bound += constraint_min
             self.constraints_upper_bound += constraint_max
+
+            # self.constraints += [ca.norm_2(traj_states[:, k + 1]) - 1]
+            # self.constraints_lower_bound += [0]
+            # self.constraints_upper_bound += [0]
 
         # # # # # # # # # # # # # # # # # # #
         # -- ipopt
@@ -325,7 +343,7 @@ class MPCSolver(object):
         # predicted_traj = None
 
         # return optimal action, and a sequence of predicted optimal trajectory.
-        return optimal_action, predicted_traj, cost
+        return optimal_action.squeeze(), predicted_traj, cost
 
     def quad_dynamics_integration(self, pred_time_step):
         refine_steps = 4
