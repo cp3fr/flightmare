@@ -94,8 +94,8 @@ class DatasetReplicator:
         if config["directory_index"] is not None:
             self.run_dir_list = self.run_dir_list[int(config["directory_index"][0]):config["directory_index"][1]]
 
-        for r_idx, r in enumerate(self.run_dir_list):
-            print(r_idx, ":", r)
+        # for r_idx, r in enumerate(self.run_dir_list):
+        #     print(r_idx, ":", r)
         # exit()
 
     def compute_new_data(self, run_dir):
@@ -223,12 +223,17 @@ class MPCReplicator_v0(DatasetReplicator):
         self.skip_existing = config["skip_existing"]
         self.trajectory_only = config["trajectory_only"]
         self.disconnect = config["unity_disconnect"]
+
         self.fps = config["frames_per_second"]
-        assert 60 % self.fps == 0, "Original FPS (60) should be divisible by new FPS ({}).".format(self.fps)
         self.frame_skip = int(60 / self.fps)
+        assert 60 % self.fps == 0, "Original FPS (60) should be divisible by new FPS ({}).".format(self.fps)
+
+        self.command_frequency = config["command_frequency"]
+        self.command_skip = int(60 / self.command_frequency)
+        assert 60 % self.command_frequency == 0, "For convenience original FPS (60) should be divisible " \
+                                                 "by command frequency ({}).".format(self.command_frequency)
 
         self.base_frequency = 60
-        self.command_frequency = 20
 
         # TODO: probably use integer stuff here
         self.base_time_step = 1.0 / self.base_frequency
@@ -250,7 +255,7 @@ class MPCReplicator_v0(DatasetReplicator):
         self.fm_wrapper.disconnect_unity()
 
     def compute_new_data(self, run_dir):
-        from run_tests import ensure_quaternion_consistency, visualise_actions, visualise_states
+        # from run_tests import ensure_quaternion_consistency, visualise_actions, visualise_states
 
         start = time.time()
 
@@ -263,32 +268,27 @@ class MPCReplicator_v0(DatasetReplicator):
 
         print("\nProcessing '{}'.".format(run_dir))
 
-        # load the correct trajectory
+        # load the correct trajectory and the timestamps which we want to "match"
+        inpath_ts = os.path.join(run_dir, "screen_timestamps.csv")
         inpath_traj = os.path.join(run_dir, "trajectory.csv")
-        df_traj = pd.read_csv(inpath_traj)
-        df_traj["time-since-start [s]"] = df_traj["time-since-start [s]"] - df_traj["time-since-start [s]"].min()
 
-        """
-        test = df_traj[["rotation_w [quaternion]", "rotation_x [quaternion]",
-                        "rotation_y [quaternion]", "rotation_z [quaternion]"]] ** 2
-        # test = df_traj["rotation_w [quaternion]"] + df_traj["rotation_x [quaternion]"] + df_traj["rotation_y [quaternion]"] + df_traj["rotation_z [quaternion]"]
-        test = test.sum(axis=1)
-        test = np.sqrt(test)
-        print(all(test.between(0.999999, 1.000001)))
-        exit()
-        """
+        df_ts = pd.read_csv(inpath_ts)
+        df_traj = pd.read_csv(inpath_traj)
+        df_traj["time-since-start [s]"] = df_traj["time-since-start [s]"]
 
         # planner
         print("Ensuring quaternion consistency in planner...")
         planner = TrajectoryPlanner(inpath_traj, self.plan_time_horizon, self.plan_time_step)
 
         # simulation parameters (after planner to get max time)
+        start_time = df_ts["ts"].iloc[0]
         simulation_time_step = self.base_time_step
         simulation_time_horizon = total_time = planner.get_final_time_stamp()
 
         # environment
         env = MPCTestEnv(self.mpc_solver, planner, simulation_time_horizon, simulation_time_step)
         env.reset()
+        env.current_time = start_time  # kinda hacky but what can you do
         if self.disconnect:
             self.fm_wrapper.connect_unity(pub_port=self.pub_port, sub_port=self.sub_port)
 
@@ -302,24 +302,81 @@ class MPCReplicator_v0(DatasetReplicator):
         )
 
         # "reset" counters
-        base_time = 0.0
-        image_time = 0.0
-        command_time = 0.0
-        frame_counter = 0
+        base_time = start_time
 
         # data to record
         time_stamps = []
         frames = []
-        frames_original = []
         states = []
         actions = []
 
         prev_state, state, action, image = None, None, None, None
 
-        total_time = 3.0
-
         print("Running main loop...")
+        for _, row in tqdm(df_ts.iterrows(), disable=False):
+            if base_time > total_time:
+                break
+
+            time_stamps.append(base_time)  # row["ts"]
+            frames.append(int(row["frame"]))
+
+            if row["frame"] % self.command_skip == 0:
+                prev_state, state, action = env.step(return_previous_state=True)
+            else:
+                prev_state, state, _ = env.step(action, return_previous_state=True)
+
+            if row["frame"] % self.frame_skip == 0:
+                image = self.fm_wrapper.step(state)
+                video_writer.write(image)
+
+            base_time += self.base_time_step
+
+            actions.append(action)
+            states.append(prev_state)
+
+        video_writer.release()
+
+        states = np.vstack(states)
+        actions = np.vstack(actions)
+
+        data = {
+            "time-since-start [s]": time_stamps,
+            "frame": frames,
+            "throttle": actions[:, 0],
+            "roll": actions[:, 1],
+            "pitch": actions[:, 2],
+            "yaw": actions[:, 3],
+            "position_x [m]": states[:, 0],
+            "position_y [m]": states[:, 1],
+            "position_z [m]": states[:, 2],
+            "rotation_w [quaternion]": states[:, 3],
+            "rotation_x [quaternion]": states[:, 4],
+            "rotation_y [quaternion]": states[:, 5],
+            "rotation_z [quaternion]": states[:, 6],
+            "velocity_x [m]": states[:, 7],
+            "velocity_y [m]": states[:, 8],
+            "velocity_z [m]": states[:, 9],
+        }
+        data = pd.DataFrame(data)
+        data.to_csv(os.path.join(run_dir, "trajectory_mpc_{}.csv".format(self.command_frequency)), index=False)
+
+        # TODO: should probably write control GT to one big file or something like that, so that it can
+        #  easily be used with the existing training framework... THIS IS IMPORTANT FOR TRAINING!
+        #  (see generate_ground_truth.py)
+
+        print("Processed '{}'. in {:.2f}s".format(run_dir, time.time() - start))
+
+        if self.disconnect:
+            self.fm_wrapper.disconnect_unity()
+            # TODO: maybe implement disconnect message type that
+            #  immediately "releases" the unity server (when specified)
+
+        """
         progress_bar = tqdm(total=int(total_time / self.base_time_step))
+        # TODO: honestly, while this idea with increasing timers is perfectly fine when done in an actual simulation
+        #  (without any pre-existing data and its organisation), it would probably be better to have a similar loop
+        #  to the generator above, i.e. go through screen_timestamps.csv and compute a control command every X frames
+        #  and render an image every Y frames...
         while base_time <= total_time:
             time_stamps.append(base_time)
             frames.append(frame_counter)
@@ -345,50 +402,7 @@ class MPCReplicator_v0(DatasetReplicator):
             states.append(prev_state)
 
             progress_bar.update()
-
-        states = np.vstack(states)
-        actions = np.vstack(actions)
-
-        data = {
-            "time-since-start [s]": time_stamps,
-            "frame": frames,
-            "frame_original": frames_original,
-            "thrust": actions[:, 0],
-            "roll": actions[:, 1],
-            "pitch": actions[:, 2],
-            "yaw": actions[:, 3],
-            "position_x [m]": states[:, 0],
-            "position_y [m]": states[:, 1],
-            "position_z [m]": states[:, 2],
-            "rotation_w [quaternion]": states[:, 3],
-            "rotation_x [quaternion]": states[:, 4],
-            "rotation_y [quaternion]": states[:, 5],
-            "rotation_z [quaternion]": states[:, 6],
-            "velocity_x [m]": states[:, 7],
-            "velocity_y [m]": states[:, 8],
-            "velocity_z [m]": states[:, 9],
-        }
-        data = pd.DataFrame(data)
-        data.to_csv(os.path.join(run_dir, "trajectory_mpc_{}_{}.csv".format(self.fps, self.command_frequency)), index=False)
-
-        # TODO: also need timestamps
-        #  => should there also be frame numbers? wouldn't hurt I guess; also the original frame numbers?
-        #  => what about the original timestamps in screen_timestamps.csv
-        #  => also, what about the original timestamps? aren't those mostly used for "synchronising" between
-        #     the frame timestamps and the control/state w/e
-
-        video_writer.release()
-
-        # TODO: should probably write control GT to one big file or something like that, so that it can
-        #  easily be used with the existing training framework... THIS IS IMPORTANT FOR TRAINING!
-        #  (see generate_ground_truth.py)
-
-        print("Processed '{}'. in {:.2f}s".format(run_dir, time.time() - start))
-
-        if self.disconnect:
-            self.fm_wrapper.disconnect_unity()
-            # TODO: maybe implement disconnect message type that
-            #  immediately "releases" the unity server (when specified)
+        """
 
         # problem with this is that unity has a very long timeout during which it will still try to listen
         # to new messages (I think)
@@ -439,8 +453,12 @@ def resolve_gt_class(new_data_type: str) -> Type[DatasetReplicator]:
 def main(args):
     config = vars(args)
 
-    generator = resolve_gt_class(config["new_data_type"])(config)
-    generator.generate()
+    if config["print_directories_only"]:
+        for r_idx, r in enumerate(iterate_directories(config["data_root"], track_names=config["track_name"])):
+            print(r_idx, ":", r)
+    else:
+        generator = resolve_gt_class(config["new_data_type"])(config)
+        generator.generate()
 
 
 if __name__ == "__main__":
@@ -457,12 +475,15 @@ if __name__ == "__main__":
                         help="The method to use to compute the ground-truth.")
     parser.add_argument("-fps", "--frames_per_second", type=int, default=60,
                         help="FPS to use when replicating the data.")
+    parser.add_argument("-cf", "--command_frequency", type=int, default=20,
+                        help="Frequency at which to compute new control inputs for the MPC.")
     parser.add_argument("-pp", "--pub_port", type=int, default=10253)
     parser.add_argument("-sp", "--sub_port", type=int, default=10254)
     parser.add_argument("-udc", "--unity_disconnect", action="store_true")
     parser.add_argument("-di", "--directory_index", type=pair, default=None)
     parser.add_argument("-se", "--skip_existing", action="store_true")  # TODO?
     parser.add_argument("-to", "--trajectory_only", action="store_true")
+    parser.add_argument("-pdo", "--print_directories_only", action="store_true")
 
     # parse the arguments
     arguments = parser.parse_args()
