@@ -34,7 +34,7 @@ enum UnityScene {
 
 enum UnityScene {
   INDUSTRIAL = 0,
-  ALPHAPILOT = 1,
+  ARENA = 1,
   WAREHOUSE = 2,
   GARAGE = 3,
   TUNELS = 4,

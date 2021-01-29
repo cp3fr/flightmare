@@ -18,7 +18,7 @@ def row_to_state(row):
     state = np.array([
         row["position_x [m]"],
         row["position_y [m]"],
-        row["position_z [m]"] + 0.75,
+        row["position_z [m]"] + 0.35,
         row["rotation_w [quaternion]"],
         row["rotation_x [quaternion]"],
         row["rotation_y [quaternion]"],

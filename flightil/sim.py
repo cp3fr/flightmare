@@ -54,7 +54,7 @@ class CommandInterface:
 
 if __name__ == "__main__":
     # timings
-    base_frequency = 50.0
+    base_frequency = 60.0
     state_frequency = 50.0
     image_frequency = 50.0
     command_frequency = 25.0
@@ -65,10 +65,10 @@ if __name__ == "__main__":
     command_time_step = 1.0 / command_frequency
 
     # paths
-    # trajectory_path = "/home/simon/Downloads/trajectory_s016_r05_flat_li01.csv"  # medium (median)
+    trajectory_path = "/home/simon/Downloads/trajectory_s016_r05_flat_li01.csv"  # medium (median)
     # trajectory_path = "/home/simon/Downloads/trajectory_s024_r08_flat_li09.csv"  # fast
     # trajectory_path = "/home/simon/Downloads/trajectory_s018_r09_wave_li04.csv"  # medium wave
-    trajectory_path = "/home/simon/Downloads/trajectory_s020_r13_wave_li04.csv"  # fast wave
+    # trajectory_path = "/home/simon/Downloads/trajectory_s020_r13_wave_li04.csv"  # fast wave
     mpc_binary_path = os.path.join(os.path.abspath("../"), "mpc/mpc/saved/mpc_v2.so")
 
     # planning parameters
@@ -88,7 +88,7 @@ if __name__ == "__main__":
     env.reset()
 
     # wrapper (always used for now?)
-    wrapper = MPCTestWrapper(wave_track=True)
+    wrapper = MPCTestWrapper(wave_track=False)
     # wrapper.env.setWaveTrack(False)
     wrapper.connect_unity(pub_port=10253, sub_port=10254)
 

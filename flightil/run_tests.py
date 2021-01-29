@@ -173,7 +173,8 @@ def visualise_states(states, trajectory, simulation_time_horizon, simulation_tim
         plt.show()
 
 
-def visualise_actions(actions, simulation_time_horizon, simulation_time_step, exclude_first=False, skip_show=False):
+def visualise_actions(actions, simulation_time_horizon, simulation_time_step, exclude_first=False, skip_show=False,
+                      comparison_actions=None, comparison_label="comp"):
     labels = ["thrust", "roll", "pitch", "yaw"]
     time_start = simulation_time_step if exclude_first else 0.0
     time_steps = np.arange(time_start, simulation_time_horizon + simulation_time_step, step=simulation_time_step)
@@ -183,7 +184,10 @@ def visualise_actions(actions, simulation_time_horizon, simulation_time_step, ex
 
     fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(16, 3), dpi=100)
     for i in range(len(labels)):
-        ax.plot(time_steps, actions[:, i], label=labels[i])
+        line = ax.plot(time_steps, actions[:, i], label=labels[i])
+        if comparison_actions is not None:
+            ax.plot(time_steps, comparison_actions[:, i], label="{} {}".format(labels[i], comparison_label),
+                    color=line[0].get_color(), linestyle="--")
     ax.legend(loc="center left", bbox_to_anchor=(1.02, 0.5))
     ax.set_ylabel("Control input")
     ax.set_xlabel("Time [s]")
