@@ -8,6 +8,7 @@ class MPCTestWrapper:
     def __init__(self, wave_track=False, env=None):
         if env is None:
             self.env = MPCTest_v0("/home/simon/Git/flightmare/flightlib/configs/quadrotor_env.yaml", wave_track)
+            # self.env = MPCTest_v0("/home/simon/flightmare/flightlib/configs/quadrotor_env.yaml", wave_track)
         else:
             self.env = env
 
@@ -25,6 +26,9 @@ class MPCTestWrapper:
         new_state = new_state.astype(np.float32)
         self.env.step(new_state, self.image)
         return self._reshape_image()
+
+    def is_colliding(self):
+        self.env.getCollision()
 
     def connect_unity(self, pub_port=10253, sub_port=10254):
         self.env.connectUnity(pub_port, sub_port)

@@ -50,6 +50,7 @@ PYBIND11_MODULE(flightgym, m) {
   .def("step", &MPCTest::step)
   .def("getImageHeight", &MPCTest::getImageHeight)
   .def("getImageWidth", &MPCTest::getImageWidth)
+  .def("getCollision", &MPCTest::getCollision)
   .def("connectUnity", &MPCTest::connectUnity)
   .def("disconnectUnity", &MPCTest::disconnectUnity)
   .def("setWaveTrack", &MPCTest::setWaveTrack)

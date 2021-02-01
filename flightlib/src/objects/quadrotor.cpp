@@ -257,4 +257,8 @@ bool Quadrotor::getCamera(const size_t cam_id,
   return true;
 }
 
+bool Quadrotor::getCollision() {
+  return collision_;
+}
+
 }  // namespace flightlib

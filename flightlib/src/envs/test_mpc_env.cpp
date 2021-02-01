@@ -178,6 +178,10 @@ int MPCTest::getImageWidth() const {
   return mpcenv::image_width;
 }
 
+bool MPCTest::getCollision() {
+  return quadrotor_ptr_->getCollision();
+}
+
 void MPCTest::setWaveTrack(bool wave_track) {
   float pos_z;
   int i;

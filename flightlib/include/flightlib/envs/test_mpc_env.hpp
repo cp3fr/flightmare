@@ -74,6 +74,7 @@ class MPCTest {
   // getter methods
   int getImageHeight() const;
   int getImageWidth() const;
+  bool getCollision();
 
   // setter methods
   void setWaveTrack(bool wave_track);

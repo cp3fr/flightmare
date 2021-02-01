@@ -62,7 +62,7 @@ class EnvBaseCamera {
 
   // unity
   std::shared_ptr<UnityBridge> unity_bridge_ptr_;
-  SceneID scene_id_{UnityScene::ALPHAPILOT};
+  SceneID scene_id_{UnityScene::ARENA};
   bool unity_ready_{false};
   bool unity_render_{false};
 };

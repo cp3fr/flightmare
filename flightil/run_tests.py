@@ -704,35 +704,49 @@ def test_gate_size():
     # basically just place a single gate at the origin and try to estimate its size by moving a quadcopter
     # (used only as a dummy) e.g. between 0 and 1 meter in one direction
 
+    writer = cv2.VideoWriter(
+        "/home/simon/Desktop/flightmare_cam_test/arena_show_case.mp4",
+        cv2.VideoWriter_fourcc("m", "p", "4", "v"),
+        60.0,
+        (800, 600),
+        True
+    )
+
     wrapper = MPCTestWrapper(wave_track=False)
     wrapper.connect_unity()
 
     positions = [
-        np.array([0.0, 0.0, 4.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
-        np.array([1.0, 0.0, 4.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
+        np.array([-30.0, -16.0, 7.0, 0.88104, -0.1061931, 0.3557709, 0.2931188, 0.0, 0.0, 0.0]),
+        np.array([-30.0, -16.0, 7.0, 0.88104, -0.1061931, 0.3557709, 0.2931188, 0.0, 0.0, 0.0]),
+        # np.array([1.0, 0.0, 4.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
     ]
 
     last_switch = time.time()
     step = 3.0
     temp = 0
-    while True:
+    c = 0
+    while c < 90:
         current = time.time()
         diff = current - last_switch
         if diff > step:
             last_switch = current
             temp = 1 - temp
-        wrapper.step(positions[temp])
+        image = wrapper.step(positions[temp])
+        writer.write(image)
+        cv2.imwrite("/home/simon/Desktop/flightmare_cam_test/arena_show_case.png", image)
         time.sleep(0.05)
+        c += 1
 
     wrapper.disconnect_unity()
+    writer.release()
 
 
 if __name__ == "__main__":
-    test_manual_trajectory()
+    # test_manual_trajectory()
     # test_mpc()
     # test_planner()
     # test_simulation()
     # test_features()
     # test_feature_tracker()
-    # test_gate_size()
+    test_gate_size()
 

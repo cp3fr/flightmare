@@ -105,7 +105,7 @@ class DatasetReplicator:
         raise NotImplementedError()
 
     def generate(self):
-        for rd in tqdm(self.run_dir_list[:15], disable=True):
+        for rd in tqdm(self.run_dir_list, disable=True):
             self.compute_new_data(rd)
         self.finish()
 
