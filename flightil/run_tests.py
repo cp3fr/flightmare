@@ -495,6 +495,8 @@ def test_feature_tracker():
         features, previous_points, current_points, matched_points = tracker.process_image(frame_gray, return_image_points=True)
         flightmare_features = flightmare_tracker.process_image(flightmare_frame_gray)
 
+        print(features.shape)
+
         if show_tracks:
             for f_idx, f in enumerate(features):
                 if int(f[0]) not in test_dict:
@@ -747,6 +749,6 @@ if __name__ == "__main__":
     # test_planner()
     # test_simulation()
     # test_features()
-    # test_feature_tracker()
-    test_gate_size()
+    test_feature_tracker()
+    # test_gate_size()
 

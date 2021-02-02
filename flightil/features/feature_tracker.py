@@ -21,11 +21,11 @@ class FeatureTracker:
         }
 
         # Lukas-Kanade optical flow parameters
-        self.tracking_widow_size = (21, 21)
+        self.tracking_window_size = (21, 21)
         self.tracking_max_level = 2
         self.tracking_criteria = (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 0.03)
         self.tracking_params = {
-            "winSize": self.tracking_widow_size,
+            "winSize": self.tracking_window_size,
             "maxLevel": self.tracking_max_level,
             "criteria": self.tracking_criteria,
         }
@@ -50,10 +50,20 @@ class FeatureTracker:
         # TODO: maybe have some structure surrounding this that takes care of ensuring that the image can be processed
         #  and/or that feature tracks are "published" at the appropriate rate (similar to the ROS node in the original)
 
-        self.K = np.array([[0.41 * 800.0, 0., 0.5 * 800.0], [0., 0.56 * 600.0, 0.5 * 600.0], [0., 0., 1.]])
+        # self.K = np.array([[0.41 * 800.0, 0., 0.5 * 800.0], [0., 0.56 * 600.0, 0.5 * 600.0], [0., 0., 1.]])
+        self.K = np.array([[400.0, 0., 400.0], [0., 300.0, 300.0], [0., 0., 1.]])
         # self.K = np.array([[0.41, 0., 0.5], [0., 0.56, 0.5], [0., 0., 1.]])
         self.K_inv = np.linalg.inv(self.K)
         self.F = 800
+
+    def _reset(self):
+        self.ids = []
+        self.tracking_counts = []
+        self.image_shape = None
+        self.previous_image = None
+        self.previous_points = None
+        self.previous_norm_points_dict = None
+        self.previous_time = -1
 
     def _filter_by_status(self, status, *args):
         # TODO: maybe filter ids, track_counts, previous_points "automatically" and args in addition to that?
@@ -73,6 +83,10 @@ class FeatureTracker:
 
     def _filter_outliers(self, current_points):
         _, status = cv2.findFundamentalMat(self.previous_points, current_points, cv2.FM_RANSAC, 1.0, 0.99, 2000)
+
+        if status is None:
+            return current_points[:0]
+
         status = status.reshape(-1)
 
         self.ids, self.tracking_counts, self.previous_points, current_points = self._filter_by_status(
@@ -169,6 +183,11 @@ class FeatureTracker:
             # TODO: if there are any point matches, filter out outliers
             current_points = self._filter_outliers(current_points)
 
+            if len(current_points) == 0:
+                print("FEATURE TRACKER: No point matches, need to reset.")
+                self._reset()
+                return None
+
         # extract features if there aren't enough being tracked already
         current_points_count = 0 if current_points is None else len(current_points)
         additional_points_count = self.max_features_to_track - current_points_count
@@ -191,6 +210,10 @@ class FeatureTracker:
                     current_points = additional_points
                 else:
                     current_points = np.concatenate((current_points, additional_points[:additional_points_count]), axis=0)
+            elif current_points_count == 0:
+                print("FEATURE TRACKER: No features to track found, need to reset.")
+                self._reset()
+                return None
 
         # "un-distort" points (although we don't have any distortion, at least not in the original data)
         # => essentially just applies the inverse of the intrinsic matrix to the points, which should give them

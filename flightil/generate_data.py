@@ -1,5 +1,4 @@
 import os
-import re
 import numpy as np
 import pandas as pd
 import cv2
@@ -8,86 +7,17 @@ import time
 from typing import Type
 from tqdm import tqdm
 
+from gazesim.data.utils import iterate_directories, parse_run_info, pair
+
 from mpc.simulation.mpc_test_env import MPCTestEnv
 from mpc.simulation.mpc_test_wrapper import MPCTestWrapper
-from mpc.mpc.mpc_solver import MPCSolver
 from mpc.simulation.planner import TrajectoryPlanner
+from mpc.mpc.mpc_solver import MPCSolver
+from features.feature_tracker import FeatureTracker
 from run_tests import sample_from_trajectory
 
 
-def iterate_directories(data_root, track_names=None):
-    if track_names is None:
-        track_names = ["flat"]
-
-    directories = []
-    if re.search(r"/\d\d_", data_root):
-        directories.append(data_root)
-    elif re.search(r"/s0\d\d", data_root):
-        for run in sorted(os.listdir(data_root)):
-            run_dir = os.path.join(data_root, run)
-            if os.path.isdir(run_dir) and run[3:] in track_names:
-                directories.append(run_dir)
-    else:
-        for subject in sorted(os.listdir(data_root)):
-            subject_dir = os.path.join(data_root, subject)
-            if os.path.isdir(subject_dir) and subject.startswith("s"):
-                for run in sorted(os.listdir(subject_dir)):
-                    run_dir = os.path.join(subject_dir, run)
-                    if os.path.isdir(run_dir) and run[3:] in track_names:
-                        directories.append(run_dir)
-
-    return directories
-
-
-def parse_run_info(run_dir):
-    if run_dir[-1] == "/":
-        run_dir = run_dir[:-1]
-
-    # return the subject number, run number and track name
-    result = re.search(r"/s0\d\d", run_dir)
-    subject_number = None if result is None else int(result[0][2:])
-
-    result = re.search(r"/s0\d\d/\d\d_", run_dir)
-    run_number = None if result is None else int(result[0][6:8])
-
-    result = re.search(r"/s0\d\d/\d\d_.+", run_dir)
-    track_name = None if result is None else result[0][9:]
-
-    info = {
-        "subject": subject_number,
-        "run": run_number,
-        "track_name": track_name
-    }
-
-    return info
-
-
-def run_info_to_path(subject, run, track_name):
-    return os.path.join("s{:03d}".format(subject), "{:02d}_{}".format(run, track_name))
-
-
-def pair(arg):
-    # custom argparse type
-    if ":" in arg:
-        arg_split = arg.split(":")
-        property_name = arg_split[0]
-        property_value = arg_split[1]
-
-        try:
-            property_value = int(arg_split[1])
-        except ValueError:
-            try:
-                property_value = float(arg_split[1])
-            except ValueError:
-                pass
-    else:
-        property_name = arg
-        property_value = 1
-
-    return property_name, property_value
-
-
-class DatasetReplicator:
+class DataGenerator:
 
     def __init__(self, config):
         self.run_dir_list = iterate_directories(config["data_root"], track_names=config["track_name"])
@@ -102,7 +32,7 @@ class DatasetReplicator:
         raise NotImplementedError()
 
     def finish(self):
-        raise NotImplementedError()
+        pass
 
     def generate(self):
         for rd in tqdm(self.run_dir_list, disable=True):
@@ -110,7 +40,7 @@ class DatasetReplicator:
         self.finish()
 
 
-class FlightmareReplicator(DatasetReplicator):
+class FlightmareReplicator(DataGenerator):
 
     COLUMN_DICT = {
         "ts": "time-since-start [s]",
@@ -162,18 +92,18 @@ class FlightmareReplicator(DatasetReplicator):
         run_info = parse_run_info(run_dir)
         subject = run_info["subject"]
         run = run_info["run"]
-        
+
         # load the correct drone.csv and laptimes.csv
         inpath_drone = os.path.join(run_dir, "drone.csv")
         inpath_ts = os.path.join(run_dir, "screen_timestamps.csv")
 
         df_ts = pd.read_csv(inpath_ts)
         df_traj = pd.read_csv(inpath_drone)
-    
+
         # select columns and use new column headers
         df_traj = df_traj[[co for co in FlightmareReplicator.COLUMN_DICT]]
         df_traj = df_traj.rename(FlightmareReplicator.COLUMN_DICT, axis=1)
-        
+
         # save the adjusted trajectory (including setting start to 0? probably not)
         # df_traj["time-since-start [s]"] = df_traj["time-since-start [s]"] - df_traj["time-since-start [s]"].min()
         df_traj.to_csv(os.path.join(run_dir, "trajectory.csv"), index=False)
@@ -204,7 +134,7 @@ class FlightmareReplicator(DatasetReplicator):
             image = self.env.step(sample)
             video_writer.write(image)
         """
-    
+
         video_writer.release()
 
         print("Processed '{}'. in {:.2f}s".format(run_dir, time.time() - start))
@@ -212,7 +142,7 @@ class FlightmareReplicator(DatasetReplicator):
         time.sleep(0.1)
 
 
-class MPCReplicator_v0(DatasetReplicator):
+class MPCReplicator_v0(DataGenerator):
 
     # TODO: use the new simulation interface for DDA once its properly done (I think?)
     #  => only "problem" with that might be that images might e.g. not be returned at the correct rate
@@ -441,13 +371,91 @@ class MPCReplicator_v0(DatasetReplicator):
         """
 
 
-def resolve_gt_class(new_data_type: str) -> Type[DatasetReplicator]:
+class FeatureTrackGenerator(DataGenerator):
+
+    def __init__(self, config):
+        super().__init__(config)
+        self.video_name = config["video_name"]
+        self.max_features = config["max_features"]
+        self.skip_existing = config["skip_existing"]
+
+    def compute_new_data(self, run_dir):
+        start = time.time()
+
+        # check that the video exists
+        if not os.path.exists(os.path.join(run_dir, "{}.mp4".format(self.video_name))):
+            print("WARNING: Video '{}' does not exist for directory '{}'.".format(self.video_name, run_dir))
+            return
+
+        video_capture = cv2.VideoCapture(os.path.join(run_dir, "{}.mp4".format(self.video_name)))
+        w, h, fps, fourcc, num_frames = (video_capture.get(i) for i in range(3, 8))
+        assert 60 % int(fps) == 0, "Original FPS (60) should be divisible by new FPS ({}).".format(int(fps))
+        frame_skip = int(60 / fps)
+
+        if self.video_name == "screen":
+            if not (w == 800 and h == 600):
+                print("WARNING: Screen video does not have the correct dimensions for directory '{}'.".format(run_dir))
+                return
+
+        print("Processing '{}'.".format(run_dir))
+
+        # create tracker
+        tracker = FeatureTracker(max_features_to_track=self.max_features)
+
+        # get the timestamps (for velocity) and frame index
+        # => could probably also enable frame_skip/lower fps this way
+        inpath_ts = os.path.join(run_dir, "screen_timestamps.csv")
+        df_ts = pd.read_csv(inpath_ts)
+
+        # TODO: need some way of
+        #  - saving features for every frame (probably incremental numpy array with one dim being max_features)
+        #  - indexing this stuff properly => should we loop through screen_timestamps.csv instead of just video frames?
+
+        # loop through the frames
+        features = []
+        for i in tqdm(range(0, len(df_ts.index), frame_skip), disable=False):
+            frame = df_ts["frame"].iloc[i]
+            time_current = df_ts["ts"].iloc[i]
+
+            video_capture.set(cv2.CAP_PROP_POS_FRAMES, frame)
+            ret, frame = video_capture.read()
+            if not ret:
+                print("Could not read frame {} for video '{}' in directory '{}'.".format(frame, self.video_name, run_dir))
+                continue
+
+            frame_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            features_current = tracker.process_image(frame_gray, time_current)  # shape (#features, 6)
+
+            if features_current is None:
+                features_current = np.full((self.max_features, 6), fill_value=np.nan)
+            elif features_current.shape[0] < self.max_features:
+                features_current = np.pad(features_current,
+                                          ((0, self.max_features - features_current.shape[0]), (0, 0)),
+                                          mode="constant", constant_values=np.nan)
+
+            # TODO: when crashes happen and the image is potentially all black/featureless, should just make everything
+            #  nan I guess => these frames won't show up in the actual training data anyway
+
+            features.append(features_current)
+
+        features = np.stack(features)
+        np.save(os.path.join(run_dir, "ft_{}.npy".format(self.video_name)), features)
+
+        # making sure that data exists should be covered by rgb_available,
+        # which is used to filter in generate_splits by default
+
+        print("Processed '{}'. in {:.2f}s".format(run_dir, time.time() - start))
+
+
+def resolve_gt_class(new_data_type: str) -> Type[DataGenerator]:
+    # TODO: reference GT
     if new_data_type == "copy_original":
         return FlightmareReplicator
     elif new_data_type == "mpc":
-        print("DOING MPC THING")
         return MPCReplicator_v0
-    return DatasetReplicator
+    elif new_data_type == "feature_tracks":
+        return FeatureTrackGenerator
+    return DataGenerator
 
 
 def main(args):
@@ -470,16 +478,26 @@ if __name__ == "__main__":
     parser.add_argument("-r", "--data_root", type=str, default=os.getenv("GAZESIM_ROOT"),
                         help="The root directory of the dataset (should contain only subfolders for each subject).")
     parser.add_argument("-tn", "--track_name", type=str, default="flat", choices=["flat", "wave"],
-                        help="The track name (relevant for which simulation).")
-    parser.add_argument("-ndt", "--new_data_type", type=str, default="copy_original", choices=["copy_original", "mpc"],
+                        help="The track name (relevant for which simulation is used).")
+    # TODO: do something about this for stuff that doesn't require a simulation
+    parser.add_argument("-ndt", "--new_data_type", type=str, default="copy_original",
+                        choices=["copy_original", "mpc", "feature_tracks"],
                         help="The method to use to compute the ground-truth.")
+
+    parser.add_argument("-vn", "--video_name", type=str, default="screen",
+                        help="The name of the videos to use e.g. for computing feature track data.")
     parser.add_argument("-fps", "--frames_per_second", type=int, default=60,
                         help="FPS to use when replicating the data.")
     parser.add_argument("-cf", "--command_frequency", type=int, default=20,
                         help="Frequency at which to compute new control inputs for the MPC.")
+    parser.add_argument("-mf", "--max_features", type=int, default=200,
+                        help="Maximum number of features to track with the feature tracker.")
+    # TODO: maybe option to mask off corner for screen.mp4? but then again, we won't really use those videos anymore
+
     parser.add_argument("-pp", "--pub_port", type=int, default=10253)
     parser.add_argument("-sp", "--sub_port", type=int, default=10254)
     parser.add_argument("-udc", "--unity_disconnect", action="store_true")
+
     parser.add_argument("-di", "--directory_index", type=pair, default=None)
     parser.add_argument("-se", "--skip_existing", action="store_true")  # TODO?
     parser.add_argument("-to", "--trajectory_only", action="store_true")
