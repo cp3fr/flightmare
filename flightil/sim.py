@@ -9,7 +9,7 @@ from time import time
 from mpc.mpc.mpc_solver import MPCSolver
 from mpc.simulation.planner import TrajectoryPlanner
 from mpc.simulation.mpc_test_env import MPCTestEnv
-from mpc.simulation.mpc_test_wrapper import MPCTestWrapper
+from mpc.simulation.mpc_test_wrapper import MPCTestWrapper, RacingEnvWrapper
 
 from run_tests import ensure_quaternion_consistency, visualise_actions, visualise_states
 
@@ -54,10 +54,10 @@ class CommandInterface:
 
 if __name__ == "__main__":
     # timings
-    base_frequency = 60.0
+    base_frequency = 100.0
     state_frequency = 50.0
     image_frequency = 50.0
-    command_frequency = 25.0
+    command_frequency = 20.0
 
     base_time_step = 1.0 / base_frequency
     state_time_step = 1.0 / state_frequency
@@ -65,10 +65,11 @@ if __name__ == "__main__":
     command_time_step = 1.0 / command_frequency
 
     # paths
-    trajectory_path = "/home/simon/Downloads/trajectory_s016_r05_flat_li01.csv"  # medium (median)
+    # trajectory_path = "/home/simon/Downloads/trajectory_s016_r05_flat_li01.csv"  # medium (median)
     # trajectory_path = "/home/simon/Downloads/trajectory_s024_r08_flat_li09.csv"  # fast
     # trajectory_path = "/home/simon/Downloads/trajectory_s018_r09_wave_li04.csv"  # medium wave
     # trajectory_path = "/home/simon/Downloads/trajectory_s020_r13_wave_li04.csv"  # fast wave
+    trajectory_path = "/home/simon/gazesim-data/fpv_saliency_maps/data/center_start/s006/04_flat/trajectory.csv"
     mpc_binary_path = os.path.join(os.path.abspath("../"), "mpc/mpc/saved/mpc_v2.so")
 
     # planning parameters
@@ -88,15 +89,19 @@ if __name__ == "__main__":
     env.reset()
 
     # wrapper (always used for now?)
-    wrapper = MPCTestWrapper(wave_track=False)
+    # wrapper = MPCTestWrapper(wave_track=False)
+    wrapper = RacingEnvWrapper(wave_track=False)
+    wrapper.set_sim_time_step(simulation_time_step)
     # wrapper.env.setWaveTrack(False)
     wrapper.connect_unity(pub_port=10253, sub_port=10254)
+    if isinstance(wrapper, RacingEnvWrapper):
+        wrapper.set_reduced_state(env.planner.get_initial_state())
 
     # video writer (also always used for now?)
     writer = cv2.VideoWriter(
         # "/home/simon/Desktop/flightmare_cam_test/alphapilot_arena_mpc_async_5.mp4",
         # "/home/simon/Desktop/weekly_meeting/meeting14/cam_angle_test_mpc_wave_fast_rot.mp4",
-        "/home/simon/Desktop/flightmare_cam_test/test_headless_mode.mp4",
+        "/home/simon/Desktop/flightmare_cam_test/test_flightmare_sim.mp4",
         cv2.VideoWriter_fourcc("m", "p", "4", "v"),
         1.0 / image_time_step,
         (wrapper.image_width, wrapper.image_height),
@@ -145,6 +150,13 @@ if __name__ == "__main__":
         else:
             # not using the new interfaces
             state, _ = env.step(action)
+        if isinstance(wrapper, RacingEnvWrapper):
+            wrapper.step(action)
+            state = wrapper.get_state()[:10]
+            state = state.copy()
+            # print(state)
+            env.quad_rotor.set_state(state)
+            env.quad_state = state
         total_time_command += time() - start_command
 
         if state_time <= base_time:
@@ -162,7 +174,10 @@ if __name__ == "__main__":
             counter[2] += 1
 
             # not using the new interfaces; TODO: need separate get_image and get_imu (see interfaces above)
-            image = wrapper.step(state)
+            if isinstance(wrapper, RacingEnvWrapper):
+                image = wrapper.get_image()
+            else:
+                image = wrapper.step(state)
             writer.write(image)
         total_time_image += time() - start_image
 

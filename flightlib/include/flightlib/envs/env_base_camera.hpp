@@ -25,7 +25,7 @@ class EnvBaseCamera {
   virtual ~EnvBaseCamera() = 0;
 
   // (pure virtual) public methods (have to be implemented by child classes)
-  virtual void step(const Ref<Vector<>> action) = 0;
+  virtual bool step(const Ref<Vector<>> action) = 0;
   virtual bool getImage(Ref<ImageFlat<>> image) = 0;
   virtual void getState(Ref<Vector<>> state) = 0;
 
@@ -38,6 +38,7 @@ class EnvBaseCamera {
   // auxiliary functions
   inline int getImageHeight() { return image_height_; };
   inline int getImageWidth() {return image_width_; };
+  inline int getStateDim() { return QuadState::IDX::SIZE; }
   inline Scalar getSimTimeStep() { return sim_dt_; };
 
   inline void setSimTimeStep(Scalar time_step) { sim_dt_ = time_step; };

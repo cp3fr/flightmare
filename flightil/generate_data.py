@@ -10,7 +10,7 @@ from tqdm import tqdm
 from gazesim.data.utils import iterate_directories, parse_run_info, pair
 
 from mpc.simulation.mpc_test_env import MPCTestEnv
-from mpc.simulation.mpc_test_wrapper import MPCTestWrapper
+from mpc.simulation.mpc_test_wrapper import MPCTestWrapper, RacingEnvWrapper
 from mpc.simulation.planner import TrajectoryPlanner
 from mpc.mpc.mpc_solver import MPCSolver
 from features.feature_tracker import FeatureTracker
@@ -57,6 +57,7 @@ class FlightmareReplicator(DataGenerator):
         "rot_x_quat": "rotation_x [quaternion]",
         "rot_y_quat": "rotation_y [quaternion]",
         "rot_z_quat": "rotation_z [quaternion]",
+        # TODO: other stuff too (drone stuff)
     }
 
     def __init__(self, config):
@@ -224,7 +225,7 @@ class MPCReplicator_v0(DataGenerator):
 
         # use this (not time-adjusted) trajectory to generate data
         video_writer = cv2.VideoWriter(
-            os.path.join(run_dir, "flightmare_mpc_{}_{}.mp4".format(self.fps, self.command_frequency)),
+            os.path.join(run_dir, "flightmare_mpc_old_{}_{}.mp4".format(self.fps, self.command_frequency)),
             cv2.VideoWriter_fourcc("m", "p", "4", "v"),
             float(self.fps),
             (self.fm_wrapper.image_width, self.fm_wrapper.image_height),
@@ -243,11 +244,11 @@ class MPCReplicator_v0(DataGenerator):
         prev_state, state, action, image = None, None, None, None
 
         print("Running main loop...")
-        for _, row in tqdm(df_ts.iterrows(), disable=False):
-            if base_time > total_time:
-                break
+        for _, row in tqdm(df_ts.iterrows(), total=len(df_ts.index), disable=False):
+            # if base_time > total_time:
+            #     break
 
-            time_stamps.append(base_time)  # row["ts"]
+            time_stamps.append(row["ts"])  # row["ts"]
             frames.append(int(row["frame"]))
 
             if row["frame"] % self.command_skip == 0:
@@ -288,7 +289,7 @@ class MPCReplicator_v0(DataGenerator):
             "velocity_z [m]": states[:, 9],
         }
         data = pd.DataFrame(data)
-        data.to_csv(os.path.join(run_dir, "trajectory_mpc_{}.csv".format(self.command_frequency)), index=False)
+        data.to_csv(os.path.join(run_dir, "trajectory_mpc_old_{}.csv".format(self.command_frequency)), index=False)
 
         # TODO: should probably write control GT to one big file or something like that, so that it can
         #  easily be used with the existing training framework... THIS IS IMPORTANT FOR TRAINING!
@@ -371,6 +372,157 @@ class MPCReplicator_v0(DataGenerator):
         """
 
 
+class MPCReplicator_v1(DataGenerator):
+
+    # TODO: use the new simulation interface for DDA once its properly done (I think?)
+    #  => only "problem" with that might be that images might e.g. not be returned at the correct rate
+    #  => could e.g. implement a mode where images/states are queued until a new command has to be returned
+
+    def __init__(self, config):
+        super().__init__(config)
+        self.skip_existing = config["skip_existing"]
+        self.trajectory_only = config["trajectory_only"]
+        self.disconnect = config["unity_disconnect"]
+
+        self.fps = config["frames_per_second"]
+        self.frame_skip = int(60 / self.fps)
+        assert 60 % self.fps == 0, "Original FPS (60) should be divisible by new FPS ({}).".format(self.fps)
+
+        self.command_frequency = config["command_frequency"]
+        self.command_skip = int(60 / self.command_frequency)
+        assert 60 % self.command_frequency == 0, "For convenience original FPS (60) should be divisible " \
+                                                 "by command frequency ({}).".format(self.command_frequency)
+
+        self.base_frequency = 60
+
+        # TODO: probably use integer stuff here
+        self.base_time_step = 1.0 / self.base_frequency
+        self.image_time_step = 1.0 / self.fps
+        self.command_time_step = 1.0 / self.command_frequency
+
+        self.plan_time_step = 0.1
+        self.plan_time_horizon = 3.0
+
+        self.mpc_solver = MPCSolver(self.plan_time_horizon, self.plan_time_step)
+        self.wave_track = config["track_name"] == "wave"
+        self.fm_wrapper = RacingEnvWrapper(wave_track=self.wave_track)
+        self.pub_port = config["pub_port"]
+        self.sub_port = config["sub_port"]
+        if not self.disconnect:
+            self.fm_wrapper.connect_unity(self.pub_port, self.sub_port)
+
+    def finish(self):
+        self.fm_wrapper.disconnect_unity()
+
+    def compute_new_data(self, run_dir):
+        # from run_tests import ensure_quaternion_consistency, visualise_actions, visualise_states
+
+        start = time.time()
+
+        # check that the thingy is working
+        video_capture = cv2.VideoCapture(os.path.join(run_dir, "screen.mp4"))
+        w, h = video_capture.get(3), video_capture.get(4)
+        if not (w == 800 and h == 600):
+            print("WARNING: Screen video does not have the correct dimensions for directory '{}'.".format(run_dir))
+            return
+
+        print("\nProcessing '{}'.".format(run_dir))
+
+        # load the correct trajectory and the timestamps which we want to "match"
+        inpath_ts = os.path.join(run_dir, "screen_timestamps.csv")
+        inpath_traj = os.path.join(run_dir, "trajectory.csv")
+
+        df_ts = pd.read_csv(inpath_ts)
+        df_traj = pd.read_csv(inpath_traj)
+        df_traj["time-since-start [s]"] = df_traj["time-since-start [s]"]
+
+        # planner
+        print("Ensuring quaternion consistency in planner...")
+        planner = TrajectoryPlanner(inpath_traj, self.plan_time_horizon, self.plan_time_step)
+
+        # environment
+        self.fm_wrapper.set_reduced_state(planner.get_initial_state())
+        self.fm_wrapper.set_sim_time_step(self.base_time_step)
+        if self.disconnect:
+            self.fm_wrapper.connect_unity(pub_port=self.pub_port, sub_port=self.sub_port)
+
+        # use this (not time-adjusted) trajectory to generate data
+        video_writer = cv2.VideoWriter(
+            os.path.join(run_dir, "flightmare_mpc_new_{}_{}.mp4".format(self.fps, self.command_frequency)),
+            cv2.VideoWriter_fourcc("m", "p", "4", "v"),
+            float(self.fps),
+            (self.fm_wrapper.image_width, self.fm_wrapper.image_height),
+            True
+        )
+
+        # "reset" everything
+        reduced_state = planner.get_initial_state()
+        state = np.array(reduced_state.tolist() + ([0.0] * 15))
+        action = None
+
+        # data to record
+        time_stamps = []
+        frames = []
+        states = []
+        actions = []
+
+        print("Running main loop...")
+        for _, row in tqdm(df_ts.iterrows(), total=len(df_ts.index), disable=False):
+            time_stamps.append(row["ts"])
+            frames.append(int(row["frame"]))
+            states.append(state)
+
+            if row["frame"] % self.frame_skip == 0:
+                image = self.fm_wrapper.get_image()
+                video_writer.write(image)
+
+            if row["frame"] % self.command_skip == 0:
+                planned_trajectory = np.array(planner.plan(reduced_state, row["ts"]))
+                action, predicted_trajectory, cost = self.mpc_solver.solve(planned_trajectory)
+            self.fm_wrapper.step(action)
+            state = self.fm_wrapper.get_state().copy()
+            reduced_state = state[:10]
+
+            actions.append(action)
+
+        video_writer.release()
+
+        states = np.vstack(states)
+        actions = np.vstack(actions)
+
+        data = {
+            "time-since-start [s]": time_stamps,
+            "frame": frames,
+            "throttle": actions[:, 0],
+            "roll": actions[:, 1],
+            "pitch": actions[:, 2],
+            "yaw": actions[:, 3],
+            "position_x [m]": states[:, 0],
+            "position_y [m]": states[:, 1],
+            "position_z [m]": states[:, 2],
+            "rotation_w [quaternion]": states[:, 3],
+            "rotation_x [quaternion]": states[:, 4],
+            "rotation_y [quaternion]": states[:, 5],
+            "rotation_z [quaternion]": states[:, 6],
+            "velocity_x [m/s]": states[:, 7],
+            "velocity_y [m/s]": states[:, 8],
+            "velocity_z [m/s]": states[:, 9],
+            "omega_x [rad/s]": states[:, 10],
+            "omega_y [rad/s]": states[:, 11],
+            "omega_z [rad/s]": states[:, 12],
+            "acceleration_x [m/s/s]": states[:, 13],
+            "acceleration_y [m/s/s]": states[:, 14],
+            "acceleration_z [m/s/s]": states[:, 15],
+        }
+        data = pd.DataFrame(data)
+        data.to_csv(os.path.join(run_dir, "trajectory_mpc_new_{}.csv".format(self.command_frequency)), index=False)
+
+        print("Processed '{}'. in {:.2f}s".format(run_dir, time.time() - start))
+
+        if self.disconnect:
+            self.fm_wrapper.disconnect_unity()
+
+
 class FeatureTrackGenerator(DataGenerator):
 
     def __init__(self, config):
@@ -420,7 +572,7 @@ class FeatureTrackGenerator(DataGenerator):
             video_capture.set(cv2.CAP_PROP_POS_FRAMES, frame)
             ret, frame = video_capture.read()
             if not ret:
-                print("Could not read frame {} for video '{}' in directory '{}'.".format(frame, self.video_name, run_dir))
+                print("Could not read frame {} for video '{}' in directory '{}'.".format(i, self.video_name, run_dir))
                 continue
 
             frame_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -452,6 +604,8 @@ def resolve_gt_class(new_data_type: str) -> Type[DataGenerator]:
     if new_data_type == "copy_original":
         return FlightmareReplicator
     elif new_data_type == "mpc":
+        return MPCReplicator_v1
+    elif new_data_type == "mpc_old":
         return MPCReplicator_v0
     elif new_data_type == "feature_tracks":
         return FeatureTrackGenerator
@@ -481,7 +635,7 @@ if __name__ == "__main__":
                         help="The track name (relevant for which simulation is used).")
     # TODO: do something about this for stuff that doesn't require a simulation
     parser.add_argument("-ndt", "--new_data_type", type=str, default="copy_original",
-                        choices=["copy_original", "mpc", "feature_tracks"],
+                        choices=["copy_original", "mpc", "mpc_old", "feature_tracks"],
                         help="The method to use to compute the ground-truth.")
 
     parser.add_argument("-vn", "--video_name", type=str, default="screen",
@@ -501,6 +655,7 @@ if __name__ == "__main__":
     parser.add_argument("-di", "--directory_index", type=pair, default=None)
     parser.add_argument("-se", "--skip_existing", action="store_true")  # TODO?
     parser.add_argument("-to", "--trajectory_only", action="store_true")
+    parser.add_argument("-mo", "--mpc_only", action="store_true")  # TODO: implement and test how quickly it works
     parser.add_argument("-pdo", "--print_directories_only", action="store_true")
 
     # parse the arguments

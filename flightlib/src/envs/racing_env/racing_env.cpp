@@ -24,7 +24,7 @@ RacingEnv::RacingEnv(const std::string &cfg_path, const bool wave_track) {
   quad_state_.t = (Scalar) 0.0f;
 
   // define a bounding box
-  world_box_ << -30, 30, -30, 30, 0, 30;
+  world_box_ << -100, 100, -100, 100, -100, 100;
   quadrotor_ptr_->setWorldBox(world_box_);
 
   // airsim
@@ -64,17 +64,19 @@ RacingEnv::~RacingEnv() {}
  * MAIN METHODS (STEP AND GET) *
  *******************************/
 
-void RacingEnv::step(const Ref<Vector<>> action) {
+bool RacingEnv::step(const Ref<Vector<>> action) {
   // update command
   cmd_.t += sim_dt_;
   cmd_.collective_thrust = action[0];
   cmd_.omega = action.segment<3>(1);
 
   // simulate quadrotor
-  quadrotor_ptr_->run(cmd_, sim_dt_);
+  bool success = quadrotor_ptr_->run(cmd_, sim_dt_);
 
   // update state
   quadrotor_ptr_->getState(&quad_state_);
+
+  return success;
 }
 
 bool RacingEnv::getImage(Ref<ImageFlat<>> image) {
@@ -93,7 +95,7 @@ bool RacingEnv::getImage(Ref<ImageFlat<>> image) {
       }
     }
   } else {
-    std::cout << "Unity rendering not available; cannot get images." << std::endl;
+    std::cout << "WARNING: Unity rendering not available; cannot get images." << std::endl;
     return false;
   }
 

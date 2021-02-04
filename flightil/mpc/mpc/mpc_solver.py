@@ -35,10 +35,12 @@ class MPCSolver(object):
         # parameters from alphapilot:
         self._w_max_yaw = 6.0  # 3.0
         # self._w_max_yaw = 3.0
+        # self._w_max_yaw = 8.31
         self._w_max_xy = 6.0  # 3.0
         # self._w_max_xy = 3.0
+        # self._w_max_xy = 8.31
         self._thrust_min = 0.5
-        self._thrust_max = 20.0  # 16.0
+        self._thrust_max = 21.0  # 16.0
         # self._thrust_max = 16.0 * 4
 
         # state dimension (px, py, pz,           # quadrotor position

@@ -59,7 +59,7 @@ class RacingEnv final : public EnvBaseCamera {
   ~RacingEnv();
 
   // method to set the quadrotor state and get a rendered image
-  void step(const Ref<Vector<>> action) override;
+  bool step(const Ref<Vector<>> action) override;
   bool getImage(Ref<ImageFlat<>> image) override;
   void getState(Ref<Vector<>> state) override;
 

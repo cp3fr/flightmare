@@ -10,8 +10,8 @@ from pprint import pprint
 from mpc.mpc.mpc_solver import MPCSolver
 from mpc.simulation.planner import TrajectoryPlanner, HoverPlanner, RisePlanner
 from mpc.simulation.mpc_test_env import MPCTestEnv
-from mpc.simulation.mpc_test_wrapper import MPCTestWrapper
-from envs.racing_env_wrapper import RacingEnvWrapper
+from mpc.simulation.mpc_test_wrapper import MPCTestWrapper, RacingEnvWrapper
+# from envs.racing_env_wrapper import RacingEnvWrapper
 from features.feature_tracker import FeatureTracker
 
 plt.style.use("ggplot")
@@ -743,12 +743,52 @@ def test_gate_size():
     writer.release()
 
 
+def test_racing_env():
+    positions = [
+        np.array([-30.0, -16.0, 7.0, 0.88104, -0.1061931, 0.3557709, 0.2931188, 0.0, 0.0, 0.0]),
+        np.array([-20.0, -11.0, 7.0, 0.88104, -0.1061931, 0.3557709, 0.2931188, 0.0, 0.0, 0.0]),
+        np.array([-10.0, -7.0, 7.0, 0.88104, -0.1061931, 0.3557709, 0.2931188, 0.0, 0.0, 0.0]),
+        np.array([0.0, -2.0, 7.0, 0.88104, -0.1061931, 0.3557709, 0.2931188, 0.0, 0.0, 0.0]),
+    ]
+
+    writer = cv2.VideoWriter(
+        "/home/simon/Desktop/flightmare_cam_test/test_racing_env.mp4",
+        cv2.VideoWriter_fourcc("m", "p", "4", "v"),
+        20.0,
+        (800, 600),
+        True
+    )
+
+    wrapper = RacingEnvWrapper(wave_track=False)
+    wrapper.connect_unity()
+
+    last_switch = time.time()
+    step = 3.0
+    temp = 0
+    c = 0
+    while c < 300:
+        current = time.time()
+        diff = current - last_switch
+        if diff > step:
+            last_switch = current
+            temp = (temp + 1) % len(positions)
+        wrapper.set_reduced_state(positions[temp])
+        image = wrapper.get_image()
+        writer.write(image)
+        time.sleep(0.05)
+        c += 1
+
+    wrapper.disconnect_unity()
+    writer.release()
+
+
 if __name__ == "__main__":
     # test_manual_trajectory()
     # test_mpc()
     # test_planner()
-    # test_simulation()
+    test_simulation()
     # test_features()
-    test_feature_tracker()
+    # test_feature_tracker()
     # test_gate_size()
+    # test_racing_env()
 
