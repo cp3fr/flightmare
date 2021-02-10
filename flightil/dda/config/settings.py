@@ -123,6 +123,7 @@ class DaggerSetting(Settings):
             self.rand_controller_prob = test_time['rand_controller_prob']
             # --- Train Time --- #
             train_conf = settings['train']
+            self.gpu = train_conf["gpu"]
             self.max_training_epochs = train_conf['max_training_epochs']
             self.max_allowed_error = train_conf['max_allowed_error']
             self.batch_size = train_conf['batch_size']
