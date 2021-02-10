@@ -136,3 +136,12 @@ class DaggerSetting(Settings):
             self.save_every_n_epochs = train_conf['save_every_n_epochs']
             self.verbose = settings['verbose']
             assert isinstance(self.verbose, bool)
+            # --- Flightmare simulation --- #
+            sim_conf = settings["simulation"]
+            self.flightmare_pub_port = sim_conf["flightmare_pub_port"]
+            self.flightmare_sub_port = sim_conf["flightmare_sub_port"]
+            self.base_frequency = sim_conf["base_frequency"]
+            self.image_frequency = sim_conf["image_frequency"]
+            self.ref_frequency = sim_conf["ref_frequency"]
+            self.command_frequency = sim_conf["command_frequency"]
+            self.expert_command_frequency = sim_conf["expert_command_frequency"]

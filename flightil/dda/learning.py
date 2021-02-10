@@ -113,11 +113,11 @@ class ControllerLearning:
         #                                 for j in range(self.config.seq_len)])
 
     def start_data_recording(self):
-        print("Collecting data")
+        print("[ControllerLearning] Collecting data")
         self.record_data = True
 
     def stop_data_recording(self):
-        print("Stop data collection")
+        print("[ControllerLearning] Stop data collection")
         self.record_data = False
         expert_usage = self.n_times_expert / (self.n_times_net + self.n_times_expert)
         return expert_usage
@@ -237,7 +237,7 @@ class ControllerLearning:
         if not self.network_initialised:
             # apply network to init TODO: not sure what this means/why this is needed => maybe just some TF stuff?
             results = self.learner.inference(inputs)
-            print("Net initialized")
+            print("[ControllerLearning] Net initialized")
             self.network_initialised = True
             # I guess at this point the control command should be the one the expert has generated...
             # since we have to "request" that manually, will probably have to do it here...
@@ -249,7 +249,7 @@ class ControllerLearning:
             # - Image queue is not ready, can only run expert
             # => this should basically not happen... (in the Flightmare implementation?)
             if self.use_network:
-                print("Using expert wait for ref")
+                print("[ControllerLearning] Using expert wait for ref")
             self.n_times_expert += 1
             return self.control_command
 

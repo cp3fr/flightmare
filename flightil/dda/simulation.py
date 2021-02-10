@@ -26,28 +26,18 @@ kWz = 3
 
 class Simulation:
 
-    def __init__(self):
-        # TODO abstract methods:
-        # some sort of step/forward dynamics thingy
-        # getting images/states/imu stuff
-
-        # could also keep track of loop/timers in here and always return
-        # the last "recorded" state/image etc.
-        # then it could have a "step" method that is executed outside (in iterative_learning_trajectories.py)
-        # at the command rate (? would this imply that there can't be anything updated faster than that?)
-        # and yeah...
-
+    def __init__(self, config):
         # TODO: change these to dummy values
-        self.current_image = None  # TODO: should this be feature tracks => probably not, might want to use images
+        self.current_image = None
         self.current_state = None
         self.current_state_estimate = None
         self.current_reference = None
 
-        self.base_frequency = 100  # 100.0
-        self.image_frequency = 50  # 30.0
-        self.ref_frequency = 100  # 50.0
-        self.command_frequency = 100  # 100.0
-        self.expert_command_frequency = 20  # 20.0
+        self.base_frequency = config.base_frequency  # 100.0
+        self.image_frequency = config.image_frequency  # 30.0
+        self.ref_frequency = config.ref_frequency  # 50.0
+        self.command_frequency = config.command_frequency  # 100.0
+        self.expert_command_frequency = config.expert_command_frequency  # 20.0
 
         assert self.base_frequency >= self.command_frequency
 
@@ -185,8 +175,8 @@ class Simulation:
 
 class PythonSimulation(Simulation):
 
-    def __init__(self, trajectory_path):
-        super().__init__()
+    def __init__(self, config, trajectory_path):
+        super().__init__(config)
 
         self.state_dim = 10
         self.action_dim = 4
@@ -302,8 +292,8 @@ class PythonSimulation(Simulation):
 class FlightmareSimulation(Simulation):
     # TODO: instead of using Python dynamics (as in PythonSimulation), use Flightmare dynamics
     #  => will have to write a different interface/wrapper for that (to e.g. get/set mass, thrust limits etc.)
-    def __init__(self, trajectory_path, max_time=None):
-        super().__init__()
+    def __init__(self, config, trajectory_path, max_time=None):
+        super().__init__(config)
 
         self.state_dim = 13  # TODO: change I guess
         self.action_dim = 4
@@ -338,8 +328,8 @@ class FlightmareSimulation(Simulation):
     # TAKING CARE OF FLIGHTMARE WRAPPER # (not sure if$ overkill, but it's kinda neat)
     #####################################
 
-    def connect_unity(self):
-        self.flightmare_wrapper.connect_unity()
+    def connect_unity(self, pub_port=10253, sub_port=10254):
+        self.flightmare_wrapper.connect_unity(pub_port, sub_port)
 
     def disconnect_unity(self):
         self.flightmare_wrapper.disconnect_unity()

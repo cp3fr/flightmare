@@ -28,4 +28,11 @@ test_time:
   rand_thrust_mag: 6
   rand_rate_mag: 3.5
   rand_controller_prob: 0.05
-
+simulation:
+  flightmare_pub_port: 10253
+  flightmare_sub_port: 10254
+  base_frequency: 100
+  image_frequency: 30
+  ref_frequency: 50
+  command_frequency: 100
+  expert_command_frequency: 20

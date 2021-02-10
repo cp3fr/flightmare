@@ -43,12 +43,12 @@ class BodyrateLearner(object):
         if self.config.resume_training:
             if self.ckpt.restore(self.config.resume_ckpt_file):
                 print("------------------------------------------")
-                print("Restored from {}".format(self.config.resume_ckpt_file))
+                print("[BodyrateLearner] Restored from {}".format(self.config.resume_ckpt_file))
                 print("------------------------------------------")
                 return
 
         print("------------------------------------------")
-        print("Initializing from scratch.")
+        print("[BodyrateLearner] Initializing from scratch.")
         print("------------------------------------------")
 
     @tf.function
@@ -83,7 +83,7 @@ class BodyrateLearner(object):
                 tf.summary.histogram(v.name, g, step=self.optimizer.iterations)
 
     def train(self):
-        print("Training Network")
+        print("[BodyrateLearner] Training Network")
         if not hasattr(self, 'train_log_dir'):
             # This should be done only once
             self.train_log_dir = os.path.join(self.config.log_dir, 'train')
@@ -109,7 +109,7 @@ class BodyrateLearner(object):
                     self.write_train_summaries(features, gradients)
                     self.train_loss.reset_states()
             # Eval
-            for features, label in tqdm(dataset_val.batched_dataset):
+            for features, label in tqdm(dataset_val.batched_dataset, disable=True):
                 features = self.adapt_input_data(features)
                 self.val_step(features, label)
             validation_loss = self.val_loss.result()
@@ -120,21 +120,21 @@ class BodyrateLearner(object):
             self.global_epoch = self.global_epoch + 1
             self.ckpt.step.assign_add(1)
 
-            print("Epoch: {:2d}, Validation Loss: {:.4f}".format(self.global_epoch, validation_loss))
+            print("[BodyrateLearner] Epoch: {:2d}, Validation Loss: {:.4f}".format(self.global_epoch, validation_loss))
 
             if validation_loss < self.min_val_loss or ((epoch + 1) % self.config.save_every_n_epochs) == 0:
                 if validation_loss < self.min_val_loss:
                     self.min_val_loss = validation_loss
                 save_path = self.ckpt_manager.save()
-                print("Saved checkpoint for epoch {}: {}".format(int(self.ckpt.step), save_path))
+                print("[BodyrateLearner] Saved checkpoint for epoch {}: {}".format(int(self.ckpt.step), save_path))
 
         # Reset the metrics for the next epoch
         print("------------------------------")
-        print("Training finished successfully")
+        print("[BodyrateLearner] Training finished successfully")
         print("------------------------------")
 
     def test(self):
-        print("Testing Network")
+        print("[BodyrateLearner] Testing Network")
         self.train_log_dir = os.path.join(self.config.log_dir, 'test')
         dataset_val = create_dataset(self.config.test_dir,
                                      self.config, training=False)
@@ -145,7 +145,7 @@ class BodyrateLearner(object):
         validation_loss = self.val_loss.result()
         self.val_loss.reset_states()
 
-        print("Testing Loss: {:.4f}".format(validation_loss))
+        print("[BodyrateLearner] Testing Loss: {:.4f}".format(validation_loss))
 
     @tf.function
     def inference(self, inputs):
