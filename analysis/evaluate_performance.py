@@ -54,7 +54,8 @@ def getWallColliders(dims=(1, 1, 1), center=(0, 0, 0)):
                                 dims=(dims[0], dims[2]), dtype='gazesim'))
     return objWallCollider
 
-def pipeline(PATH, toSaveAnimation=False):
+#todo: debug collider for dda data
+def extractFeaturesSaveAnimation(PATH, toSaveAnimation=False):
     print(PATH)
     print('')
     #read drone state logs
@@ -111,7 +112,7 @@ def pipeline(PATH, toSaveAnimation=False):
             e = e.append(pd.DataFrame({'time-since-start [s]' : _v, 'object-id' : i, 'object-name' : 'wall', 'is-collision' : 1, 'is-pass' : 0}, index = [0]))
     e = e.sort_values(by=['time-since-start [s]'])
     #make output folder
-    outpath = './process/' + PATH.split('/logs/')[-1].split('trajectory_')[-1].split('.csv')[0] + '/'
+    outpath = '/process/'.join((PATH.split('.csv')[0] + '/').split('/logs/'))
     if os.path.exists(outpath) == False:
         make_path(outpath)
     #copy trajectory data
@@ -157,10 +158,56 @@ def pipeline(PATH, toSaveAnimation=False):
             # anim.show()
 
 PATH = './logs/'
-toSaveAnimation = True
+MODELS = ['dda_offline_0', 'resnet_test']
 
-for w in os.walk(PATH):
-    if w[0] == PATH:
+
+toExtractFeatures = False
+toSaveAnimation = False
+toPlotFeatures = True
+
+if toExtractFeatures:
+    for w in os.walk(PATH):
         for f in w[2]:
             if f.find('.csv') != -1:
-                pipeline(PATH=os.path.join(PATH, f), toSaveAnimation=toSaveAnimation)
+                extractFeaturesSaveAnimation(PATH=os.path.join(w[0], f), toSaveAnimation=toSaveAnimation)
+
+if toPlotFeatures:
+    #loop over models
+    for m in MODELS:
+        if m == 'dda_offline_0':
+            switchTimes = [5, 10, 15, 20, 25, 30, 35, 40, 45]
+        else:
+            switchTimes = [6, 8, 10, 12, 14]
+        #loop over switch times
+        for s in switchTimes:
+            if m == 'dda_offline_0':
+                stem = '{}/trajectory_mpc2nw_st-{}_if-60_cf-20_'.format(m, '%02d' % s)
+            else:
+                stem = '{}/trajectory_mpc2nw_switch-{}_'.format(m, '%02d' % s)
+            #get file paths for different model-switchtime combinations
+            filepaths = []
+            for w in os.walk('./process/'):
+                # print(w[0])
+                if w[0].find(stem) != -1:
+                    filepaths.append(w[0] + '/')
+            #load and plot trajectories
+            fig, axs = plt.subplots(1,1)
+            axs = [axs]
+            iax = 0
+            for f in filepaths:
+                d = pd.read_csv(f + 'trajectory.csv')
+                p = pd.read_csv(f + 'performance.csv')
+                t0 = p['time-start [s]'].iloc[0]
+                ts = s/10
+                t1 = p['time-end [s]'].iloc[0]
+                print(t0, ts, t1, f)
+                for _t0, _t1, _c in [(t0, ts, 'b'), (ts, t1, 'r')]:
+                    ind = (d['time-since-start [s]'].values >= _t0) & (d['time-since-start [s]'].values <= _t1)
+                    px = d.loc[ind, 'position_x [m]'].values
+                    py = d.loc[ind, 'position_y [m]'].values
+                    axs[iax].plot(px, py, _c)
+            axs[iax].set_title('model {}, switchtime {} sec\n gate passes {}, has collision {}'.format(m, ts,
+                                                                                                        p['num-gate-passes'].iloc[0], p['has-collision'].iloc[0]))
+            axs[iax].set_xlim((-30, 30))
+            axs[iax].set_ylim((-30, 30))
+            plt.show()
