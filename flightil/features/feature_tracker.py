@@ -56,7 +56,7 @@ class FeatureTracker:
         self.K_inv = np.linalg.inv(self.K)
         self.F = 800
 
-    def _reset(self):
+    def reset(self):
         self.ids = []
         self.tracking_counts = []
         self.image_shape = None
@@ -185,8 +185,14 @@ class FeatureTracker:
 
             if len(current_points) == 0:
                 print("FEATURE TRACKER: No point matches, need to reset.")
-                self._reset()
-                return None
+                self.reset()
+                # TODO: should probably just act like this is the first iteration though...
+                #  => actually, instead of doing the stuff below, could just reset/empty all the arrays I think
+                #     and then new features should be computed automatically...
+                # self.previous_image = image
+                # first_iteration = True
+                # current_points = None
+                # return None
 
         # extract features if there aren't enough being tracked already
         current_points_count = 0 if current_points is None else len(current_points)
@@ -212,7 +218,7 @@ class FeatureTracker:
                     current_points = np.concatenate((current_points, additional_points[:additional_points_count]), axis=0)
             elif current_points_count == 0:
                 print("FEATURE TRACKER: No features to track found, need to reset.")
-                self._reset()
+                self.reset()
                 return None
 
         # "un-distort" points (although we don't have any distortion, at least not in the original data)

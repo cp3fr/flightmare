@@ -9,10 +9,13 @@ from torchvision import transforms
 
 from tqdm import tqdm
 from time import time
+from collections import deque
+from scipy.spatial.transform import Rotation
 from mpc.mpc.mpc_solver import MPCSolver
+from features.feature_tracker import FeatureTracker
 from mpc.simulation.planner import TrajectoryPlanner
 from mpc.simulation.mpc_test_env import MPCTestEnv
-from mpc.simulation.mpc_test_wrapper import MPCTestWrapper
+from mpc.simulation.mpc_test_wrapper import MPCTestWrapper, RacingEnvWrapper
 from gazesim.training.utils import load_model, to_batch
 
 from run_tests import ensure_quaternion_consistency, visualise_actions, visualise_states
@@ -53,8 +56,86 @@ class SimpleNetworkController:
         # "post-process" and return output
         act = out["output_control"].cpu().detach().numpy().squeeze()
         if self.config["control_normalisation"]:
-            # act *= np.array([20.0, 6.0, 6.0, 6.0])
-            act *= np.array([21.39 * 3.2, 8.31, 8.31, 8.31])
+            act *= np.array([21.0, 6.0, 6.0, 6.0])
+            # act *= np.array([21.39 * 3.2, 8.31, 8.31, 8.31])
+        elif "flightmare_60" in self.config["input_video_names"]:
+            act *= np.array([3.2, 1.0, 1.0, 1.0])
+
+        return act
+
+
+class DDANetworkController:
+
+    def __init__(self, model_path):
+        # load model
+        self.model, self.config = load_model(model_path, gpu=0, return_config=True)
+
+        # TODO: create feature tracker
+        self.feature_tracker = FeatureTracker(max_features_to_track=100)
+        # reference states and shit should be coming from outside I think
+        self.feature_track_queue = deque(maxlen=8)
+        self.reference_queue = deque(maxlen=8)
+        self.state_estimate_queue = deque(maxlen=8)
+
+    def append_image(self, img, ts):
+        features = self.feature_tracker.process_image(img, current_time=ts)
+
+        # add missing features
+        if features is None:
+            features = np.zeros((self.config["feature_track_num"], 6))
+        else:
+            num_missing = self.config["feature_track_num"] - features.shape[0]
+            if num_missing > 0:
+                idx = np.random.choice(range(features.shape[0]), size=num_missing)
+                features = np.concatenate([features, features[idx]])
+            elif num_missing < 0:
+                idx = np.random.choice(range(features.shape[0]), size=self.config["feature_track_num"], replace=False)
+                features = features[idx]
+
+        # leave out the IDs
+        features = features[:, 1:]
+
+        self.feature_track_queue.append(features)
+
+    def append_reference(self, ref):
+        ref_rot = np.concatenate((ref[4:7], ref[3:4]), axis=-1)
+        ref_rot = Rotation.from_quat(ref_rot).as_matrix().reshape((9,))
+        ref = np.concatenate((ref[:3], ref[7:], ref_rot), axis=-1)
+        self.reference_queue.append(ref)
+
+    def append_state_estimate(self, st_est):
+        st_est_rot = np.concatenate((st_est[4:7], st_est[3:4]), axis=-1)
+        st_est_rot = Rotation.from_quat(st_est_rot).as_matrix().reshape((9,))
+        st_est = np.concatenate((st_est[:3], st_est[7:], st_est_rot), axis=-1)
+        self.state_estimate_queue.append(st_est)
+
+    def get_action(self):
+        # "convert" the queue contents to inputs
+        feature_tracks = torch.from_numpy(np.array(self.feature_track_queue)).float()
+        reference = torch.from_numpy(np.array(self.reference_queue)).float()
+        state_estimate = torch.from_numpy(np.array(self.state_estimate_queue)).float()
+
+        # concatenate reference and state estimate into one input
+        state = torch.cat((reference, state_estimate), dim=-1)
+
+        # reshape the tensors to match what is for the DDA network (i.e. "channel" dimension in right place)
+        feature_tracks = feature_tracks.permute(2, 0, 1)
+        state = state.permute(1, 0)
+
+        # prepare input dictionary
+        batch = {
+            "input_feature_tracks": {"stack": feature_tracks},
+            "input_state": {"stack": state},
+        }
+
+        # run network
+        out = self.model(to_batch([batch]))
+
+        # "post-process" and return output
+        act = out["output_control"].cpu().detach().numpy().squeeze()
+        if self.config["control_normalisation"]:
+            act *= np.array([21.0, 6.0, 6.0, 6.0])
+            # act *= np.array([21.39 * 3.2, 8.31, 8.31, 8.31])
         elif "flightmare_60" in self.config["input_video_names"]:
             act *= np.array([3.2, 1.0, 1.0, 1.0])
 
@@ -88,7 +169,7 @@ if __name__ == "__main__":
     base_frequency = 60.0  # 50.0
     state_frequency = 60.0
     image_frequency = 60.0
-    command_frequency = 20.0  # 25.0
+    command_frequency = 60.0  # 25.0
 
     base_time_step = 1.0 / base_frequency
     state_time_step = 1.0 / state_frequency
@@ -111,17 +192,20 @@ if __name__ == "__main__":
     # model_load_path = "/home/simon/gazesim-data/fpv_saliency_maps/logs/2021-02-02_22-12-09_ue4sim-fm-60-or-ctrl-norm-da/checkpoints/epoch001.pt"
     # model_load_path = "/home/simon/gazesim-data/fpv_saliency_maps/logs/2021-02-03_03-03-49_resnet-larger-fm-60-or-ctrl-norm-da/checkpoints/epoch000.pt"
     # model_load_path = "/home/simon/gazesim-data/fpv_saliency_maps/logs/2021-02-02_18-41-04_ue4sim-fm-60-or-ctrl-da/checkpoints/epoch009.pt"
-    model_load_path = "/home/simon/gazesim-data/fpv_saliency_maps/logs/2021-02-02_18-42-49_resnet-larger-fm-60-or-ctrl-da/checkpoints/epoch004.pt"
+    # model_load_path = "/home/simon/gazesim-data/fpv_saliency_maps/logs/2021-02-02_18-42-49_resnet-larger-fm-60-or-ctrl-da/checkpoints/epoch004.pt"
+
+    model_load_path = "/home/simon/gazesim-data/fpv_saliency_maps/logs/2021-02-06_23-06-46_dda-ft-fm-mpc-60-ctrl-norm/checkpoints/epoch019.pt"
 
     # network expert
-    network = SimpleNetworkController(model_load_path)
+    # network = SimpleNetworkController(model_load_path)
+    network = DDANetworkController(model_load_path)
     init_state = np.array([5.53432098729772, -6.7519413144563, 2.70721623458745, -0.54034852533245, -0.109890052789277,
                            -0.369566681013163, -0.7479091338427, -7.9896612581575, 9.14960496089365, 1.1539013846433])
 
     mpc_gt_index = 0
     mpc_actions, mpc_states, ts = get_mpc_trajectory("flat", 16, 5, 1)
     mpc_actions = mpc_actions[50:]
-    print(mpc_actions[:40])
+    # print(mpc_actions[:40])
 
     # planning parameters
     plan_time_step = 0.1
@@ -130,7 +214,7 @@ if __name__ == "__main__":
     # planner and MPC solver
     planner = TrajectoryPlanner(trajectory_path, plan_time_horizon, plan_time_step)
     mpc_solver = MPCSolver(plan_time_horizon, plan_time_step, mpc_binary_path)
-    print(planner.get_initial_state())
+    # print(planner.get_initial_state())
     # exit()
 
     # simulation parameters (after planner to get max time)
@@ -148,7 +232,8 @@ if __name__ == "__main__":
     # env.quad_state = init_state
 
     # wrapper (always used for now?)
-    wrapper = MPCTestWrapper(wave_track=False)
+    # wrapper = MPCTestWrapper(wave_track=False)
+    wrapper = RacingEnvWrapper(wave_track=False)
     # wrapper.env.setWaveTrack(False)
     wrapper.connect_unity(pub_port=10253, sub_port=10254)
 
@@ -196,23 +281,32 @@ if __name__ == "__main__":
             command_time += command_time_step
             if use_network:
                 if base_time < switch_time:
-                    state, action = env.step()
+                    state, action = env.step()  # ARERATAW
                     network_used_currently = 0
                 else:
-                    action = network.get_action(image, state)
+                    if isinstance(network, SimpleNetworkController):
+                        action = network.get_action(image, state)
+                    else:
+                        action = network.get_action()
                     state, _ = env.step(action)
                     network_used_currently = 1
             else:
                 state, action = env.step()
+                """
                 if image is not None:
-                    network_action = network.get_action(image)
+                    if isinstance(network, SimpleNetworkController):
+                        network_action = network.get_action(image)
+                    else:
+                        network_action = network.get_action()
                 else:
                     network_action = np.array([0.0, 0.0, 0.0, 0.0])
+                """
             # if base_time > switch_to_network_time:
             #     network.get_action(image)
             # TODO: also "calculate" and save the MPC action to see whether there is a deviation
         else:
             state, _ = env.step(action)
+            # TODO: use the new wrapper...
         network_used.append(network_used_currently)
         """
         if base_time < switch_to_network_time:
@@ -227,11 +321,14 @@ if __name__ == "__main__":
 
         if image_time <= base_time:
             image_time += image_time_step
-            image = wrapper.step(state)
+            if isinstance(wrapper, MPCTestEnv):
+                image = wrapper.step(state)
+            else:
+                image = wrapper.get_image()
             writer.write(image)
 
-            if wrapper.is_colliding():
-                print("Colliding!")
+            # if wrapper.is_colliding():
+            #     print("Colliding!")
 
         base_time += base_time_step
 

@@ -142,6 +142,7 @@ def visualise_states(states, trajectory, simulation_time_horizon, simulation_tim
               r"$x_{vel}$", r"$y_{vel}$", r"$z_{vel}$"]
     time_start = simulation_time_step if exclude_first else 0.0
     time_steps = np.arange(time_start, simulation_time_horizon + simulation_time_step, step=simulation_time_step)
+    time_steps = time_steps[:len(states)]
 
     print(time_start)
     print(simulation_time_horizon)
@@ -178,6 +179,7 @@ def visualise_actions(actions, simulation_time_horizon, simulation_time_step, ex
     labels = ["thrust", "roll", "pitch", "yaw"]
     time_start = simulation_time_step if exclude_first else 0.0
     time_steps = np.arange(time_start, simulation_time_horizon + simulation_time_step, step=simulation_time_step)
+    time_steps = time_steps[:len(actions)]
 
     # actions = actions[:100]
     # time_steps = time_steps[:100]

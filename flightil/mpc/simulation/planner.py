@@ -12,13 +12,36 @@
 import numpy as np
 import pandas as pd
 
+from gazesim.data.constants import STATE_VARS_SHORTHAND_DICT as SVSD
+from gazesim.data.constants import STATE_VARS_UNIT_SHORTHAND_DICT as SVUSD
 
-def row_to_state(row):
+STATE_VARS_DICT = {sh: [f"{sv} [{SVUSD[sh]}]" for sv in svl] for sh, svl in SVSD.items()}
+
+
+def row_to_state(row, columns=None, correct_height_flightmare=False):
+    if columns is None:
+        columns = STATE_VARS_DICT["pos"] + STATE_VARS_DICT["rot"] + STATE_VARS_DICT["vel"]
+    else:
+        columns_all = [ds for sh, dsl in STATE_VARS_DICT.items() for ds in dsl]
+        new_columns = []
+        for ds in columns:
+            if ds in STATE_VARS_DICT:
+                new_columns.extend(STATE_VARS_DICT[ds])
+            elif ds in columns_all:
+                new_columns.append(ds)
+        columns = new_columns
+
+    state = row[columns].values.astype(np.float32)
+    if correct_height_flightmare and "position_z [m]" in columns:
+        index = columns.index("position_z [m]")
+        state[index] += 0.35
+
+    """
     # TODO: potentially still do transformation here
     state = np.array([
         row["position_x [m]"],
         row["position_y [m]"],
-        row["position_z [m]"] + 0.35,
+        row["position_z [m]"] + (0.35 if correct_height_flightmare else 0.0),
         row["rotation_w [quaternion]"],
         row["rotation_x [quaternion]"],
         row["rotation_y [quaternion]"],
@@ -26,16 +49,27 @@ def row_to_state(row):
         row["velocity_x [m/s]"],
         row["velocity_y [m/s]"],
         row["velocity_z [m/s]"],
+        row["omega_x [rad/s]"],
+        row["omega_y [rad/s]"],
+        row["omega_z [rad/s]"],
+        # TODO: may need to add acceleration/angular velocity here too
     ], dtype=np.float32)
+    """
 
     return state
 
 
 class TrajectorySampler:
 
-    def __init__(self, trajectory_path):
+    # TODO: try something like "proximity trajectory planner"
+
+    def __init__(self, trajectory_path, max_time=None, correct_height_flightmare=False, fix_quaternions=True):
+        self._correct_height_flightmare = correct_height_flightmare
         self._trajectory = pd.read_csv(trajectory_path)
-        self._ensure_quaternion_consistency()
+        if max_time is not None:
+            self._trajectory = self._trajectory.loc[self._trajectory["time-since-start [s]"] <= max_time]
+        if fix_quaternions:
+            self._ensure_quaternion_consistency()
         self._final_time_stamp = self._trajectory["time-since-start [s]"].max()
         # TODO: maybe implement other ways of sampling from the trajectory, e.g. using the position as well
 
@@ -43,19 +77,19 @@ class TrajectorySampler:
         return self._final_time_stamp
 
     def get_initial_state(self):
-        return row_to_state(self._trajectory.iloc[0])
+        return row_to_state(self._trajectory.iloc[0], None, self._correct_height_flightmare)
 
     def get_final_state(self):
-        return row_to_state(self._trajectory.iloc[-1])
+        return row_to_state(self._trajectory.iloc[-1], None, self._correct_height_flightmare)
 
-    def sample_from_trajectory(self, time_stamp, interpolation="nearest_below"):
+    def sample_from_trajectory(self, time_stamp, interpolation="nearest_below", columns=None):
         # TODO: implement some sort of interpolation
         row_idx = self._trajectory["time-since-start [s]"] <= time_stamp
         if all(~row_idx):
             index = 0
         else:
             index = self._trajectory.loc[row_idx, "time-since-start [s]"].idxmax()
-        return row_to_state(self._trajectory.iloc[index])
+        return row_to_state(self._trajectory.iloc[index], columns, self._correct_height_flightmare)
 
     def _ensure_quaternion_consistency(self):
         flipped = 0
@@ -82,12 +116,17 @@ class TrajectorySampler:
 
 class TrajectoryPlanner:
 
-    def __init__(self, trajectory_path, plan_time_horizon=2.0, plan_time_step=0.1):
-        self._trajectory_sampler = TrajectorySampler(trajectory_path)
+    def __init__(self, trajectory_path, plan_time_horizon=2.0, plan_time_step=0.1, max_time=None,
+                 correct_height_flightmare=False, fix_quaternions=True):
+        self._trajectory_sampler = TrajectorySampler(trajectory_path, max_time,
+                                                     correct_height_flightmare, fix_quaternions)
 
         self._plan_time_horizon = plan_time_horizon
         self._plan_time_step = plan_time_step
         self._num_plan_steps = int(self._plan_time_horizon / self._plan_time_step)
+
+    def sample_from_trajectory(self, current_time, columns=None):
+        return self._trajectory_sampler.sample_from_trajectory(current_time, columns=columns)
 
     def plan(self, current_state, current_time):
         latest_non_hover_state = current_state.tolist()

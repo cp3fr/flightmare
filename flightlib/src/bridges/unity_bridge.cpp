@@ -80,7 +80,11 @@ bool UnityBridge::disconnectUnity() {
   // create new message object
   pub_.close();
   sub_.close();
-  // connections_initialized_ = false;
+
+  connections_initialized_ = false;
+  pub_ = zmqpp::socket(context_, zmqpp::socket_type::publish);
+  sub_ = zmqpp::socket(context_, zmqpp::socket_type::subscribe);
+
   return true;
 }
 

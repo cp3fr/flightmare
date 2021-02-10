@@ -14,7 +14,7 @@ from mpc.simulation.mpc_test_wrapper import MPCTestWrapper, RacingEnvWrapper
 from mpc.simulation.planner import TrajectoryPlanner
 from mpc.mpc.mpc_solver import MPCSolver
 from features.feature_tracker import FeatureTracker
-from run_tests import sample_from_trajectory
+from run_tests import sample_from_trajectory, ensure_quaternion_consistency
 
 
 class DataGenerator:
@@ -57,7 +57,21 @@ class FlightmareReplicator(DataGenerator):
         "rot_x_quat": "rotation_x [quaternion]",
         "rot_y_quat": "rotation_y [quaternion]",
         "rot_z_quat": "rotation_z [quaternion]",
-        # TODO: other stuff too (drone stuff)
+        "RotationX": "euler_x [rad]",
+        "RotationY": "euler_y [rad]",
+        "RotationZ": "euler_z [rad]",
+        "AngularX": "omega_x [rad/s]",
+        "AngularY": "omega_y [rad/s]",
+        "AngularZ": "omega_z [rad/s]",
+        "DroneVelocityX": "drone_velocity_x [m/s]",
+        "DroneVelocityY": "drone_velocity_y [m/s]",
+        "DroneVelocityZ": "drone_velocity_z [m/s]",
+        "DroneAccelerationX": "drone_acceleration_x [m/s/s]",
+        "DroneAccelerationY": "drone_acceleration_y [m/s/s]",
+        "DroneAccelerationZ": "drone_acceleration_z [m/s/s]",
+        "DroneAngularX": "drone_omega_x [rad]",
+        "DroneAngularY": "drone_omega_y [rad]",
+        "DroneAngularZ": "drone_omega_z [rad]",
     }
 
     def __init__(self, config):
@@ -72,10 +86,12 @@ class FlightmareReplicator(DataGenerator):
 
         self.wave_track = config["track_name"] == "wave"
         self.env = MPCTestWrapper(wave_track=self.wave_track)
-        self.env.connect_unity(pub_port=config["pub_port"], sub_port=config["sub_port"])
+        if not self.trajectory_only:
+            self.env.connect_unity(pub_port=config["pub_port"], sub_port=config["sub_port"])
 
     def finish(self):
-        self.env.disconnect_unity()
+        if not self.trajectory_only:
+            self.env.disconnect_unity()
 
     def compute_new_data(self, run_dir):
         start = time.time()
@@ -89,11 +105,6 @@ class FlightmareReplicator(DataGenerator):
 
         print("Processing '{}'.".format(run_dir))
 
-        # get info about the current run
-        run_info = parse_run_info(run_dir)
-        subject = run_info["subject"]
-        run = run_info["run"]
-
         # load the correct drone.csv and laptimes.csv
         inpath_drone = os.path.join(run_dir, "drone.csv")
         inpath_ts = os.path.join(run_dir, "screen_timestamps.csv")
@@ -105,11 +116,18 @@ class FlightmareReplicator(DataGenerator):
         df_traj = df_traj[[co for co in FlightmareReplicator.COLUMN_DICT]]
         df_traj = df_traj.rename(FlightmareReplicator.COLUMN_DICT, axis=1)
 
+        # ensure quaternion consistency
+        df_traj = ensure_quaternion_consistency(df_traj)
+
+        # adjust height to be suitable for Flightmare
+        df_traj["position_x [m]"] += 0.35
+
         # save the adjusted trajectory (including setting start to 0? probably not)
         # df_traj["time-since-start [s]"] = df_traj["time-since-start [s]"] - df_traj["time-since-start [s]"].min()
         df_traj.to_csv(os.path.join(run_dir, "trajectory.csv"), index=False)
 
         if self.trajectory_only:
+            print("Processed '{}'. in {:.2f}s".format(run_dir, time.time() - start))
             return
 
         # use this (not time-adjusted) trajectory to generate data
@@ -209,7 +227,8 @@ class MPCReplicator_v0(DataGenerator):
 
         # planner
         print("Ensuring quaternion consistency in planner...")
-        planner = TrajectoryPlanner(inpath_traj, self.plan_time_horizon, self.plan_time_step)
+        planner = TrajectoryPlanner(inpath_traj, self.plan_time_horizon, self.plan_time_step,
+                                    correct_height_flightmare=False)
 
         # simulation parameters (after planner to get max time)
         start_time = df_ts["ts"].iloc[0]
@@ -438,7 +457,8 @@ class MPCReplicator_v1(DataGenerator):
 
         # planner
         print("Ensuring quaternion consistency in planner...")
-        planner = TrajectoryPlanner(inpath_traj, self.plan_time_horizon, self.plan_time_step)
+        planner = TrajectoryPlanner(inpath_traj, self.plan_time_horizon, self.plan_time_step,
+                                    correct_height_flightmare=False)
 
         # environment
         self.fm_wrapper.set_reduced_state(planner.get_initial_state())
@@ -579,19 +599,11 @@ class FeatureTrackGenerator(DataGenerator):
             features_current = tracker.process_image(frame_gray, time_current)  # shape (#features, 6)
 
             if features_current is None:
-                features_current = np.full((self.max_features, 6), fill_value=np.nan)
-            elif features_current.shape[0] < self.max_features:
-                features_current = np.pad(features_current,
-                                          ((0, self.max_features - features_current.shape[0]), (0, 0)),
-                                          mode="constant", constant_values=np.nan)
-
-            # TODO: when crashes happen and the image is potentially all black/featureless, should just make everything
-            #  nan I guess => these frames won't show up in the actual training data anyway
+                features_current = np.empty((0, 6))
 
             features.append(features_current)
 
-        features = np.stack(features)
-        np.save(os.path.join(run_dir, "ft_{}.npy".format(self.video_name)), features)
+        np.savez(os.path.join(run_dir, "ft_{}.npz".format(self.video_name)), *features)
 
         # making sure that data exists should be covered by rgb_available,
         # which is used to filter in generate_splits by default
@@ -599,7 +611,7 @@ class FeatureTrackGenerator(DataGenerator):
         print("Processed '{}'. in {:.2f}s".format(run_dir, time.time() - start))
 
 
-def resolve_gt_class(new_data_type: str) -> Type[DataGenerator]:
+def resolve_generator_class(new_data_type: str) -> Type[DataGenerator]:
     # TODO: reference GT
     if new_data_type == "copy_original":
         return FlightmareReplicator
@@ -619,7 +631,7 @@ def main(args):
         for r_idx, r in enumerate(iterate_directories(config["data_root"], track_names=config["track_name"])):
             print(r_idx, ":", r)
     else:
-        generator = resolve_gt_class(config["new_data_type"])(config)
+        generator = resolve_generator_class(config["new_data_type"])(config)
         generator.generate()
 
 

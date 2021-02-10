@@ -72,7 +72,7 @@ class RacingEnvWrapper:
 
     def get_state(self):
         self.env.getState(self.state)
-        return self.state
+        return self.state.copy()
 
     def get_sim_time_step(self):
         return self.env.getSimTimeStep()

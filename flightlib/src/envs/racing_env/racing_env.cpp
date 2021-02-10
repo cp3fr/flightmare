@@ -161,7 +161,7 @@ void RacingEnv::setWaveTrack(bool wave_track) {
     if (wave_track) {
       pos_z += 3.0;
     }
-    std::cout << pos_z << std::endl;
+    // std::cout << pos_z << std::endl;
     gates_[i]->setPosition(Eigen::Vector3f(POSITIONS[i][0], POSITIONS[i][1], pos_z));
   }
 }
@@ -176,7 +176,7 @@ bool RacingEnv::loadParam(const YAML::Node &cfg) {
       test.row(i) = Eigen::VectorXf::Map(&test_yaml_[i][0], test_yaml_[i].size());
     }
 
-    std::cout << "YAML test:" << std::endl << test << std::endl;
+    // std::cout << "YAML test:" << std::endl << test << std::endl;
   } else {
     return false;
   }
