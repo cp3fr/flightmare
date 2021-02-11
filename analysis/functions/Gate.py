@@ -43,10 +43,17 @@ class Gate(object):
         self._corners = (Rotation.from_quat(q).apply(proto.T).T + p.reshape(3, 1)).astype(float)
         self._center = p
         self._rotation = q
-        #top-view line representation of gate horizontal axis
-        self._xy = LineString([(self._corners[0, 0], self._corners[1, 0]), (self._corners[0, 2], self._corners[1, 2])])
-        #side-view line representation of the gate vertical axis
+        #1D minmax values
+        self._x = np.array([np.min(self._corners[0, :]), np.max(self._corners[0, :])])
+        self._y = np.array([np.min(self._corners[1, :]), np.max(self._corners[1, :])])
         self._z = np.array([np.min(self._corners[2, :]), np.max(self._corners[2, :])])
+        #2D line representations of gate horizontal axis
+        self._xy = LineString([ ((np.min(self._corners[0, :])), np.min(self._corners[1, :])),
+                                ((np.max(self._corners[0, :])), np.max(self._corners[1, :]))])
+        self._xz = LineString([((np.min(self._corners[0, :])), np.min(self._corners[2, :])),
+                               ((np.max(self._corners[0, :])), np.max(self._corners[2, :]))])
+        self._yz = LineString([((np.min(self._corners[1, :])), np.min(self._corners[2, :])),
+                               ((np.max(self._corners[1, :])), np.max(self._corners[2, :]))])
 
     @property
     def corners(self):
@@ -61,12 +68,28 @@ class Gate(object):
         return self._rotation
 
     @property
-    def xy(self):
-        return self._xy
+    def x(self):
+        return self._x
+
+    @property
+    def y(self):
+        return self._y
 
     @property
     def z(self):
         return self._z
+
+    @property
+    def xy(self):
+        return self._xy
+
+    @property
+    def xz(self):
+        return self._xz
+
+    @property
+    def yz(self):
+        return self._yz
 
     def intersect(self, p0, p1):
         '''
@@ -77,32 +100,62 @@ class Gate(object):
 
         #only proceed if no nan values
         if (np.sum(np.isnan(p0).astype(int))==0) & (np.sum(np.isnan(p1).astype(int))==0):
+            #line between start end end points
+            line_xy = LineString([(p0[0], p0[1]),
+                                  (p1[0], p1[1])])
+            line_xz = LineString([(p0[0], p0[2]),
+                                  (p1[0], p1[2])])
+            line_yz = LineString([(p0[1], p0[2]),
+                                  (p1[1], p1[2])])
 
-            line_xy = LineString([(p0[0], p0[1]), (p1[0], p1[1])])
+            print(line_xy)
+            print(line_xz)
+            print(line_yz)
 
+            print(self.xy.intersects(line_xy), [val for val in self.xy.intersection(line_xy).coords])
+            print(self.xz.intersects(line_xz), [val for val in self.xz.intersection(line_xz).coords])
+            print(self.yz.intersects(line_yz), [val for val in self.yz.intersection(line_yz).coords])
+
+            count = 0
             if self.xy.intersects(line_xy):
-                xy = [val for val in self.xy.intersection(line_xy).coords]
-                if len(xy) == 2:
-                    ind = np.argmin(np.array([np.linalg.norm(np.array(xy[0]) - p0[:2]),
-                                              np.linalg.norm(np.array(xy[1]) - p0[:2])]))
-                else:
-                    ind = 0
-                p_xy = xy[ind]
-                b = p1-p0
-                # print('==============')
-                # print(p0)
-                # print(p1)
-                # print(b)
-                b /= np.linalg.norm(b)
-                f = (p_xy[0]-p0[0])/b[0]
-                # print(f)
-                # print('==============')
-                _p = p0+f*b
-                p_z = _p[2]
-                if (p_z >= self._z[0]) & (p_z <= self._z[1]):
-                    point_3d = np.array([p_xy[0], p_xy[1], p_z])
-                    point_2d = self.point2d(point_3d)
-        return point_2d, point_3d
+                count += 1
+            if self.xz.intersects(line_xz):
+                count += 1
+            if self.yz.intersects(line_yz):
+                count += 1
+
+            #at least two of the three orthogonal lines need to be crossed
+            if count > 1:
+                print('Crossing detected')
+            else:
+                print('No crossing')
+
+        return None
+
+        #     if self.xy.intersects(line_xy):
+        #         xy = [val for val in self.xy.intersection(line_xy).coords]
+        #         if len(xy) == 2:
+        #             ind = np.argmin(np.array([np.linalg.norm(np.array(xy[0]) - p0[:2]),
+        #                                       np.linalg.norm(np.array(xy[1]) - p0[:2])]))
+        #         else:
+        #             ind = 0
+        #         p_xy = xy[ind]
+        #         b = p1-p0
+        #         print('==============')
+        #         print(p_xy)
+        #         print(p0)
+        #         print(p1)
+        #         print(b)
+        #         b /= np.linalg.norm(b)
+        #         f = (p_xy[0]-p0[0])/b[0]
+        #         print(f)
+        #         print('==============')
+        #         _p = p0+f*b
+        #         p_z = _p[2]
+        #         if (p_z >= self._z[0]) & (p_z <= self._z[1]):
+        #             point_3d = np.array([p_xy[0], p_xy[1], p_z])
+        #             point_2d = self.point2d(point_3d)
+        # return point_2d, point_3d
 
     def point2d(self, p):
         '''

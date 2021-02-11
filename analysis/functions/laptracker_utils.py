@@ -1,6 +1,6 @@
 import pandas as pd
 try:
-    from src.functions.Gate import *
+    from analysis.functions.Gate import *
 except:
     from functions.Gate import *
 
@@ -30,7 +30,7 @@ def detect_gate_passing(time, position, gate_object, step_size=2, distance_thres
     #remove duplicated timestamps, i.e. when within the stepsize window
     if len(ts2) > 0:
         ts2 = np.sort(np.array(ts2))
-        ind = np.hstack((np.diff(ts2) >= (step_size *dt), True))
+        ind = np.hstack((np.diff(ts2) >= (step_size * dt), True))
         ts2 = ts2[ind]
     ts2 = np.array(ts2)
     return ts2

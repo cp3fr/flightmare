@@ -55,7 +55,7 @@ def getWallColliders(dims=(1, 1, 1), center=(0, 0, 0)):
     return objWallCollider
 
 #todo: debug collider for dda data
-def extractFeaturesSaveAnimation(PATH, toSaveAnimation=False):
+def extractFeaturesSaveAnimation(PATH, toShowAnimation=False, toSaveAnimation=False):
     print(PATH)
     print('')
     #read drone state logs
@@ -71,6 +71,7 @@ def extractFeaturesSaveAnimation(PATH, toSaveAnimation=False):
     #get drone state variables for event detection
     _t = d.loc[:, 'time-since-start [s]'].values
     _p = d.loc[:,('position_x [m]', 'position_y [m]', 'position_z [m]')].values
+
     #gate passing event
     evGatePass = [(i, detect_gate_passing(_t, _p, objGatePass[i])) for i in range(len(objGatePass))]
     evGatePass = [(i, v) for i, v in evGatePass if v.shape[0] > 0]
@@ -93,12 +94,56 @@ def extractFeaturesSaveAnimation(PATH, toSaveAnimation=False):
     print('gate collisions:')
     print(evGateCollision)
     print('')
-    #wall collision events
-    evWallCollision = [(i, detect_gate_passing(_t, _p, objWallCollider[i])) for i in range(len(objWallCollider))]
+
+
+
+
+
+    #todo: debug
+    # wall collision events
+    evWallCollision = [(i, detect_gate_passing(_t, _p, objWallCollider[i], step_size=2, distance_threshold=1.5)) for i in range(len(objWallCollider))]
+    print(evWallCollision)
     evWallCollision = [(i, v) for i, v in evWallCollision if v.shape[0] > 0]
     print('wall collisions:')
     print(evWallCollision)
     print('')
+
+    print(d.shape)
+    print(d.columns)
+    print(t.shape)
+    print(t.columns)
+    print(t.loc[:, ('pos_x', 'pos_y', 'pos_z')])
+    print('dt={}'.format(np.nanmedian(np.diff(_t))))
+
+
+    for o in objWallCollider + objGatePass:
+        __p0 = np.array([ 2., 1., -10.])
+        __p1 = np.array([ 1., 2.,  10.])
+        print('----------------')
+        print(o.xy)
+        print(o.z)
+        print(o.corners)
+        print(o.center)
+        print('sample points',__p0, __p1)
+        print(o.intersect(__p0, __p1))
+
+    plt.plot(_t, _p)
+    plt.title(PATH)
+    plt.show()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     #save timestamps
     e = pd.DataFrame([])
     for i, v in evGatePass:
@@ -148,28 +193,33 @@ def extractFeaturesSaveAnimation(PATH, toSaveAnimation=False):
     #save performance metrics
     p.to_csv(outpath + 'performance.csv', index=False)
     #save the animation
-    if toSaveAnimation:
-        if os.path.isfile(outpath + 'anim.mp4') == False:
-            print('..saving animation')
-            gate_objects = objGatePass + objGateCollider + objWallCollider
-            d['simulation-time-since-start [s]'] = d['time-since-start [s]'].values
-            anim = Animation3D(d, Gate_objects=gate_objects, equal_lims=(-30, 30))
-            anim.save(outpath + 'anim.mp4', writer='ffmpeg', fps=25)
-            # anim.show()
+    if toSaveAnimation or toShowAnimation:
+        print('..saving animation')
+        gate_objects = objGatePass + objGateCollider + objWallCollider
+        d['simulation-time-since-start [s]'] = d['time-since-start [s]'].values
+        anim = Animation3D(d, Gate_objects=gate_objects, equal_lims=(-30, 30))
+        if toSaveAnimation:
+            if os.path.isfile(outpath + 'anim.mp4') == False:
+                anim.save(outpath + 'anim.mp4', writer='ffmpeg', fps=25)
+        if toShowAnimation:
+            anim.show()
 
 PATH = './logs/'
-MODELS = ['dda_offline_0', 'resnet_test']
+MODELS = ['resnet_test']  #['dda_offline_0', 'resnet_test']
 
 
-toExtractFeatures = False
+toExtractFeatures = True
 toSaveAnimation = False
-toPlotFeatures = True
+toShowAnimation = False
+toPlotFeatures = False
 
 if toExtractFeatures:
-    for w in os.walk(PATH):
-        for f in w[2]:
-            if f.find('.csv') != -1:
-                extractFeaturesSaveAnimation(PATH=os.path.join(w[0], f), toSaveAnimation=toSaveAnimation)
+    for m in MODELS:
+        for w in os.walk(PATH):
+            if w[0].find(m) != -1:
+                for f in w[2]:
+                    if f.find('.csv') != -1:
+                        extractFeaturesSaveAnimation(PATH=os.path.join(w[0], f), toShowAnimation=toShowAnimation, toSaveAnimation=toSaveAnimation)
 
 if toPlotFeatures:
     #loop over models

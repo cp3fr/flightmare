@@ -1,8 +1,8 @@
 import os
-from ffprobe import FFProbe
+# from ffprobe import FFProbe
 from shutil import copyfile
 try:
-    from src.functions.laptracker_utils import *
+    from analysis.functions.laptracker_utils import *
 except:
     from functions.laptracker_utils import *
 
@@ -293,28 +293,28 @@ def get_tracknames_from_dronedata(droneTimestamps, tracks, thresh=1.75):
         final_track_selection.append(track_name[0])
     return final_track_selection
 
-def get_screen_timestamps(PATH, timezone='Europe/Paris'):
-    screenTimestamps = pd.DataFrame()
-    for walker in os.walk(PATH):
-        for filename in sorted(walker[2]):
-            if filename.find('Kazam_screencast') != -1:
-                filepath = walker[0]
-                metadata = FFProbe(filepath + filename)
-                ts_start = pd.Timestamp(metadata.metadata['creation_time']).tz_convert(timezone)
-                HMS = [float(val) for val in metadata.metadata['Duration'].split(':')]
-                duration_in_sec = 360 * HMS[0] + 60 * HMS[1] + HMS[2]
-                ts_end = pd.Timestamp(ts_start.timestamp() + duration_in_sec, unit='s', tz=timezone)
-                cap = cv2.VideoCapture(filepath+filename)
-                f0 = 0
-                f1 = int(cap.get(7))
-                fps = cap.get(5)
-                df = pd.DataFrame({'ts_start': ts_start, 'ts_end': ts_end, 'filename': filename, 'filepath': filepath, \
-                                   'frame_start': f0, 'frame_end': f1, 'fps': fps}, index=[0])
-                if screenTimestamps.size:
-                    screenTimestamps = screenTimestamps.append(df,ignore_index=True)
-                else:
-                    screenTimestamps = df
-    return screenTimestamps
+# def get_screen_timestamps(PATH, timezone='Europe/Paris'):
+#     screenTimestamps = pd.DataFrame()
+#     for walker in os.walk(PATH):
+#         for filename in sorted(walker[2]):
+#             if filename.find('Kazam_screencast') != -1:
+#                 filepath = walker[0]
+#                 metadata = FFProbe(filepath + filename)
+#                 ts_start = pd.Timestamp(metadata.metadata['creation_time']).tz_convert(timezone)
+#                 HMS = [float(val) for val in metadata.metadata['Duration'].split(':')]
+#                 duration_in_sec = 360 * HMS[0] + 60 * HMS[1] + HMS[2]
+#                 ts_end = pd.Timestamp(ts_start.timestamp() + duration_in_sec, unit='s', tz=timezone)
+#                 cap = cv2.VideoCapture(filepath+filename)
+#                 f0 = 0
+#                 f1 = int(cap.get(7))
+#                 fps = cap.get(5)
+#                 df = pd.DataFrame({'ts_start': ts_start, 'ts_end': ts_end, 'filename': filename, 'filepath': filepath, \
+#                                    'frame_start': f0, 'frame_end': f1, 'fps': fps}, index=[0])
+#                 if screenTimestamps.size:
+#                     screenTimestamps = screenTimestamps.append(df,ignore_index=True)
+#                 else:
+#                     screenTimestamps = df
+#     return screenTimestamps
 
 def crop_video(inpath, outpath, firstframe, lastframe):
     cap = cv2.VideoCapture(inpath)
