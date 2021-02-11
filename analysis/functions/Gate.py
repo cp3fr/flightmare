@@ -97,7 +97,10 @@ class Gate(object):
         '''
         point_2d = None
         point_3d = None
-
+        _x = None
+        _y = None
+        _z = None
+        count = 0
         #only proceed if no nan values
         if (np.sum(np.isnan(p0).astype(int))==0) & (np.sum(np.isnan(p1).astype(int))==0):
             #line between start end end points
@@ -108,29 +111,33 @@ class Gate(object):
             line_yz = LineString([(p0[1], p0[2]),
                                   (p1[1], p1[2])])
 
-            print(line_xy)
-            print(line_xz)
-            print(line_yz)
+            # print(line_xy)
+            # print(line_xz)
+            # print(line_yz)
+            #
+            # print(self.xy.intersects(line_xy), [val for val in self.xy.intersection(line_xy).coords])
+            # print(self.xz.intersects(line_xz), [val for val in self.xz.intersection(line_xz).coords])
+            # print(self.yz.intersects(line_yz), [val for val in self.yz.intersection(line_yz).coords])
 
-            print(self.xy.intersects(line_xy), [val for val in self.xy.intersection(line_xy).coords])
-            print(self.xz.intersects(line_xz), [val for val in self.xz.intersection(line_xz).coords])
-            print(self.yz.intersects(line_yz), [val for val in self.yz.intersection(line_yz).coords])
-
-            count = 0
             if self.xy.intersects(line_xy):
                 count += 1
+                _x, _y = [val for val in self.xy.intersection(line_xy).coords][0]
             if self.xz.intersects(line_xz):
                 count += 1
+                _x, _z = [val for val in self.xz.intersection(line_xz).coords][0]
             if self.yz.intersects(line_yz):
                 count += 1
+                _y, _z = [val for val in self.yz.intersection(line_yz).coords][0]
 
             #at least two of the three orthogonal lines need to be crossed
             if count > 1:
-                print('Crossing detected')
-            else:
-                print('No crossing')
+                point_3d = np.array([_x, _y, _z])
+                point_2d = self.point2d(point_3d)
+            #     print('Crossing detected: ', point_3d, point_2d)
+            # else:
+            #     print('No crossing')
 
-        return None
+        return point_2d, point_3d
 
         #     if self.xy.intersects(line_xy):
         #         xy = [val for val in self.xy.intersection(line_xy).coords]
@@ -164,10 +171,19 @@ class Gate(object):
         y=down
         origin at top left
         '''
-        p0_xy = self._corners[:2, 0] #gate horizontal axis origin
-        p1_xy = self._corners[:2, 2] #gate horizontal axis endpoint
-        x = np.linalg.norm(p[:2]-p0_xy) / np.linalg.norm(p1_xy-p0_xy)
-        p0_z = self._corners[2, 0]  # gate vertical axis origin
-        p1_z = self._corners[2, 2]  # gate vertical axis endpoint
-        y = np.abs(p[2] - p0_z) / np.abs(p1_z - p0_z)
-        return np.array([x, y])
+        # print(p)
+        # print(self._rotation)
+        # _p = p - self._center
+        # print(_p)
+        # _p = Rotation.from_quat(self._rotation).apply(_p)
+        # print('----------')
+        # print(_p)
+        # print('----------')
+        # p0_xy = self._corners[:2, 0] #gate horizontal axis origin
+        # p1_xy = self._corners[:2, 2] #gate horizontal axis endpoint
+        # x = np.linalg.norm(p[:2]-p0_xy) / np.linalg.norm(p1_xy-p0_xy)
+        # p0_z = self._corners[2, 0]  # gate vertical axis origin
+        # p1_z = self._corners[2, 2]  # gate vertical axis endpoint
+        # y = np.abs(p[2] - p0_z) / np.abs(p1_z - p0_z)
+        # return np.array([x, y])
+        return None

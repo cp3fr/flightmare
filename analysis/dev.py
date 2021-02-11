@@ -48,8 +48,8 @@ def getWallColliders(dims=(1, 1, 1), center=(0, 0, 0)):
                                 dims=(dims[0], dims[2]), dtype='gazesim'))
     return objWallCollider
 
-p0 = np.array([-10,  -10, -5])
-p1 = np.array([ 10,   10,  30])
+p0 = np.array([-10,  10, -0.001])
+p1 = np.array([ 10, 10,  0.001])
 
 print(p0)
 print(p1)
@@ -58,13 +58,14 @@ objWallCollider = getWallColliders(dims=(66, 36, 9), center=(0, 0, 4.5))
 
 o = objWallCollider[0]
 
+# print(o.x)
+# print(o.y)
+# print(o.z)
+# print(o.xy)
+# print(o.xz)
+# print(o.yz)
 
-print(o.x)
-print(o.y)
-print(o.z)
-print(o.xy)
-print(o.xz)
-print(o.yz)
+p2, p3 = o.intersect(p0, p1)
 
-
-o.intersect(p0, p1)
+print(p3)
+print(p2)

@@ -96,53 +96,35 @@ def extractFeaturesSaveAnimation(PATH, toShowAnimation=False, toSaveAnimation=Fa
     print('')
 
 
-
-
-
-    #todo: debug
-    # wall collision events
     evWallCollision = [(i, detect_gate_passing(_t, _p, objWallCollider[i], step_size=2, distance_threshold=1.5)) for i in range(len(objWallCollider))]
-    print(evWallCollision)
+    # print(evWallCollision)
     evWallCollision = [(i, v) for i, v in evWallCollision if v.shape[0] > 0]
     print('wall collisions:')
     print(evWallCollision)
-    print('')
-
-    print(d.shape)
-    print(d.columns)
-    print(t.shape)
-    print(t.columns)
-    print(t.loc[:, ('pos_x', 'pos_y', 'pos_z')])
-    print('dt={}'.format(np.nanmedian(np.diff(_t))))
-
-
-    for o in objWallCollider + objGatePass:
-        __p0 = np.array([ 2., 1., -10.])
-        __p1 = np.array([ 1., 2.,  10.])
-        print('----------------')
-        print(o.xy)
-        print(o.z)
-        print(o.corners)
-        print(o.center)
-        print('sample points',__p0, __p1)
-        print(o.intersect(__p0, __p1))
-
-    plt.plot(_t, _p)
-    plt.title(PATH)
-    plt.show()
-
-
-
-
-
-
-
-
-
-
-
-
-
+    # print('')
+    #
+    # print(d.shape)
+    # print(d.columns)
+    # print(t.shape)
+    # print(t.columns)
+    # print(t.loc[:, ('pos_x', 'pos_y', 'pos_z')])
+    # print('dt={}'.format(np.nanmedian(np.diff(_t))))
+    #
+    #
+    # for o in objWallCollider + objGatePass:
+    #     __p0 = np.array([ 2., 1., -10.])
+    #     __p1 = np.array([ 1., 2.,  10.])
+    #     print('----------------')
+    #     print(o.xy)
+    #     print(o.z)
+    #     print(o.corners)
+    #     print(o.center)
+    #     print('sample points',__p0, __p1)
+    #     print(o.intersect(__p0, __p1))
+    #
+    # plt.plot(_t, _p)
+    # plt.title(PATH)
+    # plt.show()
 
     #save timestamps
     e = pd.DataFrame([])
@@ -205,7 +187,7 @@ def extractFeaturesSaveAnimation(PATH, toShowAnimation=False, toSaveAnimation=Fa
             anim.show()
 
 PATH = './logs/'
-MODELS = ['resnet_test']  #['dda_offline_0', 'resnet_test']
+MODELS = ['dda_offline_0', 'resnet_test'] #['dda_offline_0', 'resnet_test']
 
 
 toExtractFeatures = True
