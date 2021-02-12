@@ -87,11 +87,12 @@ def test():
                                    "flightil/dda/results/loop/20210211-002220/train/ckpt-156")
 
     # defining some settings
-    show_plots = False
-    save_data = True
+    show_plots = True
+    save_data = False
     write_video = False
     max_time = 7.0
     switch_times = np.arange(0.0, 5.0, step=0.5).tolist() + [max_time + 1.0]
+    # switch_times = [max_time + 1.0]
     repetitions = 1
     experiment_path = "/home/simon/Desktop/weekly_meeting/meeting18/dda_0"
 
@@ -182,7 +183,7 @@ def test():
 
             if show_plots:
                 show_state_action_plots(trajectory_path, reduced_states, mpc_actions, network_actions,
-                                        simulation.base_time_step, simulation.total_time)
+                                        simulation.command_time_step, simulation.total_time)
             if save_data:
                 save_trajectory_data(time_stamps, mpc_actions, network_actions, states, network_used, max_time,
                                      switch_time, repetition, experiment_path)

@@ -185,8 +185,9 @@ class Trainer:
 
             if self.learner.rollout_idx % self.settings.train_every_n_rollouts == 0:
                 # here the simulation basically seems to be stopped while the network is being trained
-                self.simulation.disconnect_unity()
-                self.connect_to_sim = True
+                if self.settings.disconnect_when_training:
+                    self.simulation.disconnect_unity()
+                    self.connect_to_sim = True
                 self.learner.train()
 
             if self.learner.rollout_idx % self.settings.test_every_n_rollouts == 0:

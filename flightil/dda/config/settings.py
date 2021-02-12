@@ -142,6 +142,7 @@ class DaggerSetting(Settings):
             sim_conf = settings["simulation"]
             self.flightmare_pub_port = sim_conf["flightmare_pub_port"]
             self.flightmare_sub_port = sim_conf["flightmare_sub_port"]
+            self.disconnect_when_training = sim_conf["disconnect_when_training"]
             self.base_frequency = sim_conf["base_frequency"]
             self.image_frequency = sim_conf["image_frequency"]
             self.ref_frequency = sim_conf["ref_frequency"]

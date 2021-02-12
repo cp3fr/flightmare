@@ -33,6 +33,7 @@ test_time:
 simulation:
   flightmare_pub_port: 10253
   flightmare_sub_port: 10254
+  disconnect_when_training: False
   base_frequency: 100
   image_frequency: 30
   ref_frequency: 50

@@ -250,7 +250,9 @@ class ControllerLearning:
             # since we have to "request" that manually, will probably have to do it here...
             # TODO: why no return here?
 
-        if not self.use_network or not self.reference_updated or len(inputs["fts"].shape) != 4:
+        if self.mode != "testing" and (not self.use_network or
+                                       not self.reference_updated
+                                       or len(inputs["fts"].shape) != 4):
             # Will be in here if:
             # - starting and VIO init
             # - Image queue is not ready, can only run expert

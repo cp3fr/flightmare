@@ -20,7 +20,8 @@ class BodyrateLearner(object):
     def __init__(self, settings, expect_partial=False):
         self.config = settings
         physical_devices = tf.config.experimental.list_physical_devices('GPU')
-        if len(physical_devices) > 0:  # TODO: probably add this to config and change GPU for snaga!
+        if len(physical_devices) > 0:
+            tf.config.set_visible_devices(physical_devices[self.config.gpu:(self.config.gpu + 1)], "GPU")
             tf.config.experimental.set_memory_growth(physical_devices[self.config.gpu], True)
 
         self.min_val_loss = tf.Variable(np.inf, name='min_val_loss', trainable=False)
