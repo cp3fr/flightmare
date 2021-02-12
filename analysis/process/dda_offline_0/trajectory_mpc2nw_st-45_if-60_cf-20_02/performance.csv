@@ -1,0 +1,2 @@
+time-start [s],time-end [s],flight-time [s],flight-distance [m],num-gate-passes,gate-id,gate-ts,has-collision,filepath
+0.1,5.049999999999987,4.949999999999988,48.35005348541709,3,[9 0 1],[0.1        2.06666667 3.48333333],1,./process/dda_offline_0/trajectory_mpc2nw_st-45_if-60_cf-20_02/

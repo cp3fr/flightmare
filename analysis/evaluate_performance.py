@@ -54,10 +54,14 @@ def getWallColliders(dims=(1, 1, 1), center=(0, 0, 0)):
                                 dims=(dims[0], dims[2]), dtype='gazesim'))
     return objWallCollider
 
-#todo: debug collider for dda data
+#todo: fix 2d point extraction for Gate class
+#todo: update laptracker and Gate scripts in Liftoff plugin
+#todo: fix gate passing event detection for gates
+
 def extractFeaturesSaveAnimation(PATH, toShowAnimation=False, toSaveAnimation=False):
     print(PATH)
     print('')
+    step_size = 4
     #read drone state logs
     d = pd.read_csv(PATH)
     #read gate poses for the current track
@@ -71,16 +75,15 @@ def extractFeaturesSaveAnimation(PATH, toShowAnimation=False, toSaveAnimation=Fa
     #get drone state variables for event detection
     _t = d.loc[:, 'time-since-start [s]'].values
     _p = d.loc[:,('position_x [m]', 'position_y [m]', 'position_z [m]')].values
-
     #gate passing event
-    evGatePass = [(i, detect_gate_passing(_t, _p, objGatePass[i])) for i in range(len(objGatePass))]
+    evGatePass = [(i, detect_gate_passing(_t, _p, objGatePass[i], step_size=step_size)) for i in range(len(objGatePass))]
     evGatePass = [(i, v) for i, v in evGatePass if v.shape[0] > 0]
     print('gate passes:')
     print(evGatePass)
     print('')
     #gate collision event (discard the ones that are valid gate passes
     evGateCollision = []
-    _tmp = [(i, detect_gate_passing(_t, _p, objGateCollider[i])) for i in range(len(objGateCollider))]
+    _tmp = [(i, detect_gate_passing(_t, _p, objGateCollider[i], step_size=step_size)) for i in range(len(objGateCollider))]
     _tmp = [(i, v) for i, v in _tmp if v.shape[0] > 0]
     for key, values in _tmp:
         new_vals = []
@@ -94,38 +97,12 @@ def extractFeaturesSaveAnimation(PATH, toShowAnimation=False, toSaveAnimation=Fa
     print('gate collisions:')
     print(evGateCollision)
     print('')
-
-
-    evWallCollision = [(i, detect_gate_passing(_t, _p, objWallCollider[i], step_size=2, distance_threshold=1.5)) for i in range(len(objWallCollider))]
-    # print(evWallCollision)
+    #wall collision events
+    evWallCollision = [(i, detect_gate_passing(_t, _p, objWallCollider[i], step_size=step_size)) for i in range(len(objWallCollider))]
     evWallCollision = [(i, v) for i, v in evWallCollision if v.shape[0] > 0]
     print('wall collisions:')
     print(evWallCollision)
-    # print('')
-    #
-    # print(d.shape)
-    # print(d.columns)
-    # print(t.shape)
-    # print(t.columns)
-    # print(t.loc[:, ('pos_x', 'pos_y', 'pos_z')])
-    # print('dt={}'.format(np.nanmedian(np.diff(_t))))
-    #
-    #
-    # for o in objWallCollider + objGatePass:
-    #     __p0 = np.array([ 2., 1., -10.])
-    #     __p1 = np.array([ 1., 2.,  10.])
-    #     print('----------------')
-    #     print(o.xy)
-    #     print(o.z)
-    #     print(o.corners)
-    #     print(o.center)
-    #     print('sample points',__p0, __p1)
-    #     print(o.intersect(__p0, __p1))
-    #
-    # plt.plot(_t, _p)
-    # plt.title(PATH)
-    # plt.show()
-
+    print('')
     #save timestamps
     e = pd.DataFrame([])
     for i, v in evGatePass:
@@ -189,7 +166,6 @@ def extractFeaturesSaveAnimation(PATH, toShowAnimation=False, toSaveAnimation=Fa
 PATH = './logs/'
 MODELS = ['dda_offline_0', 'resnet_test'] #['dda_offline_0', 'resnet_test']
 
-
 toExtractFeatures = True
 toSaveAnimation = False
 toShowAnimation = False
@@ -204,13 +180,11 @@ if toExtractFeatures:
                         extractFeaturesSaveAnimation(PATH=os.path.join(w[0], f), toShowAnimation=toShowAnimation, toSaveAnimation=toSaveAnimation)
 
 if toPlotFeatures:
-    #loop over models
     for m in MODELS:
         if m == 'dda_offline_0':
             switchTimes = [5, 10, 15, 20, 25, 30, 35, 40, 45]
         else:
             switchTimes = [6, 8, 10, 12, 14]
-        #loop over switch times
         for s in switchTimes:
             if m == 'dda_offline_0':
                 stem = '{}/trajectory_mpc2nw_st-{}_if-60_cf-20_'.format(m, '%02d' % s)
@@ -240,6 +214,6 @@ if toPlotFeatures:
                     axs[iax].plot(px, py, _c)
             axs[iax].set_title('model {}, switchtime {} sec\n gate passes {}, has collision {}'.format(m, ts,
                                                                                                         p['num-gate-passes'].iloc[0], p['has-collision'].iloc[0]))
-            axs[iax].set_xlim((-30, 30))
-            axs[iax].set_ylim((-30, 30))
+            axs[iax].set_xlim((-35, 35))
+            axs[iax].set_ylim((-35, 35))
             plt.show()

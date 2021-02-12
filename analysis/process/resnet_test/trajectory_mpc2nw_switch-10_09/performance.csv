@@ -1,0 +1,2 @@
+time-start [s],time-end [s],flight-time [s],flight-distance [m],num-gate-passes,gate-id,gate-ts,has-collision,filepath
+0.0,3.4166666666666594,3.4166666666666594,38.83968557809568,2,[9 0],[0.  1.8],1,./process/resnet_test/trajectory_mpc2nw_switch-10_09/

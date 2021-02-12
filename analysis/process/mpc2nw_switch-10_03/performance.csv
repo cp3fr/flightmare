@@ -1,2 +1,0 @@
-time-start [s],time-end [s],flight-time [s],flight-distance [m],num-gate-passes,gate-id,gate-ts,has-collision,filepath
-0.0,3.5166666666666586,3.5166666666666586,40.044930771289955,2,[9 0],[0.         1.88333333],1,./process/mpc2nw_switch-10_03/

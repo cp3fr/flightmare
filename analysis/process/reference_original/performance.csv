@@ -1,3 +1,0 @@
-time-start [s],time-end [s],flight-time [s],flight-distance [m],num-gate-passes,gate-id,gate-ts,has-collision,filepath
-0.0,13.17701554298401,13.17701554298401,140.31495134236286,11,[9 0 1 2 3 3 4 5 6 7 8],"[ 0.          1.94702458  3.27900314  4.60600471  6.36300373  6.37700176
-  6.70397019  8.57000303  9.90703654 11.31900764 12.91302013]",0,./process/reference_original/

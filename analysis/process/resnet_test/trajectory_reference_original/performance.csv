@@ -1,0 +1,2 @@
+time-start [s],time-end [s],flight-time [s],flight-distance [m],num-gate-passes,gate-id,gate-ts,has-collision,filepath
+0.0,13.17701554298401,13.17701554298401,140.31495134236286,4,[9 1 5 6],[0.         3.27900314 8.57000303 9.90703654],0,./process/resnet_test/trajectory_reference_original/
