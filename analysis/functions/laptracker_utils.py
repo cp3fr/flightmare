@@ -14,7 +14,7 @@ def detect_liftoff(t, p, distance_threshold=0.1, prepend_time=2.0, start_positio
         return t[t>=(t_above[0]-prepend_time)][0]
     return t[0]
 
-def detect_gate_passing(time, position, gate_object, step_size=2, distance_threshold=None):
+def detect_gate_passing(time, position, gate_object, max_step_size=20, distance_threshold=None):
     '''Detect gate passing events
         Function update on 12.02.2021
         Checks if position data is within a distance threshold from the gate
@@ -22,23 +22,39 @@ def detect_gate_passing(time, position, gate_object, step_size=2, distance_thres
     #determine the distance threshold from the gate size
     if distance_threshold is None:
         v = gate_object.corners - gate_object.center.reshape(3, 1)
-        distance_threshold = np.max(np.array([np.linalg.norm(v[:, i]) for i in range(v.shape[1])]))
+        distance_threshold = 1.5 * np.max(np.array([np.linalg.norm(v[:, i]) for i in range(v.shape[1])]))
     dt = np.nanmedian(np.diff(time))
+    # print('delta time is {} sec'.format(dt))
     p_gate = gate_object.center.reshape((1, 3)).astype(float)
     dist = np.linalg.norm(position - p_gate, axis=1)
     ts1 = time[dist < distance_threshold]
     ts2 = []
+
     for t_ in ts1:
-        p_ = position[time >= t_, :]
-        if p_.shape[0] > step_size:
-            #check for gate passing considering a certain sample-to-sample step size
-            _, p3d = gate_object.intersect(p_[0, :], p_[step_size, :])
-            if p3d is not None:
-                ts2.append(t_)
+        ind = time >= t_
+        p_ = position[ind, :]
+        selection = []
+        for ss in np.arange(max_step_size):
+            if p_.shape[0] > ss:
+                # check for gate passing considering a certain sample-to-sample step size
+                _, p3d = gate_object.intersect(p_[0, :], p_[ss, :])
+                if p3d is not None:
+                    selection.append((t_, np.linalg.norm(p_[0, :] - p3d) ))
+
+        if len(selection) > 0:
+            minDist = np.min(np.array([val for _, val in selection]))
+            minTime = [__t for __t, __v in selection if __v == minDist][0]
+            ts2.append(minTime)
+
+        # if p_.shape[0] > step_size:
+        #     #check for gate passing considering a certain sample-to-sample step size
+        #     _, p3d = gate_object.intersect(p_[0, :], p_[step_size, :])
+        #     if p3d is not None:
+        #         ts2.append(t_)
     #remove duplicated timestamps, i.e. when within the stepsize window
     if len(ts2) > 0:
         ts2 = np.sort(np.array(ts2))
-        ind = np.hstack((np.diff(ts2) >= (step_size * dt), True))
+        ind = np.hstack((np.diff(ts2) >= (2 * dt), True))
         ts2 = ts2[ind]
     ts2 = np.array(ts2)
     return ts2

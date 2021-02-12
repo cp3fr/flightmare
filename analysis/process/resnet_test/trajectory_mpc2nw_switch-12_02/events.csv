@@ -1,3 +1,4 @@
 time-since-start [s],object-id,object-name,is-collision,is-pass
 0.0,9,gate,0,1
-4.216666666666657,0,wall,1,0
+1.9333333333333316,0,gate,0,1
+4.049999999999991,0,wall,1,0

@@ -1,3 +1,4 @@
-time-start [s],time-end [s],flight-time [s],flight-distance [m],num-gate-passes,gate-id,gate-ts,has-collision,filepath
-0.0,13.1666666666669,13.1666666666669,136.86606254575264,7,[9 0 1 2 5 6 8],"[ 0.          2.          3.36666667  4.68333333  8.65        9.98333333
- 13.        ]",0,./process/resnet_test/trajectory_reference_mpc/
+time-start [s],time-switch [s],time-end [s],flight-time-total [s],flight-time-mpc [s],flight-time-network [s],flight-distance-total [m],flight-distance-mpc [m],flight-distance-network [m],num-gate-passes-total,num-gate-passes-mpc,num-gate-passes-network,gate-id-total,gate-id-mpc,gate-id-network,gate-ts-total,gate-ts-mpc,gate-ts-network,has-collision,filepath
+0.0,,13.1666666666669,13.1666666666669,13.1666666666669,0.0,136.86606254575264,136.86606254575264,0,11,11,0,[9 0 1 2 3 9 4 5 6 7 8],[9 0 1 2 3 9 4 5 6 7 8],,"[ 0.          2.03333333  3.36666667  4.68333333  6.43333333  6.6
+  6.78333333  8.65        9.98333333 11.31666667 13.        ]","[ 0.          2.03333333  3.36666667  4.68333333  6.43333333  6.6
+  6.78333333  8.65        9.98333333 11.31666667 13.        ]",,0,./process/resnet_test/trajectory_reference_mpc/

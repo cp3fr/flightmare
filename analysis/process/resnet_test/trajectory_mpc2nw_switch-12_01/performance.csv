@@ -1,2 +1,2 @@
-time-start [s],time-end [s],flight-time [s],flight-distance [m],num-gate-passes,gate-id,gate-ts,has-collision,filepath
-0.0,4.266666666666657,4.266666666666657,46.38065341027094,1,[9],[0.],1,./process/resnet_test/trajectory_mpc2nw_switch-12_01/
+time-start [s],time-switch [s],time-end [s],flight-time-total [s],flight-time-mpc [s],flight-time-network [s],flight-distance-total [m],flight-distance-mpc [m],flight-distance-network [m],num-gate-passes-total,num-gate-passes-mpc,num-gate-passes-network,gate-id-total,gate-id-mpc,gate-id-network,gate-ts-total,gate-ts-mpc,gate-ts-network,has-collision,filepath
+0.0,1.2,4.083333333333323,4.083333333333323,1.2,2.883333333333323,43.23509627570511,12.221314828662463,30.83302830210215,2,1,1,[9 0],[9],[0],[0.         1.93333333],[0.],[1.93333333],1,./process/resnet_test/trajectory_mpc2nw_switch-12_01/

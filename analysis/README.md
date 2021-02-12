@@ -13,3 +13,20 @@ All files contain the following columns:
 In addition, the generated trajectories (by MPC or network) also contain the actions at each time step (`throttle`, `roll`, `pitch`, and `yaw`), as well as a flag indicating whether the network was used (`network_used`).
 
 **NOTE:** The gate positions in Flightmare are 0.35m above those in the original dataset (i.e. at 2.1m). Since `trajectory_reference_original.csv` is taken directly from the original dataset, the actual value for the z-position in the Flightmare simulation should be `position_z [m] + 0.35` (this is adjusted in code right now).  
+
+
+## Log filenames
+
+In separate folders logfile ouputs are saved from different model evaluations online (network in control) and offline (mpc in control)
+
+.csv filenames:
+
+`mt` : maximum time, the the maximum time that the simulation was run for data generation/training of the DDA architecture, which was 3 seconds. The maximum time for testing (as you can see, 7 seconds) is higher in order to see whether the model generalises well beyond the "expected data distribution".
+
+`st` : switch time, time after start at which the network takes control, two digit numbers, e.g. 15, referring to 1.5 seconds
+
+`if` : image frequency, at what frequency the images were sampled, i.e. 60, refers to 60 Hz
+
+`cf` : control frequency, at what frequency the control commands were sampled, i.e. 20, refers to 20 Hz
+
+last number is the trial number

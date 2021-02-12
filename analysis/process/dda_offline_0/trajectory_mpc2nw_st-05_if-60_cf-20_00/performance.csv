@@ -1,2 +1,2 @@
-time-start [s],time-end [s],flight-time [s],flight-distance [m],num-gate-passes,gate-id,gate-ts,has-collision,filepath
-0.1,2.1666666666666643,2.066666666666664,29.14537818286346,1,[9],[0.1],1,./process/dda_offline_0/trajectory_mpc2nw_st-05_if-60_cf-20_00/
+time-start [s],time-switch [s],time-end [s],flight-time-total [s],flight-time-mpc [s],flight-time-network [s],flight-distance-total [m],flight-distance-mpc [m],flight-distance-network [m],num-gate-passes-total,num-gate-passes-mpc,num-gate-passes-network,gate-id-total,gate-id-mpc,gate-id-network,gate-ts-total,gate-ts-mpc,gate-ts-network,has-collision,filepath
+0.1,0.5,2.13333333333333,2.03333333333333,0.4,1.6333333333333302,28.483783133676084,4.007826190996712,24.324363705528683,2,1,1,[9 0],[9],[0],[0.1        1.63333333],[0.1],[1.63333333],1,./process/dda_offline_0/trajectory_mpc2nw_st-05_if-60_cf-20_00/
