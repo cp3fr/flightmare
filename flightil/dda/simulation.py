@@ -342,7 +342,7 @@ class FlightmareSimulation(Simulation):
         success = False
         if action is not None:
             success = self.flightmare_wrapper.step(action)
-        self.current_state = self.flightmare_wrapper.get_state()[:self.state_dim]
+        self.current_state = self.flightmare_wrapper.get_state()
         return self.current_state, success
 
     def _get_state_estimate(self):

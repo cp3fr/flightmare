@@ -38,9 +38,10 @@ class Settings:
             log_root = settings['log_dir']
             if not log_root == '' and generate_log:
                 current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-                self.log_dir = os.path.join(log_root, current_time)
+                self.log_dir = os.path.join(os.getenv("GAZESIM_ROOT"), os.pardir, log_root, current_time)
                 os.makedirs(self.log_dir)
-                net_file = "./src/ControllerLearning/models/nets.py"
+                net_file = os.path.join(os.getenv("FLIGHTMARE_PATH"),
+                                        "flightil/dda/src/ControllerLearning/models/nets.py")
                 assert os.path.isfile(net_file)
                 shutil.copy(net_file, self.log_dir)
                 shutil.copy(settings_yaml, self.log_dir)
@@ -68,10 +69,10 @@ class TrainSetting(Settings):
             self.max_allowed_error = train_conf['max_allowed_error']
             self.batch_size = train_conf['batch_size']
             self.summary_freq = train_conf['summary_freq']
-            self.train_dir = train_conf['train_dir']
+            self.train_dir = os.path.join(os.getenv("GAZESIM_ROOT"), os.pardir, train_conf['train_dir'])
             self.use_fts_tracks = train_conf['use_fts_tracks']
             self.use_imu = train_conf['use_imu']
-            self.val_dir = train_conf['val_dir']
+            self.val_dir = os.path.join(os.getenv("GAZESIM_ROOT"), os.pardir, train_conf['val_dir'])
             self.min_number_fts = train_conf['min_number_fts']
             self.save_every_n_epochs = train_conf['save_every_n_epochs']
 
@@ -115,6 +116,7 @@ class DaggerSetting(Settings):
             self.train_every_n_rollouts = data_gen['train_every_n_rollouts']
             # --- Test Time --- #
             test_time = settings['test_time']
+            self.test_every_n_rollouts = test_time["test_every_n_rollouts"]
             self.execute_nw_predictions = test_time['execute_nw_predictions']
             assert isinstance(self.execute_nw_predictions, bool)
             self.fallback_threshold_rates = test_time['fallback_threshold_rates']
@@ -129,11 +131,10 @@ class DaggerSetting(Settings):
             self.batch_size = train_conf['batch_size']
             self.min_number_fts = train_conf['min_number_fts']
             self.summary_freq = train_conf['summary_freq']
-            self.train_dir = train_conf['train_dir']
-            self.val_dir = train_conf['val_dir']
+            self.train_dir = os.path.join(os.getenv("GAZESIM_ROOT"), os.pardir, train_conf['train_dir'])
+            self.val_dir = os.path.join(os.getenv("GAZESIM_ROOT"), os.pardir, train_conf['val_dir'])
             self.use_imu = train_conf['use_imu']
             self.use_fts_tracks = train_conf['use_fts_tracks']
-            self.val_dir = train_conf['val_dir']
             self.save_every_n_epochs = train_conf['save_every_n_epochs']
             self.verbose = settings['verbose']
             assert isinstance(self.verbose, bool)
@@ -146,3 +147,5 @@ class DaggerSetting(Settings):
             self.ref_frequency = sim_conf["ref_frequency"]
             self.command_frequency = sim_conf["command_frequency"]
             self.expert_command_frequency = sim_conf["expert_command_frequency"]
+            self.max_time = sim_conf["max_time"]
+            self.trajectory_path = sim_conf["trajectory_path"]

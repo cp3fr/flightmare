@@ -97,6 +97,8 @@ if __name__ == "__main__":
     if isinstance(wrapper, RacingEnvWrapper):
         wrapper.set_reduced_state(env.planner.get_initial_state())
 
+    exit()
+
     # video writer (also always used for now?)
     writer = cv2.VideoWriter(
         # "/home/simon/Desktop/flightmare_cam_test/alphapilot_arena_mpc_async_5.mp4",

@@ -72,7 +72,6 @@ class DDANetworkController:
 
         # TODO: create feature tracker
         self.feature_tracker = FeatureTracker(max_features_to_track=100)
-        # reference states and shit should be coming from outside I think
         self.feature_track_queue = deque(maxlen=8)
         self.reference_queue = deque(maxlen=8)
         self.state_estimate_queue = deque(maxlen=8)

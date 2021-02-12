@@ -2,50 +2,120 @@
 
 import argparse
 import os
-import time
-import cv2
+import csv
 
 import numpy as np
 from dda.config.settings import create_settings
 
 from dda.simulation import FlightmareSimulation
 from dda.learning import ControllerLearning
+from test_networks_tf import show_state_action_plots, save_trajectory_data
 
 
 class Trainer:
 
     def __init__(self, settings):
         self.settings = settings
-        self.trajectory_done = False
-
-        # TODO: these should probably also be in the settings file
-        self.base_frequency = 60.0  # should probably be max of the others
-        self.state_frequency = 60.0  # (replacement for now for IMU frequency)
-        self.image_frequency = 30.0
-        self.command_frequency = 20.0  # should this be as high as it is in DDA originally?
-
-        self.base_time_step = 1.0 / self.base_frequency
-        self.state_time_step = 1.0 / self.state_frequency
-        self.image_time_step = 1.0 / self.image_frequency
-        self.command_time_step = 1.0 / self.command_frequency
 
         # TODO: should probably use more than just 1 trajectory for learning and especially for testing
         #  => see whether controller for one trajectory generalises well to another
-        self.trajectory_path = "/home/simon/Downloads/trajectory_s016_r05_flat_li01.csv"
+        self.trajectory_path = self.settings.trajectory_path
+        self.trajectory_done = False
 
-        # TODO: want only access to simulation and Unity interface here => might need to restructure stuff
-        #  so that expert is not actually contained in the simulation => either that or keep things as they are
-        # ideally, would probably like to have one simulation object that also interfaces with Unity in whatever way
-        # is required at the moment (could e.g. use Flightmare dynamics instead of Python for integrating)
+        self.simulation = FlightmareSimulation(self.settings, self.trajectory_path,
+                                               max_time=self.settings.max_time)
+        self.learner = ControllerLearning(self.settings, self.trajectory_path,
+                                          mode="iterative", max_time=self.settings.max_time)
+        self.connect_to_sim = True
+
+    def perform_testing(self):
+        print("\n---------------------------")
+        print("[Trainer] Starting Testing (rollout {})".format(self.learner.rollout_idx))
+        print("---------------------------\n")
+
+        # defining some settings
+        max_time = self.settings.max_time + 4.0
+        switch_times = np.arange(0.0, max_time - 2.0, step=1.0).tolist() + [max_time + 1.0]
+        repetitions = 1
+        save_path = os.path.join(self.settings.log_dir, "online_eval_rollout-{:04d}".format(self.learner.rollout_idx))
+        os.makedirs(save_path)
+
+        # connect to sim if testing happens after training
+        if self.connect_to_sim:
+            self.simulation.connect_unity(self.settings.flightmare_pub_port, self.settings.flightmare_sub_port)
+            self.connect_to_sim = False
+
+        for switch_time in switch_times:
+            for repetition in range(repetitions if switch_time < max_time else 1):
+                print("\n[Trainer] Testing for switch time {}, repetition {}\n".format(switch_time, repetition))
+
+                # data to record
+                states = []
+                reduced_states = []
+                mpc_actions = []
+                network_actions = []
+                network_used = []
+                time_stamps = []
+
+                # whether to use the network instead of the MPC
+                use_network = False
+
+                # resetting everything
+                trajectory_done = False
+                info_dict = self.simulation.reset()
+                self.learner.reset(new_rollout=False)
+                self.learner.mode = "testing"
+                self.learner.use_network = use_network
+                self.learner.record_data = False
+                self.learner.update_info(info_dict)
+                self.learner.prepare_expert_command()
+                action = self.learner.get_control_command()
+
+                # run the main loop until the simulation "signals" that the trajectory is done
+                while not trajectory_done:
+                    if info_dict["time"] > switch_time:
+                        use_network = True
+                        self.learner.use_network = use_network
+
+                    # record states first
+                    time_stamps.append(info_dict["time"])
+                    states.append(info_dict["state"])
+                    reduced_states.append(info_dict["state"][:10])
+
+                    # record actions after the decision has been made for the current state
+                    mpc_actions.append(action["expert"])
+                    network_actions.append(action["network"])
+                    network_used.append(action["use_network"])
+
+                    info_dict, successes = self.simulation.step(
+                        action["network"] if action["use_network"] else action["expert"])
+                    trajectory_done = info_dict["done"]
+                    if not trajectory_done:
+                        self.learner.update_info(info_dict)
+                        action = self.learner.get_control_command()
+
+                states = np.vstack(states)
+                reduced_states = np.vstack(reduced_states)
+                mpc_actions = np.vstack(mpc_actions)
+                network_actions = np.vstack(network_actions)
+
+                """
+                show_state_action_plots(self.trajectory_path, reduced_states, mpc_actions, network_actions,
+                                        self.simulation.base_time_step, self.simulation.total_time,
+                                        save_path="")
+                """
+                save_trajectory_data(time_stamps, mpc_actions, network_actions, states,
+                                     network_used, max_time, switch_time, repetition, save_path)
+
+        self.learner.mode = "iterative"
+
+        print("\n---------------------------")
+        print("[Trainer] Finished testing (rollout {})".format(self.learner.rollout_idx))
+        print("---------------------------\n")
 
     def perform_training(self):
         shutdown_requested = False
-        connect_to_sim = True
-
-        trajectory_path = "/home/simon/Downloads/trajectory_s016_r05_flat_li01.csv"
-        max_time = 3.0
-        simulation = FlightmareSimulation(self.settings, trajectory_path, max_time=max_time)
-        learner = ControllerLearning(self.settings, trajectory_path, mode="iterative", max_time=max_time)
+        self.connect_to_sim = True
 
         if self.settings.execute_nw_predictions:
             print("\n-------------------------------------------")
@@ -59,36 +129,25 @@ class Trainer:
             print("[Trainer] Collecting Data with Expert")
             print("---------------------------\n")
 
-        while (not shutdown_requested) and (learner.rollout_idx < self.settings.max_rollouts):
+        with open(os.path.join(self.settings.log_dir, "metrics.csv"), "w") as f:
+            writer = csv.writer(f)
+            writer.writerows([["rollout", "traj_err_mean", "traj_err_median", "expert_usage"]])
+
+        while (not shutdown_requested) and (self.learner.rollout_idx < self.settings.max_rollouts):
             # TODO: add switch into training mode when MPC is started earlier to reach "stable" flight
 
             self.trajectory_done = False
-            info_dict = simulation.reset()
-            learner.start_data_recording()
-            learner.reset()
-            learner.update_info(info_dict)
-            learner.prepare_expert_command()
-            action = learner.get_control_command()
+            info_dict = self.simulation.reset()
+            self.learner.start_data_recording()
+            self.learner.reset()
+            self.learner.update_info(info_dict)
+            self.learner.prepare_expert_command()
+            action = self.learner.get_control_command()
 
             # connect to the simulation either at the start or after training has been run
-            if connect_to_sim:
-                simulation.connect_unity(self.settings.flightmare_pub_port, self.settings.flightmare_sub_port)
-                connect_to_sim = False
-
-            """
-            # will have to see whether writing videos for individual runs should be added again at 
-            # some point; it is more likely that this will only be done for testing the networks
-            
-            writer = cv2.VideoWriter(
-                # "/home/simon/Desktop/flightmare_cam_test/alphapilot_arena_mpc_async_5.mp4",
-                # "/home/simon/Desktop/weekly_meeting/meeting14/cam_angle_test_mpc_wave_fast_rot.mp4",
-                "/home/simon/Desktop/flightmare_cam_test/new_sim_test.mp4",
-                cv2.VideoWriter_fourcc("m", "p", "4", "v"),
-                float(simulation.image_frequency),
-                (simulation.flightmare_wrapper.image_width, simulation.flightmare_wrapper.image_height),
-                True
-            )
-            """
+            if self.connect_to_sim:
+                self.simulation.connect_unity(self.settings.flightmare_pub_port, self.settings.flightmare_sub_port)
+                self.connect_to_sim = False
 
             # keep track of some metrics
             ref_log = []
@@ -96,73 +155,44 @@ class Trainer:
             error_log = []
 
             # run the main loop until the simulation "signals" that the trajectory is done
-            print("\n[Trainer] Starting experiment {}\n".format(learner.rollout_idx))
+            print("\n[Trainer] Starting experiment {}\n".format(self.learner.rollout_idx))
             while not self.trajectory_done:
-                info_dict, successes = simulation.step(action)
+                info_dict, successes = self.simulation.step(action["network"] if action["use_network"] else action["expert"])
                 self.trajectory_done = info_dict["done"]
                 if not self.trajectory_done:
-                    learner.update_info(info_dict)
-                    action = learner.get_control_command()
+                    self.learner.update_info(info_dict)
+                    action = self.learner.get_control_command()
 
-                    pos_ref_dict = learner.compute_trajectory_error()
+                    pos_ref_dict = self.learner.compute_trajectory_error()
                     gt_pos_log.append(pos_ref_dict["gt_pos"])
                     ref_log.append(pos_ref_dict["gt_ref"])
                     error_log.append(np.linalg.norm(pos_ref_dict["gt_pos"] - pos_ref_dict["gt_ref"]))
-
-                """
-                writer.write(info_dict["image"])
-                states.append(info_dict["state"])
-                actions.append(action)
-                """
-
-            # writer.release()
-
-            """
-            states = np.vstack(states)
-            actions = np.vstack(actions)
-
-            trajectory = pd.read_csv(trajectory_path)
-            trajectory = trajectory[trajectory["time-since-start [s]"] <= simulation.total_time]
-            trajectory = ensure_quaternion_consistency(trajectory)
-            trajectory = trajectory[[
-                "position_x [m]",
-                "position_y [m]",
-                "position_z [m]",
-                "rotation_w [quaternion]",
-                "rotation_x [quaternion]",
-                "rotation_y [quaternion]",
-                "rotation_z [quaternion]",
-                "velocity_x [m/s]",
-                "velocity_y [m/s]",
-                "velocity_z [m/s]",
-                "time-since-start [s]",
-            ]].values
-
-            print("states", states.shape)
-            print("trajectory", trajectory.shape)
-
-            visualise_states(states, trajectory, simulation.total_time, simulation.command_time_step, True)
-            visualise_actions(actions, simulation.total_time, simulation.command_time_step, True)
-            """
 
             # final logging
             tracking_error = np.mean(error_log)
             median_traj_error = np.median(error_log)
             t_log = np.stack((ref_log, gt_pos_log), axis=0)
-            expert_usage = learner.stop_data_recording()
+            expert_usage = self.learner.stop_data_recording()
 
             print("\n[Trainer]")
             print("Expert used {:.03f}% of the times".format(100.0 * expert_usage))
             print("Mean Tracking Error is {:.03f}".format(tracking_error))
             print("Median Tracking Error is {:.03f}\n".format(median_traj_error))
 
-            if learner.rollout_idx % self.settings.train_every_n_rollouts == 0:
-                # here the simulation basically seems to be stopped while the network is being trained
-                simulation.disconnect_unity()
-                connect_to_sim = True
-                learner.train()
+            with open(os.path.join(self.settings.log_dir, "metrics.csv"), "a") as f:
+                writer = csv.writer(f)
+                writer.writerows([[self.learner.rollout_idx, tracking_error, median_traj_error, expert_usage]])
 
-            if (learner.rollout_idx % self.settings.double_th_every_n_rollouts) == 0:
+            if self.learner.rollout_idx % self.settings.train_every_n_rollouts == 0:
+                # here the simulation basically seems to be stopped while the network is being trained
+                self.simulation.disconnect_unity()
+                self.connect_to_sim = True
+                self.learner.train()
+
+            if self.learner.rollout_idx % self.settings.test_every_n_rollouts == 0:
+                self.perform_testing()
+
+            if (self.learner.rollout_idx % self.settings.double_th_every_n_rollouts) == 0:
                 # this seems to encourage more use of the network/more exploration the further we progress in training
                 print("\n[Trainer]")
                 self.settings.fallback_threshold_rates += 0.5
@@ -171,10 +201,10 @@ class Trainer:
                 print("Setting Rand Controller Prob to {}\n".format(self.settings.rand_controller_prob))
 
             if self.settings.verbose:
-                t_log_fname = os.path.join(self.settings.log_dir, "traj_log_{:5d}.npy".format(learner.rollout_idx))
+                t_log_fname = os.path.join(self.settings.log_dir, "traj_log_{:5d}.npy".format(self.learner.rollout_idx))
                 np.save(t_log_fname, t_log)
 
-    def perform_testing(self):
+    def old_perform_testing(self):
         """
         learner = TrajectoryLearning.TrajectoryLearning(self.settings, mode="testing")
         shutdown_requested = False

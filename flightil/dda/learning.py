@@ -67,7 +67,7 @@ class ControllerLearning:
 
         # objects
         self.feature_tracker = FeatureTracker(self.config.min_number_fts * 2)
-        self.learner = BodyrateLearner(settings=self.config)
+        self.learner = BodyrateLearner(settings=self.config, expect_partial=(mode == "testing"))
         self.planner = TrajectoryPlanner(trajectory_path, 4.0, 0.2, max_time=max_time)
         self.expert = MPCSolver(4.0, 0.2)
 
@@ -75,13 +75,14 @@ class ControllerLearning:
         if self.mode == "iterative" or self.config.verbose:
             self.write_csv_header()
 
-    def reset(self):
+    def reset(self, new_rollout=True):
         # TODO: if this is used for anything but initialisation,
         #  should also reset feature tracker (and maybe other stuff?)
         self.n_times_net = 0
         self.n_times_expert = 0
         self.counter = 0
-        self.rollout_idx += 1
+        if new_rollout:
+            self.rollout_idx += 1
 
         self.use_network = True
 
@@ -135,7 +136,8 @@ class ControllerLearning:
 
     def update_state(self, state):
         # assumed ordering of state variables is [pos. rot, vel, omega]
-        self.state = state
+        # simulation returns full state (with linear acc and motor torques) => take only first 13 entries
+        self.state = state[:13]
         self.state_rot = Rotation.from_quat(self.state[3:7]).as_matrix().reshape((9,)).tolist()
 
     def update_reference(self, reference):
@@ -145,7 +147,7 @@ class ControllerLearning:
             self.reference_updated = True
 
     def update_state_estimate(self, state_estimate):
-        self.state_estimate = state_estimate
+        self.state_estimate = state_estimate[:13]
         self.state_estimate_rot = Rotation.from_quat(self.state_estimate[3:7]).as_matrix().reshape((9,)).tolist()
 
     def update_image(self, image):
@@ -227,11 +229,16 @@ class ControllerLearning:
         self.control_command = optimal_action
 
     def get_control_command(self):
-        self._generate_control_command()
-        return self.control_command
+        control_command_dict = self._generate_control_command()
+        return control_command_dict
 
     def _generate_control_command(self):
         # return self.control_command
+        control_command_dict = {
+            "expert": self.control_command,
+            "network": np.array([np.nan, np.nan, np.nan, np.nan]) if self.network_command is None else self.network_command,
+            "use_network": False,
+        }
 
         inputs = self._prepare_net_inputs()
         if not self.network_initialised:
@@ -251,14 +258,14 @@ class ControllerLearning:
             if self.use_network:
                 print("[ControllerLearning] Using expert wait for ref")
             self.n_times_expert += 1
-            return self.control_command
+            return control_command_dict
 
         # always use expert at the beginning (approximately 0.2s) to avoid synchronization problems
         # => should be a better way of doing this than this counter...
         if self.counter < 10:
             self.counter += 1
             self.n_times_expert += 1
-            return self.control_command
+            return control_command_dict
 
         # TODO: Part of the problem with having "blocking execution" and all that jazz is that the expert
         #  takes much longer to produce commands than the network. In the original DDA this is no problem since
@@ -283,6 +290,12 @@ class ControllerLearning:
         # control_command.bodyrates.z = results[0][3].numpy()
         control_command = np.array([results[0][0], results[0][1], results[0][2], results[0][3]])
         self.network_command = control_command
+        control_command_dict["network"] = self.network_command
+
+        """
+        if self.mode == "testing" and self.use_network:
+            return control_command
+        """
 
         # Log everything immediately to avoid surprises (if required)
         if self.record_data:
@@ -295,25 +308,28 @@ class ControllerLearning:
             self.control_command[2] += self.config.rand_rate_mag * (random.random() - 0.5) * 2
             self.control_command[3] += self.config.rand_rate_mag * (random.random() - 0.5) * 2
             self.n_times_expert += 1
-            return self.control_command
+            return control_command_dict
 
         # Dagger (on control command label).
         d_thrust = control_command[0] - self.control_command[0]
         d_br_x = control_command[1] - self.control_command[1]
         d_br_y = control_command[2] - self.control_command[2]
         d_br_z = control_command[3] - self.control_command[3]
-        if self.config.execute_nw_predictions \
-                and abs(d_thrust) < self.config.fallback_threshold_rates \
-                and abs(d_br_x) < self.config.fallback_threshold_rates \
-                and abs(d_br_y) < self.config.fallback_threshold_rates \
-                and abs(d_br_z) < self.config.fallback_threshold_rates:
+        # TODO: probably add if self.use_network and self.mode == "testing" or something like that
+        if (self.mode == "testing" and self.use_network) \
+                or (self.config.execute_nw_predictions
+                    and abs(d_thrust) < self.config.fallback_threshold_rates \
+                    and abs(d_br_x) < self.config.fallback_threshold_rates \
+                    and abs(d_br_y) < self.config.fallback_threshold_rates \
+                    and abs(d_br_z) < self.config.fallback_threshold_rates):
             self.n_times_net += 1
-            return control_command
+            control_command_dict["use_network"] = True
+            return control_command_dict
 
         # for now just return the expert control command to see if everything works as intended/expected
         # (i.e. it should look similar to running sim.py or stuff in run_tests.py)
         self.n_times_expert += 1
-        return self.control_command
+        return control_command_dict
 
     def _prepare_net_inputs(self):
         if not self.network_initialised:
@@ -334,7 +350,8 @@ class ControllerLearning:
 
         # format the state and feature track inputs as numpy arrays for the network
         state_inputs = np.stack(self.state_queue, axis=0)
-        feature_inputs = np.stack([np.stack([v for v in self.fts_queue[j].values()]) for j in range(self.config.seq_len)])
+        feature_inputs = np.stack(
+            [np.stack([v for v in self.fts_queue[j].values()]) for j in range(self.config.seq_len)])
         inputs = {"fts": np.expand_dims(feature_inputs, axis=0).astype(np.float32),
                   "state": np.expand_dims(state_inputs, axis=0).astype(np.float32)}
         return inputs

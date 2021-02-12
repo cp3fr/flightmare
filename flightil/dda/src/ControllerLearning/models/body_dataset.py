@@ -47,7 +47,7 @@ class BodyDataset:
                     exp_dir))
         if self.samples == 0:
             raise IOError("Did not find any file in the dataset folder")
-        print('Found {} images  belonging to {} experiments:'.format(
+        print('[BodyDataset] Found {} images  belonging to {} experiments:'.format(
             self.samples, self.num_experiments))
 
     def _recursive_list(self, subpath, fmt='jpg'):
@@ -257,7 +257,7 @@ class SafeDataset(BodyDataset):
         self.last_init_fts = None
         for k in range(len(self.filenames)):
             if k % 3000 == 0:
-                print("Built {:.2f}% of the dataset".format(k / len(self.filenames) * 100), end='\r')
+                print("[BodyDataset] Built {:.2f}% of the dataset".format(k / len(self.filenames) * 100), end='\r')
             # Check if you can copy the things before
             kth_fts = self.filenames[k]
             kth_fts = np.load(kth_fts, allow_pickle=True).item()

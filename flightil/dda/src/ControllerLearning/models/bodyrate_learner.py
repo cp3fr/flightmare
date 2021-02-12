@@ -17,7 +17,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 class BodyrateLearner(object):
 
-    def __init__(self, settings):
+    def __init__(self, settings, expect_partial=False):
         self.config = settings
         physical_devices = tf.config.experimental.list_physical_devices('GPU')
         if len(physical_devices) > 0:  # TODO: probably add this to config and change GPU for snaga!
@@ -39,7 +39,12 @@ class BodyrateLearner(object):
                                         net=self.network)
 
         if self.config.resume_training:
-            if self.ckpt.restore(self.config.resume_ckpt_file):
+            if expect_partial:
+                model_loaded = self.ckpt.restore(self.config.resume_ckpt_file).expect_partial()
+            else:
+                model_loaded = self.ckpt.restore(self.config.resume_ckpt_file)
+
+            if model_loaded:
                 print("------------------------------------------")
                 print("[BodyrateLearner] Restored from {}".format(self.config.resume_ckpt_file))
                 print("------------------------------------------")
