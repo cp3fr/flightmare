@@ -3,6 +3,13 @@ try:
 except:
     from functions.visattention import *
 
+"""
+Comparison of 3D flight trajectories and paths between reference, MPC, 
+and network.
+
+Also shows the 3D poses for reference and MPC.
+"""
+
 # Make a 3D trajectory plots with poses
 filepaths =['./logs/resnet_test/trajectory_reference_original.csv',
             './logs/dda_0/trajectory_mpc_eval_nw.csv']
