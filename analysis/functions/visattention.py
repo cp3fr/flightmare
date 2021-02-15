@@ -3,11 +3,11 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d.art3d import Line3D
-
+from scipy.spatial.transform import Rotation
 
 def trajectory_from_flightmare(filepath: str) -> pd.DataFrame():
-    '''Return a trajectory dataframe with standard headers from a flightmare
-    logfile.'''
+    """Returns a trajectory dataframe with standard headers from a flightmare
+    log filepath."""
     ndict = {
         'time-since-start [s]': 't',
         'position_x [m]': 'px',
@@ -54,7 +54,8 @@ def plot_trajectory(
         qz: np.ndarray([])=np.array([]), qw: np.ndarray([])=np.array([]),
         c: str=None, ax=None
         ) -> plt.axis():
-    '''Make 2D or 3D trajectory plot and return the axis handle.'''
+    """Returns an axis handle for a 2D or 3D trajectory based on position and
+    rotation data."""
     # Check if the plot is 2D or 3D.
     if pz.shape[0] == 0:
         is_two_d = True
@@ -78,14 +79,31 @@ def plot_trajectory(
             ax.plot(px, py, pz)
         else:
             ax.plot(px, py, pz, color=c)
-    #todo: Add 3d axes
+    # Plot 3D quadrotor rotation
+    if not is_two_d:
+        if ((qx.shape[0] > 0) and (qy.shape[0] > 0) and (qz.shape[0] > 0)
+                and (qw.shape[0] > 0)):
+            for primitive, color in [((1, 0, 0), 'r'),
+                                     ((0, 1, 0), 'g'),
+                                     ((0, 0, 1), 'b')]:
+                p0 = np.hstack((px.reshape(-1, 1), np.hstack((py.reshape(-1, 1),
+                                                              pz.reshape(-1, 1)))))
+                q = np.hstack((qx.reshape(-1, 1),
+                               np.hstack((qy.reshape(-1, 1),
+                                          np.hstack((qz.reshape(-1, 1),
+                                                     qw.reshape(-1, 1)))))))
+                p1 = p0 + Rotation.from_quat(q).apply(primitive)
+                for i in (range(p0.shape[0])):
+                    ax.plot([p0[i, 0], p1[i, 0]], [p0[i, 1], p1[i, 1]],
+                            [p0[i, 2], p1[i, 2]], color=color)
     return ax
 
 
 def format_trajectory_figure(
         ax: plt.axis(), xlims: tuple=(), ylims: tuple=(), zlims:
-        tuple=(), xlabel: str='', ylabel: str='', zlabel: str=''):
-    '''Apply formatting to trajectory figure.'''
+        tuple=(), xlabel: str='', ylabel: str='', zlabel: str=''
+        ) -> plt.axis():
+    """Apply limits and labels formatting for a supplied figure axis."""
     if len(xlims) > 0:
         ax.set_xlim(xlims)
     if len(ylims) > 0:
