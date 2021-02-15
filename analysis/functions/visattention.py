@@ -52,7 +52,7 @@ def plot_trajectory(
         px: np.ndarray([]), py: np.ndarray([]), pz: np.ndarray([])=np.array([]),
         qx: np.ndarray([])=np.array([]), qy: np.ndarray([])=np.array([]),
         qz: np.ndarray([])=np.array([]), qw: np.ndarray([])=np.array([]),
-        c: str=None, ax=None
+        c: str=None, ax: plt.axis()=None, axis_length: float=1.,
         ) -> plt.axis():
     """Returns an axis handle for a 2D or 3D trajectory based on position and
     rotation data."""
@@ -92,7 +92,8 @@ def plot_trajectory(
                                np.hstack((qy.reshape(-1, 1),
                                           np.hstack((qz.reshape(-1, 1),
                                                      qw.reshape(-1, 1)))))))
-                p1 = p0 + Rotation.from_quat(q).apply(primitive)
+                p1 = p0 + Rotation.from_quat(q).apply(np.array(primitive)
+                                                      * axis_length)
                 for i in (range(p0.shape[0])):
                     ax.plot([p0[i, 0], p1[i, 0]], [p0[i, 1], p1[i, 1]],
                             [p0[i, 2], p1[i, 2]], color=color)
@@ -100,21 +101,23 @@ def plot_trajectory(
 
 
 def format_trajectory_figure(
-        ax: plt.axis(), xlims: tuple=(), ylims: tuple=(), zlims:
-        tuple=(), xlabel: str='', ylabel: str='', zlabel: str=''
+        ax: plt.axis(), xlims: tuple=(), ylims: tuple=(), zlims: tuple=(),
+        xlabel: str='', ylabel: str='', zlabel: str='', title: str='',
         ) -> plt.axis():
-    """Apply limits and labels formatting for a supplied figure axis."""
+    """Apply limits, labels, and title formatting for a supplied figure axis."""
     if len(xlims) > 0:
         ax.set_xlim(xlims)
     if len(ylims) > 0:
         ax.set_ylim(ylims)
     if len(zlims) > 0:
-        ax.set_zlim(xlims)
+        ax.set_zlim(zlims)
     if len(xlabel) > 0:
         ax.set_xlabel(xlabel)
     if len(ylabel) > 0:
         ax.set_ylabel(ylabel)
     if len(zlabel) > 0:
         ax.set_zlabel(zlabel)
+    if len(title) > 0:
+        ax.set_title(title)
     return ax
 
