@@ -13,15 +13,18 @@ data_generation:
 train:
   gpu: 0
   max_training_epochs: 20
-  max_allowed_error: 2.0 # Collision rollouts are eliminated from the training
+  max_allowed_error: 4.0 # Collision rollouts are eliminated from the training
   min_number_fts: 40 # Number of feature tracks per image
   batch_size: 32
+  learning_rate: 0.0001
   summary_freq: 400
   train_dir: "dda/data/first-gate-3s/train" # Where data will be generated and where the network will train
   val_dir: "dda/data/first-gate-3s/test" # Validation Data, change to a new data folder!
   save_every_n_epochs: 5
   use_imu: True
   use_fts_tracks: True
+  use_pos: False
+  use_activation: False
 test_time:
   test_every_n_rollouts: 30
   execute_nw_predictions: True
@@ -39,5 +42,6 @@ simulation:
   ref_frequency: 50
   command_frequency: 100
   expert_command_frequency: 20
-  max_time: 3.0
-  trajectory_path: "/home/simon/Downloads/trajectory_s016_r05_flat_li01.csv"
+  start_buffer: 2.0
+  max_time: 5.0
+  trajectory_path: "/home/simon/Downloads/trajectory_s016_r05_flat_li01_buffer20.csv"

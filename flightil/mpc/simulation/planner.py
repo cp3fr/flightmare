@@ -76,11 +76,11 @@ class TrajectorySampler:
     def get_final_time_stamp(self):
         return self._final_time_stamp
 
-    def get_initial_state(self):
-        return row_to_state(self._trajectory.iloc[0], None, self._correct_height_flightmare)
+    def get_initial_state(self, columns=None):
+        return row_to_state(self._trajectory.iloc[0], columns, self._correct_height_flightmare)
 
-    def get_final_state(self):
-        return row_to_state(self._trajectory.iloc[-1], None, self._correct_height_flightmare)
+    def get_final_state(self, columns=None):
+        return row_to_state(self._trajectory.iloc[-1], columns, self._correct_height_flightmare)
 
     def sample_from_trajectory(self, time_stamp, interpolation="nearest_below", columns=None):
         # TODO: implement some sort of interpolation
@@ -129,6 +129,13 @@ class TrajectoryPlanner:
         return self._trajectory_sampler.sample_from_trajectory(current_time, columns=columns)
 
     def plan(self, current_state, current_time):
+        # TODO: if enabled, for the first X seconds, fly "buffer start"
+        # could take vector of motion between timesteps and interpolate that "backwards"
+        # actually, any of this seems very complicated, and just taking trajectories e.g. 2s earlier
+        # and then "skipping" the first 2s in training seems way better...
+        # => to that end, might want to load entire trajectories, specify the lap (?), select based
+        #    on the frame_index and then do the above
+
         latest_non_hover_state = current_state.tolist()
         planned_trajectory = list(current_state)
         for step in range(self._num_plan_steps + 1):
@@ -149,11 +156,11 @@ class TrajectoryPlanner:
     def get_final_time_stamp(self):
         return self._trajectory_sampler.get_final_time_stamp()
 
-    def get_initial_state(self):
-        return self._trajectory_sampler.get_initial_state()
+    def get_initial_state(self, columns=None):
+        return self._trajectory_sampler.get_initial_state(columns)
 
-    def get_final_state(self):
-        return self._trajectory_sampler.get_final_state()
+    def get_final_state(self, columns=None):
+        return self._trajectory_sampler.get_final_state(columns)
 
 
 class HoverPlanner:

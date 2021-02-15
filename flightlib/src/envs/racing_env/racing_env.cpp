@@ -147,8 +147,8 @@ void RacingEnv::disconnectUnity(void) {
  * OTHER SETTER METHODS *
  ************************/
 
-void RacingEnv::setReducedState(Ref<Vector<>> new_state) {
-  quad_state_.x.segment<10>(0) = new_state;  // should maybe express this as sum instead of fixed number
+void RacingEnv::setReducedState(const Ref<Vector<>> new_state, const int num_vars) {
+  quad_state_.x.segment(0, num_vars) = new_state.segment(0, num_vars);  // should maybe express this as sum instead of fixed number
   quadrotor_ptr_->setState(quad_state_);
 }
 

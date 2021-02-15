@@ -129,12 +129,15 @@ class DaggerSetting(Settings):
             self.max_training_epochs = train_conf['max_training_epochs']
             self.max_allowed_error = train_conf['max_allowed_error']
             self.batch_size = train_conf['batch_size']
+            self.learning_rate = train_conf["learning_rate"]
             self.min_number_fts = train_conf['min_number_fts']
             self.summary_freq = train_conf['summary_freq']
             self.train_dir = os.path.join(os.getenv("GAZESIM_ROOT"), os.pardir, train_conf['train_dir'])
             self.val_dir = os.path.join(os.getenv("GAZESIM_ROOT"), os.pardir, train_conf['val_dir'])
             self.use_imu = train_conf['use_imu']
             self.use_fts_tracks = train_conf['use_fts_tracks']
+            self.use_pos = train_conf["use_pos"]
+            self.use_activation = train_conf["use_activation"]
             self.save_every_n_epochs = train_conf['save_every_n_epochs']
             self.verbose = settings['verbose']
             assert isinstance(self.verbose, bool)
@@ -148,5 +151,6 @@ class DaggerSetting(Settings):
             self.ref_frequency = sim_conf["ref_frequency"]
             self.command_frequency = sim_conf["command_frequency"]
             self.expert_command_frequency = sim_conf["expert_command_frequency"]
+            self.start_buffer = sim_conf["start_buffer"]
             self.max_time = sim_conf["max_time"]
             self.trajectory_path = sim_conf["trajectory_path"]

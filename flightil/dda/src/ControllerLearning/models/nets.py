@@ -2,6 +2,7 @@ import tensorflow as tf
 from tensorflow.keras import Model
 from tensorflow.keras.layers import Dense, Conv2D, LeakyReLU, Conv1D
 from tensorflow.keras.layers import Flatten, GlobalAveragePooling2D
+from tensorflow.keras.activations import sigmoid, tanh
 
 try:
     from .tf_addons_normalizations import InstanceNormalization
@@ -36,6 +37,7 @@ class AggressiveNet(Network):
     def __init__(self, config):
         super(AggressiveNet, self).__init__()
         self.config = config
+        self.multiplier = tf.constant([21.0, 6.0, 6.0, 6.0])
         self._create(input_size=(config.seq_len, config.min_number_fts, 5))
 
     def _create(self, input_size, has_bias=True, learn_affine=True):
@@ -137,4 +139,10 @@ class AggressiveNet(Network):
         else:
             total_embeddings = states_embeddings
         output = self._control_branch(total_embeddings)
+        if self.config.use_activation:
+            thrust_tensor, body_rate_tensor = tf.split(output, [1, 3], axis=-1)
+            thrust_tensor = sigmoid(thrust_tensor)
+            body_rate_tensor = tanh(body_rate_tensor)
+            output = tf.concat((thrust_tensor, body_rate_tensor), axis=-1)
+            output = tf.multiply(output, self.multiplier)
         return output

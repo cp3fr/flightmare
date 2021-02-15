@@ -84,7 +84,7 @@ class RacingEnvWrapper:
         if len(reduced_state.shape) == 2:
             reduced_state = np.reshape(reduced_state, (-1, 1))
         reduced_state = reduced_state.astype(np.float32)
-        self.env.setReducedState(reduced_state)
+        self.env.setReducedState(reduced_state, reduced_state.shape[0])
 
     # def is_colliding(self):
     #     self.env.getCollision()

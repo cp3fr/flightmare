@@ -92,10 +92,17 @@ class SafeDataset(BodyDataset):
             "V_angular_y",
             "V_angular_z"]
         # the above should maybe also be replaced by the GT (maybe w/ some noise)
+        if self.config.use_pos:
+            features_imu += [
+                "Position_x",
+                "Position_y",
+                "Position_z",
+            ]
 
         # TODO: this probably needs to be changed to the available reference states
         #  (i.e. position, linear velocity, rotation, which are probably more relevant
-        #  for racing stuff)
+        #  for racing stuff) => will probably want to keep body rates
+        # TODO: if this is changed (at least) preprocess_fts also needs to be changed
         features = [  # Reference state
             "Reference_orientation_x",
             "Reference_orientation_y",
@@ -107,6 +114,12 @@ class SafeDataset(BodyDataset):
             "Reference_v_angular_x",
             "Reference_v_angular_y",
             "Reference_v_angular_z"]
+        if self.config.use_pos:
+            features += [
+                "Reference_position_x",
+                "Reference_position_y",
+                "Reference_position_z",
+            ]
 
         # Preprocessing: we select the good rollouts (no crash in training data)
         rollout_fts = ["Rollout_idx"]
@@ -168,12 +181,23 @@ class SafeDataset(BodyDataset):
         rollout_idx, qx,qy,qz,qw, vx, vy, vz, ax, ay, az, rqx, rqy, rqz, rqw, ...
         """
         fts = fts.tolist()
-        ref_rot = R.from_quat(fts[11:15]).as_matrix().reshape((9,)).tolist()
+        # I don't think these indices are correct... they only work if IMU data is also used
+        # ref_rot = R.from_quat(fts[11:15]).as_matrix().reshape((9,)).tolist()
+        if self.config.use_pos:
+            ref_rot = R.from_quat(fts[11:15]).as_matrix().reshape((9,)).tolist()
+        else:
+            ref_rot = R.from_quat(fts[14:18]).as_matrix().reshape((9,)).tolist()
         if self.config.use_imu:
             odom_rot = R.from_quat(fts[1:5]).as_matrix().reshape((9,)).tolist()
-            processed_fts = [fts[0]] + odom_rot + fts[5:11] + ref_rot + fts[15:]
+            if self.config.use_pos:
+                processed_fts = [fts[0]] + odom_rot + fts[5:14] + ref_rot + fts[18:]
+            else:
+                processed_fts = [fts[0]] + odom_rot + fts[5:11] + ref_rot + fts[15:]
         else:
-            processed_fts = [fts[0]] + ref_rot + fts[5:11]
+            if self.config.use_pos:
+                processed_fts = [fts[0]] + ref_rot + fts[5:14]
+            else:
+                processed_fts = [fts[0]] + ref_rot + fts[5:11]
         return np.array(processed_fts)
 
     def add_missing_fts(self, features_dict):

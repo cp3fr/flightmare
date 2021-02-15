@@ -70,7 +70,7 @@ class RacingEnv final : public EnvBaseCamera {
   void disconnectUnity() override;
 
   // setter methods
-  void setReducedState(const Ref<Vector<>> new_state);
+  void setReducedState(const Ref<Vector<>> new_state, const int num_vars);
   void setWaveTrack(bool wave_track);
 
   bool loadParam(const YAML::Node &cfg);

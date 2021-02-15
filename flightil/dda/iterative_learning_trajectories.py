@@ -22,6 +22,8 @@ class Trainer:
         self.trajectory_path = self.settings.trajectory_path
         self.trajectory_done = False
 
+        # TODO: either define trajectory with buffer at the start or do smth
+
         self.simulation = FlightmareSimulation(self.settings, self.trajectory_path,
                                                max_time=self.settings.max_time)
         self.learner = ControllerLearning(self.settings, self.trajectory_path,
@@ -36,6 +38,7 @@ class Trainer:
         # defining some settings
         max_time = self.settings.max_time + 4.0
         switch_times = np.arange(0.0, max_time - 2.0, step=1.0).tolist() + [max_time + 1.0]
+        switch_times += self.settings.start_buffer
         repetitions = 1
         save_path = os.path.join(self.settings.log_dir, "online_eval_rollout-{:04d}".format(self.learner.rollout_idx))
         os.makedirs(save_path)
@@ -136,9 +139,12 @@ class Trainer:
         while (not shutdown_requested) and (self.learner.rollout_idx < self.settings.max_rollouts):
             # TODO: add switch into training mode when MPC is started earlier to reach "stable" flight
 
+            # TODO: if there is a buffer, only start recording when time > buffer
+
             self.trajectory_done = False
             info_dict = self.simulation.reset()
-            self.learner.start_data_recording()
+            if info_dict["time"] > self.settings.start_buffer:
+                self.learner.start_data_recording()  # TODO: this should only be after the "buffer time" I guess => maybe it's enough to do that?
             self.learner.reset()
             self.learner.update_info(info_dict)
             self.learner.prepare_expert_command()
@@ -153,20 +159,27 @@ class Trainer:
             ref_log = []
             gt_pos_log = []
             error_log = []
+            # TODO: maybe only collect this when data is being recorded
+            # states = []
 
             # run the main loop until the simulation "signals" that the trajectory is done
             print("\n[Trainer] Starting experiment {}\n".format(self.learner.rollout_idx))
             while not self.trajectory_done:
+                # states.append(info_dict["state"])
                 info_dict, successes = self.simulation.step(action["network"] if action["use_network"] else action["expert"])
                 self.trajectory_done = info_dict["done"]
                 if not self.trajectory_done:
+                    if info_dict["time"] > self.settings.start_buffer and not self.learner.record_data:
+                        self.learner.start_data_recording()
+
                     self.learner.update_info(info_dict)
                     action = self.learner.get_control_command()
 
-                    pos_ref_dict = self.learner.compute_trajectory_error()
-                    gt_pos_log.append(pos_ref_dict["gt_pos"])
-                    ref_log.append(pos_ref_dict["gt_ref"])
-                    error_log.append(np.linalg.norm(pos_ref_dict["gt_pos"] - pos_ref_dict["gt_ref"]))
+                    if self.learner.record_data:
+                        pos_ref_dict = self.learner.compute_trajectory_error()
+                        gt_pos_log.append(pos_ref_dict["gt_pos"])
+                        ref_log.append(pos_ref_dict["gt_ref"])
+                        error_log.append(np.linalg.norm(pos_ref_dict["gt_pos"] - pos_ref_dict["gt_ref"]))
 
             # final logging
             tracking_error = np.mean(error_log)
@@ -204,6 +217,13 @@ class Trainer:
             if self.settings.verbose:
                 t_log_fname = os.path.join(self.settings.log_dir, "traj_log_{:5d}.npy".format(self.learner.rollout_idx))
                 np.save(t_log_fname, t_log)
+
+            """
+            states = np.vstack(states)
+            show_state_action_plots(self.settings.trajectory_path, states, None, None,
+                                    self.simulation.command_time_step, self.simulation.total_time)
+            break
+            """
 
     def old_perform_testing(self):
         """

@@ -59,7 +59,7 @@ class ControllerLearning:
         self.reference_rot = None
         self.state_estimate = None
         self.state_estimate_rot = None
-        self.feature_tracks = None  # TODO: NEED TO RESET THESE TO SOMETHING OTHER THAN NONE I GUESS
+        self.feature_tracks = None
 
         # the current control command, computed either by the expert or the network
         self.control_command = None
@@ -97,9 +97,15 @@ class ControllerLearning:
         # TODO: these should actually be fewer right? n_init_states should be the number of actual inputs
 
         if self.config.use_imu:
-            n_init_states = 30
+            if self.config.use_pos:
+                n_init_states = 36
+            else:
+                n_init_states = 30
         else:
-            n_init_states = 15
+            if self.config.use_pos:
+                n_init_states = 18
+            else:
+                n_init_states = 15
 
         init_dict = {}
         for i in range(self.config.min_number_fts):
@@ -337,17 +343,30 @@ class ControllerLearning:
         if not self.network_initialised:
             # return fake input for init
             if self.config.use_imu:
-                n_init_states = 30
+                if self.config.use_pos:
+                    n_init_states = 36
+                else:
+                    n_init_states = 30
             else:
-                n_init_states = 15
+                if self.config.use_pos:
+                    n_init_states = 18
+                else:
+                    n_init_states = 15
             inputs = {"fts": np.zeros((1, self.config.seq_len, self.config.min_number_fts, 5), dtype=np.float32),
                       "state": np.zeros((1, self.config.seq_len, n_init_states), dtype=np.float32)}
             return inputs
 
         # reference is always used, state estimate if specified in config
+        # TODO: potentially use position instead (or in addition to) body rates
+        #  => probably won't require changing anything in the networks, but will for data loading
+        #     and n_init_states will also have to be changed
         state_inputs = self.reference_rot + self.reference[7:].tolist()
+        if self.config.use_pos:
+            state_inputs += self.reference[:3].tolist()
         if self.config.use_imu:
             state_inputs += self.state_estimate_rot + self.state_estimate[7:].tolist()
+            if self.config.use_pos:
+                state_inputs += self.state_estimate[:3].tolist()
         self.state_queue.append(state_inputs)
 
         # format the state and feature track inputs as numpy arrays for the network

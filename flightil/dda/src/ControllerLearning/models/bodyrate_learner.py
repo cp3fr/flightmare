@@ -28,7 +28,7 @@ class BodyrateLearner(object):
 
         self.network = create_network(self.config)
         self.loss = tf.keras.losses.MeanSquaredError()
-        self.optimizer = tf.keras.optimizers.Adam(learning_rate=1e-4, clipvalue=.2)
+        self.optimizer = tf.keras.optimizers.Adam(learning_rate=self.config.learning_rate, clipvalue=.2)
 
         self.train_loss = tf.keras.metrics.Mean(name='train_loss')
         self.val_loss = tf.keras.metrics.Mean(name='validation_loss')

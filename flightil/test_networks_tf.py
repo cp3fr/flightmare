@@ -78,11 +78,12 @@ def test():
     trajectories = [
         "/home/simon/Downloads/trajectory_s016_r05_flat_li01.csv",  # medium (median)
         "/home/simon/Downloads/trajectory_mpc_20_s016_r05_flat_li01.csv",  # medium (median) MPC
+        "/home/simon/Downloads/trajectory_s016_r05_flat_li01_buffer10.csv",  # medium (median) w/ "buffer"
         "/home/simon/Downloads/trajectory_s024_r08_flat_li09.csv",  # fast
         "/home/simon/Downloads/trajectory_s018_r09_wave_li04.csv",  # medium wave
         "/home/simon/Downloads/trajectory_s020_r13_wave_li04.csv",  # fast wave
     ]
-    trajectory_path = trajectories[0]
+    trajectory_path = trajectories[2]
     model_load_path = os.path.join(os.getenv("FLIGHTMARE_PATH"),
                                    "flightil/dda/results/loop/20210211-002220/train/ckpt-156")
 
@@ -92,7 +93,7 @@ def test():
     write_video = False
     max_time = 7.0
     switch_times = np.arange(0.0, 5.0, step=0.5).tolist() + [max_time + 1.0]
-    # switch_times = [max_time + 1.0]
+    switch_times = [max_time + 1.0]
     repetitions = 1
     experiment_path = "/home/simon/Desktop/weekly_meeting/meeting18/dda_0"
 
@@ -142,6 +143,9 @@ def test():
             controller.update_info(info_dict)
             controller.prepare_expert_command()
             action = controller.get_control_command()
+
+            # TODO: try also setting the acceleration and body rates from the reference when resetting,
+            #  maybe this helps with the unwanted MPC behaviour at the start?
 
             # connect to the simulation either at the start or after training has been run
             simulation.connect_unity(settings.flightmare_pub_port, settings.flightmare_sub_port)
