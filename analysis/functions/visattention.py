@@ -7,8 +7,9 @@ from mpl_toolkits.mplot3d.art3d import Line3D
 from shapely.geometry import LineString
 from scipy.spatial.transform import Rotation
 from shutil import copyfile
+from skspatial.objects import Vector, Points, Line, Point
 
-#todo: update this object to return the 2D coordinates
+
 class Gate(object):
     """
     Racing gate object, represented as 2D surface, with some useful methods
@@ -93,10 +94,12 @@ class Gate(object):
     def yz(self):
         return self._yz
 
-    def intersect(self, p0, p1):
-        '''
-        p0 and p1 are the start and endpoints of a line in W frame
-        '''
+    def intersect(self, p0: np.ndarray([]), p1: np.ndarray([])) -> tuple():
+        """
+        Returns 2D and 3D intersection points with the gate surface and a
+        line from two given points (p0, p1).
+        """
+        # Initialize relevant variables
         point_2d = None
         point_3d = None
         _x = None
@@ -125,42 +128,46 @@ class Gate(object):
             if count > 1:
                 point_3d = np.array([_x, _y, _z])
                 point_2d = self.point2d(point_3d)
-
         return point_2d, point_3d
 
-    def point2d(self, p):
-        #todo: return the 2d point in the yz plane of the object, where
-        #upper left corner is the origin, x=right, y=down
-        '''
-        For AIRR square gates placed vertically
-        x=right
-        y=down
-        origin at top left
-        '''
-        # print(p)
-        # print(self._rotation)
-        # _p = p - self._center
-        # print(_p)
-        # _p = Rotation.from_quat(self._rotation).apply(_p)
-        # print('----------')
-        # print(_p)
-        # print('----------')
-        # p0_xy = self._corners[:2, 0] #gate horizontal axis origin
-        # p1_xy = self._corners[:2, 2] #gate horizontal axis endpoint
-        # x = np.linalg.norm(p[:2]-p0_xy) / np.linalg.norm(p1_xy-p0_xy)
-        # p0_z = self._corners[2, 0]  # gate vertical axis origin
-        # p1_z = self._corners[2, 2]  # gate vertical axis endpoint
-        # y = np.abs(p[2] - p0_z) / np.abs(p1_z - p0_z)
-        # return np.array([x, y])
-        return None
+    def point2d(self, p: np.ndarray([])) -> np.ndarray([]):
+        """
+        Returns normalized [0-1 range] 2D coordinates of the intersection
+        point within gate surface.
+
+        The origin is the upper left corner (1st corner point)
+        X-axis is to the right
+        Y-axis is down
+        """
+        # Represent x and y axis of the gate surface by line objects.
+        x_axis = Line(point=self._corners[:, 0],
+                      direction=self._corners[:, 1] - self._corners[:, 0])
+        y_axis = Line(point=self._corners[:, 0],
+                      direction=self._corners[:, 3] - self._corners[:, 0])
+        length_x_axis = x_axis.direction.norm()
+        length_y_axis = y_axis.direction.norm()
+        # Project the 3D intersection point onto the x and y surface axies.
+        px_projected = x_axis.project_point(p)
+        py_projected = y_axis.project_point(p)
+        length_px_projected = x_axis.point.distance_point(px_projected)
+        length_py_projected = y_axis.point.distance_point(py_projected)
+        # Return the normalized 2D projection of the intersection point.
+        return np.array([length_px_projected / length_x_axis,
+                         length_py_projected / length_y_axis])
 
 
 # todo: update this function for px py pz inputs
 #  make this a function of the liftoff module
 def detect_gate_passing(
-        time: np.ndarray([]), position: np.ndarray([]), gate_object: Gate,
-        max_step_size: int = 20,
-        distance_threshold: int = None) -> np.ndarray([]):
+        t: np.ndarray([]), px: np.ndarray([]), py: np.ndarray([]),
+        pz: np.ndarray([]), gate_object: Gate, max_step_size: int=20,
+        distance_threshold: int=None) -> np.ndarray([]):
+
+        # time: np.ndarray([]), position: np.ndarray([]), gate_object: Gate,
+        # max_step_size: int = 20,
+        # distance_threshold: int = None) -> np.ndarray([]):
+
+        
     """Detect gate passing events
         Function update on 12.02.2021
         Checks if position data is within a distance threshold from the gate
@@ -546,7 +553,7 @@ def format_trajectory_figure(
     return ax
 
 
-def wall_colliders(dims: tuple=(1, 1, 1), center: tuple=(0, 0, 0)) -> list():
+def wall_colliders(dims=(1, 1, 1), center=(0, 0, 0)):
     """Returns a list of 'Gate' objects representing the walls of a race
     track in 3D.
         dims: x, y, z dimensions in meters
@@ -554,9 +561,18 @@ def wall_colliders(dims: tuple=(1, 1, 1), center: tuple=(0, 0, 0)) -> list():
     objWallCollider = []
 
     _q = (Rotation.from_euler('y', [np.pi/2]) * Rotation.from_quat(np.array([0, 0, 0, 1]))).as_quat().flatten()
-    objWallCollider.append(Gate(pd.DataFrame({'pos_x': center[0], 'pos_y': center[1], 'pos_z' : center[2] - dims[2] / 2,
-                                            'rot_x_quat': _q[0], 'rot_y_quat':_q[1], 'rot_z_quat':_q[2], 'rot_w_quat':_q[3],
-                                            'dim_x':0, 'dim_y': dims[1], 'dim_z':dims[0]}, index=[0]).iloc[0],
+
+    objWallCollider.append(Gate(pd.DataFrame({'pos_x': [center[0]],
+                                              'pos_y': [center[1]],
+                                              'pos_z': [center[2] - dims[2]/2],
+                                              'rot_x_quat': [_q[0]],
+                                              'rot_y_quat': [_q[1]],
+                                              'rot_z_quat': [_q[2]],
+                                              'rot_w_quat': [_q[3]],
+                                              'dim_x': [0],
+                                              'dim_y': [dims[1]],
+                                              'dim_z': [dims[0]]},
+                                             index=[0]).iloc[0],
                                 dims=(dims[1], dims[0]), dtype='gazesim'))
 
     _q = (Rotation.from_euler('y', [-np.pi/2]) * Rotation.from_quat(np.array([0, 0, 0, 1]))).as_quat().flatten()
