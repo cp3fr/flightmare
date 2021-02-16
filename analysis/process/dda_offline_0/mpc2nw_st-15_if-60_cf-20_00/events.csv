@@ -1,0 +1,5 @@
+t,object-id,object-name,is-collision,is-pass
+0.1,9,gate,0,1
+2.1833333333333305,0,gate,0,1
+2.8999999999999946,0,wall,1,0
+3.4166666666666594,3,wall,1,0
