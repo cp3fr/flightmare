@@ -7,7 +7,8 @@ from mpl_toolkits.mplot3d.art3d import Line3D
 from shapely.geometry import LineString
 from scipy.spatial.transform import Rotation
 from shutil import copyfile
-from skspatial.objects import Vector, Points, Line, Point
+from skspatial.objects import Vector, Points, Line, Point, Plane
+from skspatial.plotting import plot_3d
 
 
 class Gate(object):
@@ -46,6 +47,9 @@ class Gate(object):
         self._corners = (Rotation.from_quat(q).apply(proto.T).T + p.reshape(3, 1)).astype(float)
         self._center = p
         self._rotation = q
+        self._normal = Rotation.from_quat(q).apply(np.array([1, 0, 0]))
+        self._width = dims[0]
+        self._height = dims[1]
         #1D minmax values
         self._x = np.array([np.min(self._corners[0, :]), np.max(self._corners[0, :])])
         self._y = np.array([np.min(self._corners[1, :]), np.max(self._corners[1, :])])
@@ -57,6 +61,26 @@ class Gate(object):
                                ((np.max(self._corners[0, :])), np.max(self._corners[2, :]))])
         self._yz = LineString([((np.min(self._corners[1, :])), np.min(self._corners[2, :])),
                                ((np.max(self._corners[1, :])), np.max(self._corners[2, :]))])
+        #plane representation
+        center_point = Point(list(self._center))
+        normal_point = Point(list(self._center + self._normal))
+        normal_vector = Vector.from_points(center_point, normal_point)
+        self.plane = Plane(point=center_point, normal=normal_vector)
+
+        self.x_axis = Line(point=self._corners[:, 0],
+                      direction=self._corners[:, 1] - self._corners[:, 0])
+        self.y_axis = Line(point=self._corners[:, 0],
+                      direction=self._corners[:, 3] - self._corners[:, 0])
+        self.length_x_axis = self.x_axis.direction.norm()
+        self.length_y_axis = self.y_axis.direction.norm()
+
+    @property
+    def width(self):
+        return self._width
+
+    @property
+    def height(self):
+        return self._height
 
     @property
     def corners(self):
@@ -93,6 +117,12 @@ class Gate(object):
     @property
     def yz(self):
         return self._yz
+
+    def get_distance(self, p):
+        return self.plane.distance_point(p)
+
+    def get_signed_distance(self, p):
+        return self.plane.distance_point_signed(p)
 
     def intersect(self, p0: np.ndarray([]), p1: np.ndarray([])) -> tuple():
         """
@@ -139,86 +169,274 @@ class Gate(object):
         X-axis is to the right
         Y-axis is down
         """
-        # Represent x and y axis of the gate surface by line objects.
-        x_axis = Line(point=self._corners[:, 0],
-                      direction=self._corners[:, 1] - self._corners[:, 0])
-        y_axis = Line(point=self._corners[:, 0],
-                      direction=self._corners[:, 3] - self._corners[:, 0])
-        length_x_axis = x_axis.direction.norm()
-        length_y_axis = y_axis.direction.norm()
         # Project the 3D intersection point onto the x and y surface axies.
-        px_projected = x_axis.project_point(p)
-        py_projected = y_axis.project_point(p)
-        length_px_projected = x_axis.point.distance_point(px_projected)
-        length_py_projected = y_axis.point.distance_point(py_projected)
+        px_projected = self.x_axis.project_point(p)
+        py_projected = self.y_axis.project_point(p)
+        length_px_projected = self.x_axis.point.distance_point(px_projected)
+        length_py_projected = self.y_axis.point.distance_point(py_projected)
         # Return the normalized 2D projection of the intersection point.
-        return np.array([length_px_projected / length_x_axis,
-                         length_py_projected / length_y_axis])
+        return np.array([length_px_projected / self.length_x_axis,
+                         length_py_projected / self.length_y_axis])
 
 
-# todo: update this function for px py pz inputs
-#  make this a function of the liftoff module
+def wall_colliders(dims=(1, 1, 1), center=(0, 0, 0)):
+    """Returns a list of 'Gate' objects representing the walls of a race
+    track in 3D.
+        dims: x, y, z dimensions in meters
+        denter: x, y, z positions of the 3d volume center"""
+    objWallCollider = []
+
+    _q = (Rotation.from_euler('y', [np.pi/2]) * Rotation.from_quat(np.array([0, 0, 0, 1]))).as_quat().flatten()
+
+    objWallCollider.append(Gate(pd.DataFrame({'pos_x': [center[0]],
+                                              'pos_y': [center[1]],
+                                              'pos_z': [center[2] - dims[2]/2],
+                                              'rot_x_quat': [_q[0]],
+                                              'rot_y_quat': [_q[1]],
+                                              'rot_z_quat': [_q[2]],
+                                              'rot_w_quat': [_q[3]],
+                                              'dim_x': [0],
+                                              'dim_y': [dims[1]],
+                                              'dim_z': [dims[0]]},
+                                             index=[0]).iloc[0],
+                                dims=(dims[1], dims[0]), dtype='gazesim'))
+
+    _q = (Rotation.from_euler('y', [-np.pi/2]) * Rotation.from_quat(np.array([0, 0, 0, 1]))).as_quat().flatten()
+    objWallCollider.append(Gate(pd.DataFrame({'pos_x': center[0], 'pos_y': center[1], 'pos_z' : center[2] + dims[2] / 2,
+                                            'rot_x_quat': _q[0], 'rot_y_quat':_q[1], 'rot_z_quat':_q[2], 'rot_w_quat':_q[3],
+                                            'dim_x':0, 'dim_y':dims[1], 'dim_z':dims[0]}, index=[0]).iloc[0],
+                                dims=(dims[1], dims[0]), dtype='gazesim'))
+
+    _q = np.array([0, 0, 0, 1])
+    objWallCollider.append(Gate(pd.DataFrame({'pos_x': center[0] + dims[0] / 2, 'pos_y': center[1], 'pos_z' : center[2],
+                                            'rot_x_quat': _q[0], 'rot_y_quat':_q[1], 'rot_z_quat':_q[2], 'rot_w_quat':_q[3],
+                                            'dim_x':0, 'dim_y':dims[1], 'dim_z':dims[2]}, index=[0]).iloc[0],
+                                dims=(dims[1], dims[2]), dtype='gazesim'))
+
+    _q = (Rotation.from_euler('z', [np.pi]) * Rotation.from_quat(np.array([0, 0, 0, 1]))).as_quat().flatten()
+    objWallCollider.append(Gate(pd.DataFrame({'pos_x': center[0] - dims[0] / 2, 'pos_y': center[1], 'pos_z' : center[2],
+                                            'rot_x_quat': _q[0], 'rot_y_quat':_q[1], 'rot_z_quat':_q[2], 'rot_w_quat':_q[3],
+                                            'dim_x':0, 'dim_y':dims[1], 'dim_z':dims[2]}, index=[0]).iloc[0],
+                                dims=(dims[1], dims[2]), dtype='gazesim'))
+
+    _q = (Rotation.from_euler('z', [np.pi/2]) * Rotation.from_quat(np.array([0, 0, 0, 1]))).as_quat().flatten()
+    objWallCollider.append(Gate(pd.DataFrame({'pos_x': center[0], 'pos_y': center[1] + dims[1] / 2, 'pos_z' : center[2],
+                                            'rot_x_quat': _q[0], 'rot_y_quat':_q[1], 'rot_z_quat':_q[2], 'rot_w_quat':_q[3],
+                                            'dim_x':0, 'dim_y':dims[1], 'dim_z':dims[2]}, index=[0]).iloc[0],
+                                dims=(dims[0], dims[2]), dtype='gazesim'))
+
+    _q = (Rotation.from_euler('z', [-np.pi/2]) * Rotation.from_quat(np.array([0, 0, 0, 1]))).as_quat().flatten()
+    objWallCollider.append(Gate(pd.DataFrame({'pos_x': center[0], 'pos_y': center[1] - dims[1] / 2, 'pos_z' : center[2],
+                                            'rot_x_quat': _q[0], 'rot_y_quat':_q[1], 'rot_z_quat':_q[2], 'rot_w_quat':_q[3],
+                                            'dim_x':0, 'dim_y':dims[1], 'dim_z':dims[2]}, index=[0]).iloc[0],
+                                dims=(dims[0], dims[2]), dtype='gazesim'))
+    return objWallCollider
+
+
 def detect_gate_passing(
         t: np.ndarray([]), px: np.ndarray([]), py: np.ndarray([]),
-        pz: np.ndarray([]), gate_object: Gate, max_step_size: int=20,
+        pz: np.ndarray([]), gate_object: Gate, max_step_size: int=40,
         distance_threshold: int=None) -> np.ndarray([]):
+    """
+    Return the timestamps at which the drone passes the gate object.
 
-        # time: np.ndarray([]), position: np.ndarray([]), gate_object: Gate,
-        # max_step_size: int = 20,
-        # distance_threshold: int = None) -> np.ndarray([]):
+        t: timestamps in seconds,
+        px, py, pz: drone position in x, y, z in meters
+        gate_object: Gate object, i.e. 2D surface in 3D space
+        max_step_size: maximum number of sampling steps to consider when
+            searching for gate passing events
+        distance_threshold: distance threshold in meters for which to
+            consider candidate sampling point for detecting gate interaction
 
-        
-    """Detect gate passing events
-        Function update on 12.02.2021
+        Update on 12.02.2021
         Checks if position data is within a distance threshold from the gate
-        And for those data checks if the gate was passed"""
-    # determine the distance threshold from the gate size
+        And for those data checks if the gate was passed
+    """
+    position = np.hstack((px.reshape(-1, 1),
+                               np.hstack((py.reshape(-1, 1),
+                                          pz.reshape(-1, 1)))))
+
+    # Set distance threshold to 60% of the gate surface diagonale.
     if distance_threshold is None:
-        v = gate_object.corners - gate_object.center.reshape(3, 1)
-        distance_threshold = 1.5 * np.max(np.array([np.linalg.norm(v[:, i])
-                                                    for i in
-                                                    range(v.shape[1])]))
-    dt = np.nanmedian(np.diff(time))
-    # print('delta time is {} sec'.format(dt))
-    p_gate = gate_object.center.reshape((1, 3)).astype(float)
-    dist = np.linalg.norm(position - p_gate, axis=1)
-    ts1 = time[dist < distance_threshold]
-    ts2 = []
+        distance_threshold = 0.6 * np.sqrt((gate_object.width)**2
+                                          + (gate_object.height)**2)
+    # Select candidate timestamps in three steps:
+    # First, find all timestamps when quad is close to gate.
+    gate_center = gate_object.center.reshape((1, 3)).astype(float)
+    distance_from_gate_center = np.linalg.norm(position - gate_center, axis=1)
+    timestamps_near_gate = t[distance_from_gate_center < distance_threshold]
+    # Second, cluster the timestamps that occur consecutively
+    dt = np.nanmedian(np.diff(t))
+    ind = np.diff(timestamps_near_gate) > (4*dt)
+    ind1 = np.hstack((ind, True))
+    ind0 = np.hstack((True, ind))
+    timstamp_clusters = np.hstack((
+        timestamps_near_gate[ind0].reshape(-1, 1),
+        timestamps_near_gate[ind1].reshape(-1, 1)
+        ))
+    # Third, find gate passing events using signed distances from gate plane.
+    event_timestamps = []
+    for cluster in range(timstamp_clusters.shape[0]):
+        start_time = timstamp_clusters[cluster, 0]
+        end_time = timstamp_clusters[cluster, 1]
+        ind = (t>=start_time) & (t<=end_time)
+        curr_time = t[ind]
+        curr_position = position[ind, :]
+        curr_signed_distance = np.array([
+            gate_object.get_signed_distance(curr_position[i, :]) for i in range(
+                curr_position.shape[0]
+            )
+        ])
+        # Find transitions from negative to positive signed distance.
+        #  where "negative distance" is behind the gate (negative x in gate
+        #  frame) and "positive distance" is in front of the gate (positive x
+        #  in gate frame.
+        ind = ((curr_signed_distance <= 0) & (
+                np.diff(np.hstack((curr_signed_distance,
+                                   curr_signed_distance[-1])) > 0) == 1)
+               )
+        if np.sum(ind) > 0:
+            event_timestamps.append(curr_time[ind][0])
+    return event_timestamps
 
-    for t_ in ts1:
-        ind = time >= t_
-        p_ = position[ind, :]
-        selection = []
-        for ss in np.arange(max_step_size):
-            if p_.shape[0] > ss:
-                # check for gate passing considering a certain sample-to-sample
-                # step size
-                _, p3d = gate_object.intersect(p_[0, :], p_[ss, :])
-                if p3d is not None:
-                    selection.append((t_, np.linalg.norm(p_[0, :] - p3d)))
 
-        if len(selection) > 0:
-            minDist = np.min(np.array([val for _, val in selection]))
-            minTime = [__t for __t, __v in selection if __v == minDist][0]
-            ts2.append(minTime)
-
-        # if p_.shape[0] > step_size:
-        #     #check for gate passing considering a certain sample-to-sample
-        #     step size
-        #     _, p3d = gate_object.intersect(p_[0, :], p_[step_size, :])
-        #     if p3d is not None:
-        #         ts2.append(t_)
-    # remove duplicated timestamps, i.e. when within the stepsize window
-    if len(ts2) > 0:
-        ts2 = np.sort(np.array(ts2))
-        ind = np.hstack((np.diff(ts2) >= (2 * dt), True))
-        ts2 = ts2[ind]
-    ts2 = np.array(ts2)
-    return ts2
+def make_path(path: str) -> bool():
+    """Make (nested) folders, if not already existent, from provided path."""
+    path = path.replace('//', '/')
+    if path[0] == '/':
+        curr_path = '/'
+    else:
+        curr_path = ''
+    folders = path.split('/')
+    made_some_folders = False
+    for folder in folders:
+        if len(folder) > 0:
+            curr_path += folder + '/'
+            if os.path.isdir(curr_path) == False:
+                os.mkdir(curr_path)
+                made_some_folders = True
+    return made_some_folders
 
 
-# todo: update this pipeline, remove the animation part, just save features
-def performance_feature_extraction(PATH, toShowAnimation=False,
+def trajectory_from_logfile(filepath: str) -> pd.DataFrame():
+    """Returns a trajectory dataframe with standard headers from a flightmare
+    log filepath."""
+    ndict = {
+        'time-since-start [s]': 't',
+        'position_x [m]': 'px',
+        'position_y [m]': 'py',
+        'position_z [m]': 'pz',
+        'rotation_x [quaternion]': 'qx',
+        'rotation_y [quaternion]': 'qy',
+        'rotation_z [quaternion]': 'qz',
+        'rotation_w [quaternion]': 'qw',
+        'velocity_x': 'vx',
+        'velocity_y': 'vy',
+        'velocity_z': 'vz',
+        'acceleration_x': 'ax',
+        'acceleration_y': 'ay',
+        'acceleration_z': 'az',
+        'omega_x': 'wx',
+        'omega_y': 'wy',
+        'omega_z': 'wz'
+        }
+    if os.path.exists(filepath) is False:
+        return pd.DataFrame([])
+    else:
+        df = pd.read_csv(filepath)
+        # Rename columns according to the name dictionairy.
+        for search_name, replacement_name in ndict.items():
+            for column_name in df.columns:
+                if column_name.find(search_name) != -1:
+                    df = df.rename(columns={column_name: replacement_name})
+        # Sort columns using found dictionairy entries first and unknown last.
+        known_names = [name for name in ndict.values() if name in df.columns]
+        unknown_names = [name for name in df.columns if name not in known_names]
+        sorted_names = known_names.copy()
+        sorted_names.extend(unknown_names)
+        df = df.loc[:, sorted_names]
+        # Sort values by timestamp
+        df = df.loc[:, sorted_names]
+        df = df.sort_values(by=['t'])
+        return df
+
+
+def plot_trajectory(
+        px: np.ndarray([]), py: np.ndarray([]), pz: np.ndarray([])=np.array([]),
+        qx: np.ndarray([])=np.array([]), qy: np.ndarray([])=np.array([]),
+        qz: np.ndarray([])=np.array([]), qw: np.ndarray([])=np.array([]),
+        c: str=None, ax: plt.axis()=None, axis_length: float=1.,
+        ) -> plt.axis():
+    """Returns an axis handle for a 2D or 3D trajectory based on position and
+    rotation data."""
+    # Check if the plot is 2D or 3D.
+    if pz.shape[0] == 0:
+        is_two_d = True
+    else:
+        is_two_d = False
+    # Make a new figure if no axis was provided.
+    if ax is None:
+        fig = plt.figure()
+        if is_two_d:
+            ax = fig.add_subplot(1, 1, 1)
+        else:
+            ax = fig.add_subplot(1, 1, 1, projection='3d')
+    # Plot the flightpath
+    if is_two_d:
+        if c is None:
+            ax.plot(px, py)
+        else:
+            ax.plot(px, py, color=c)
+    else:
+        if c is None:
+            ax.plot(px, py, pz)
+        else:
+            ax.plot(px, py, pz, color=c)
+    # Plot 3D quadrotor rotation
+    if not is_two_d:
+        if ((qx.shape[0] > 0) and (qy.shape[0] > 0) and (qz.shape[0] > 0)
+                and (qw.shape[0] > 0)):
+            for primitive, color in [((1, 0, 0), 'r'),
+                                     ((0, 1, 0), 'g'),
+                                     ((0, 0, 1), 'b')]:
+                p0 = np.hstack((px.reshape(-1, 1), np.hstack((py.reshape(-1, 1),
+                                                              pz.reshape(-1, 1)))))
+                q = np.hstack((qx.reshape(-1, 1),
+                               np.hstack((qy.reshape(-1, 1),
+                                          np.hstack((qz.reshape(-1, 1),
+                                                     qw.reshape(-1, 1)))))))
+                p1 = p0 + Rotation.from_quat(q).apply(np.array(primitive)
+                                                      * axis_length)
+                for i in (range(p0.shape[0])):
+                    ax.plot([p0[i, 0], p1[i, 0]], [p0[i, 1], p1[i, 1]],
+                            [p0[i, 2], p1[i, 2]], color=color)
+    return ax
+
+
+def format_trajectory_figure(
+        ax: plt.axis(), xlims: tuple=(), ylims: tuple=(), zlims: tuple=(),
+        xlabel: str='', ylabel: str='', zlabel: str='', title: str='',
+        ) -> plt.axis():
+    """Apply limits, labels, and title formatting for a supplied figure axis."""
+    if len(xlims) > 0:
+        ax.set_xlim(xlims)
+    if len(ylims) > 0:
+        ax.set_ylim(ylims)
+    if len(zlims) > 0:
+        ax.set_zlim(zlims)
+    if len(xlabel) > 0:
+        ax.set_xlabel(xlabel)
+    if len(ylabel) > 0:
+        ax.set_ylabel(ylabel)
+    if len(zlabel) > 0:
+        ax.set_zlabel(zlabel)
+    if len(title) > 0:
+        ax.set_title(title)
+    return ax
+
+
+# Todo: update this pipeline, remove the animation part, just save features
+def feature_extraction_pipeline(PATH, toShowAnimation=False,
                                    toSaveAnimation=False):
     """Pipeline for computing and saving performance features for flight
     trajectories"""
@@ -420,189 +638,3 @@ def performance_feature_extraction(PATH, toShowAnimation=False,
     #             anim.save(outpath + 'anim.mp4', writer='ffmpeg', fps=25)
     #     if toShowAnimation:
     #         anim.show()
-
-# todo: update documentation of this function, make this a function of the
-#  liftoff module
-def make_path(PATH):
-    if PATH[0] == '/':
-        outpath = '/'
-    else:
-        outpath = ''
-    folders = PATH.split('/')
-    for fold in folders:
-        if len(fold)>0:
-            outpath += fold +'/'
-            if os.path.isdir(outpath) == False:
-                os.mkdir(outpath)
-
-
-def trajectory_from_flightmare(filepath: str) -> pd.DataFrame():
-    """Returns a trajectory dataframe with standard headers from a flightmare
-    log filepath."""
-    ndict = {
-        'time-since-start [s]': 't',
-        'position_x [m]': 'px',
-        'position_y [m]': 'py',
-        'position_z [m]': 'pz',
-        'rotation_x [quaternion]': 'qx',
-        'rotation_y [quaternion]': 'qy',
-        'rotation_z [quaternion]': 'qz',
-        'rotation_w [quaternion]': 'qw',
-        'velocity_x': 'vx',
-        'velocity_y': 'vy',
-        'velocity_z': 'vz',
-        'acceleration_x': 'ax',
-        'acceleration_y': 'ay',
-        'acceleration_z': 'az',
-        'omega_x': 'wx',
-        'omega_y': 'wy',
-        'omega_z': 'wz'
-        }
-    if os.path.exists(filepath) is False:
-        return pd.DataFrame([])
-    else:
-        df = pd.read_csv(filepath)
-        # Rename columns according to the name dictionairy.
-        for search_name, replacement_name in ndict.items():
-            for column_name in df.columns:
-                if column_name.find(search_name) != -1:
-                    df = df.rename(columns={column_name: replacement_name})
-        # Sort columns using found dictionairy entries first and unknown last.
-        known_names = [name for name in ndict.values() if name in df.columns]
-        unknown_names = [name for name in df.columns if name not in known_names]
-        sorted_names = known_names.copy()
-        sorted_names.extend(unknown_names)
-        df = df.loc[:, sorted_names]
-        # Sort values by timestamp
-        df = df.loc[:, sorted_names]
-        df = df.sort_values(by=['t'])
-        return df
-
-
-def plot_trajectory(
-        px: np.ndarray([]), py: np.ndarray([]), pz: np.ndarray([])=np.array([]),
-        qx: np.ndarray([])=np.array([]), qy: np.ndarray([])=np.array([]),
-        qz: np.ndarray([])=np.array([]), qw: np.ndarray([])=np.array([]),
-        c: str=None, ax: plt.axis()=None, axis_length: float=1.,
-        ) -> plt.axis():
-    """Returns an axis handle for a 2D or 3D trajectory based on position and
-    rotation data."""
-    # Check if the plot is 2D or 3D.
-    if pz.shape[0] == 0:
-        is_two_d = True
-    else:
-        is_two_d = False
-    # Make a new figure if no axis was provided.
-    if ax is None:
-        fig = plt.figure()
-        if is_two_d:
-            ax = fig.add_subplot(1, 1, 1)
-        else:
-            ax = fig.add_subplot(1, 1, 1, projection='3d')
-    # Plot the flightpath
-    if is_two_d:
-        if c is None:
-            ax.plot(px, py)
-        else:
-            ax.plot(px, py, color=c)
-    else:
-        if c is None:
-            ax.plot(px, py, pz)
-        else:
-            ax.plot(px, py, pz, color=c)
-    # Plot 3D quadrotor rotation
-    if not is_two_d:
-        if ((qx.shape[0] > 0) and (qy.shape[0] > 0) and (qz.shape[0] > 0)
-                and (qw.shape[0] > 0)):
-            for primitive, color in [((1, 0, 0), 'r'),
-                                     ((0, 1, 0), 'g'),
-                                     ((0, 0, 1), 'b')]:
-                p0 = np.hstack((px.reshape(-1, 1), np.hstack((py.reshape(-1, 1),
-                                                              pz.reshape(-1, 1)))))
-                q = np.hstack((qx.reshape(-1, 1),
-                               np.hstack((qy.reshape(-1, 1),
-                                          np.hstack((qz.reshape(-1, 1),
-                                                     qw.reshape(-1, 1)))))))
-                p1 = p0 + Rotation.from_quat(q).apply(np.array(primitive)
-                                                      * axis_length)
-                for i in (range(p0.shape[0])):
-                    ax.plot([p0[i, 0], p1[i, 0]], [p0[i, 1], p1[i, 1]],
-                            [p0[i, 2], p1[i, 2]], color=color)
-    return ax
-
-
-def format_trajectory_figure(
-        ax: plt.axis(), xlims: tuple=(), ylims: tuple=(), zlims: tuple=(),
-        xlabel: str='', ylabel: str='', zlabel: str='', title: str='',
-        ) -> plt.axis():
-    """Apply limits, labels, and title formatting for a supplied figure axis."""
-    if len(xlims) > 0:
-        ax.set_xlim(xlims)
-    if len(ylims) > 0:
-        ax.set_ylim(ylims)
-    if len(zlims) > 0:
-        ax.set_zlim(zlims)
-    if len(xlabel) > 0:
-        ax.set_xlabel(xlabel)
-    if len(ylabel) > 0:
-        ax.set_ylabel(ylabel)
-    if len(zlabel) > 0:
-        ax.set_zlabel(zlabel)
-    if len(title) > 0:
-        ax.set_title(title)
-    return ax
-
-
-def wall_colliders(dims=(1, 1, 1), center=(0, 0, 0)):
-    """Returns a list of 'Gate' objects representing the walls of a race
-    track in 3D.
-        dims: x, y, z dimensions in meters
-        denter: x, y, z positions of the 3d volume center"""
-    objWallCollider = []
-
-    _q = (Rotation.from_euler('y', [np.pi/2]) * Rotation.from_quat(np.array([0, 0, 0, 1]))).as_quat().flatten()
-
-    objWallCollider.append(Gate(pd.DataFrame({'pos_x': [center[0]],
-                                              'pos_y': [center[1]],
-                                              'pos_z': [center[2] - dims[2]/2],
-                                              'rot_x_quat': [_q[0]],
-                                              'rot_y_quat': [_q[1]],
-                                              'rot_z_quat': [_q[2]],
-                                              'rot_w_quat': [_q[3]],
-                                              'dim_x': [0],
-                                              'dim_y': [dims[1]],
-                                              'dim_z': [dims[0]]},
-                                             index=[0]).iloc[0],
-                                dims=(dims[1], dims[0]), dtype='gazesim'))
-
-    _q = (Rotation.from_euler('y', [-np.pi/2]) * Rotation.from_quat(np.array([0, 0, 0, 1]))).as_quat().flatten()
-    objWallCollider.append(Gate(pd.DataFrame({'pos_x': center[0], 'pos_y': center[1], 'pos_z' : center[2] + dims[2] / 2,
-                                            'rot_x_quat': _q[0], 'rot_y_quat':_q[1], 'rot_z_quat':_q[2], 'rot_w_quat':_q[3],
-                                            'dim_x':0, 'dim_y':dims[1], 'dim_z':dims[0]}, index=[0]).iloc[0],
-                                dims=(dims[1], dims[0]), dtype='gazesim'))
-
-    _q = np.array([0, 0, 0, 1])
-    objWallCollider.append(Gate(pd.DataFrame({'pos_x': center[0] + dims[0] / 2, 'pos_y': center[1], 'pos_z' : center[2],
-                                            'rot_x_quat': _q[0], 'rot_y_quat':_q[1], 'rot_z_quat':_q[2], 'rot_w_quat':_q[3],
-                                            'dim_x':0, 'dim_y':dims[1], 'dim_z':dims[2]}, index=[0]).iloc[0],
-                                dims=(dims[1], dims[2]), dtype='gazesim'))
-
-    _q = (Rotation.from_euler('z', [np.pi]) * Rotation.from_quat(np.array([0, 0, 0, 1]))).as_quat().flatten()
-    objWallCollider.append(Gate(pd.DataFrame({'pos_x': center[0] - dims[0] / 2, 'pos_y': center[1], 'pos_z' : center[2],
-                                            'rot_x_quat': _q[0], 'rot_y_quat':_q[1], 'rot_z_quat':_q[2], 'rot_w_quat':_q[3],
-                                            'dim_x':0, 'dim_y':dims[1], 'dim_z':dims[2]}, index=[0]).iloc[0],
-                                dims=(dims[1], dims[2]), dtype='gazesim'))
-
-    _q = (Rotation.from_euler('z', [np.pi/2]) * Rotation.from_quat(np.array([0, 0, 0, 1]))).as_quat().flatten()
-    objWallCollider.append(Gate(pd.DataFrame({'pos_x': center[0], 'pos_y': center[1] + dims[1] / 2, 'pos_z' : center[2],
-                                            'rot_x_quat': _q[0], 'rot_y_quat':_q[1], 'rot_z_quat':_q[2], 'rot_w_quat':_q[3],
-                                            'dim_x':0, 'dim_y':dims[1], 'dim_z':dims[2]}, index=[0]).iloc[0],
-                                dims=(dims[0], dims[2]), dtype='gazesim'))
-
-    _q = (Rotation.from_euler('z', [-np.pi/2]) * Rotation.from_quat(np.array([0, 0, 0, 1]))).as_quat().flatten()
-    objWallCollider.append(Gate(pd.DataFrame({'pos_x': center[0], 'pos_y': center[1] - dims[1] / 2, 'pos_z' : center[2],
-                                            'rot_x_quat': _q[0], 'rot_y_quat':_q[1], 'rot_z_quat':_q[2], 'rot_w_quat':_q[3],
-                                            'dim_x':0, 'dim_y':dims[1], 'dim_z':dims[2]}, index=[0]).iloc[0],
-                                dims=(dims[0], dims[2]), dtype='gazesim'))
-    return objWallCollider
-

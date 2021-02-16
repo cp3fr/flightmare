@@ -14,7 +14,7 @@ Also shows the 3D poses for reference and MPC.
 filepaths =['./logs/resnet_test/trajectory_reference_original.csv',
             './logs/dda_0/trajectory_mpc_eval_nw.csv']
 for filepath in filepaths:
-    df = trajectory_from_flightmare(filepath=filepath)
+    df = trajectory_from_logfile(filepath=filepath)
     #downsample the data to 20 Hz
     sr = 1 / np.nanmedian(np.diff(df.t.values))
     df = df.iloc[np.arange(0, df.shape[0], int(sr / 20)), :]
@@ -27,7 +27,7 @@ for filepath in filepaths:
 
 # Plot reference, MPC, and network trajectories in 3D
 filepath = './logs/resnet_test/trajectory_reference_original.csv'
-ref = trajectory_from_flightmare(filepath=filepath)
+ref = trajectory_from_logfile(filepath=filepath)
 ref = ref.iloc[np.arange(0, ref.shape[0], 50), :]
 ax = plot_trajectory(ref.px.values, ref.py.values, ref.pz.values, c='k')
 basepath = './logs/dda_0/'
@@ -39,7 +39,7 @@ for w in os.walk(basepath):
             else:
                 color = 'b'
             filepath = os.path.join(w[0], f)
-            df = trajectory_from_flightmare(filepath=filepath)
+            df = trajectory_from_logfile(filepath=filepath)
             plot_trajectory(df.px, df.py, df.pz, c=color, ax=ax)
 ax = format_trajectory_figure(
     ax, xlims=(-30, 30), ylims=(-30, 30), zlims=(-30, 30), xlabel='px [m]',
