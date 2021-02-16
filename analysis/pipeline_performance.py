@@ -37,11 +37,17 @@ for filepath in filepaths:
     copyfile(filepath_track,
              outpath + 'track.csv')
     # Save gate pass and collision events to output folder
-    E = get_pass_collision_events(filepath_trajectory=filepath,
-                                  filepath_track=filepath_track)
+    E = get_pass_collision_events(
+        filepath_trajectory=filepath,
+        filepath_track=filepath_track)
     E.to_csv(outpath + 'events.csv', index=False)
 
-    # Todo: Save performance features to output folder
+    # Save performance features to output folder
+    P = extract_performance_features(
+        filepath_trajectory=outpath + 'trajectory.csv',
+        filepath_reference=outpath + 'reference.csv',
+        filepath_events=outpath + 'events.csv')
+    P.to_csv(outpath + 'features.csv', index=False)
 
     # Todo: Save plot of drone state comparison trajectory vs reference
 

@@ -1,0 +1,2 @@
+t_start,t_end,flight_time,travel_distance,median_path_deviation,iqr_path_deviation,num_gates_passed,num_collisions,filepath
+1.000000000000001,3.5166666666666586,2.5166666666666577,29.811147447083044,3.153267000323158,5.4528776009057305,1,1,./process/resnet_test/mpc2nw_switch-10_03/trajectory.csv

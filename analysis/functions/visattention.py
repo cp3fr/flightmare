@@ -9,6 +9,7 @@ from scipy.spatial.transform import Rotation
 from shutil import copyfile
 from skspatial.objects import Vector, Points, Line, Point, Plane
 from skspatial.plotting import plot_3d
+from scipy.stats import iqr
 
 
 class Checkpoint(object):
@@ -538,15 +539,32 @@ def extract_performance_features(
         filepath_events: str,
         filepath_reference: str=None
         ) -> pd.DataFrame():
+    """
+    Compute performance features for a given network trajectory, considering
+    comparison to reference trajectory, checkpoint passing, and collision
+    events.
+    """
     # Load a trajectory
     D = trajectory_from_logfile(filepath_trajectory)
     t = D['t'].values
     px = D['px'].values
     py = D['py'].values
     pz = D['pz'].values
+    nw = D['network_used'].values
     # Load the reference trajectory
     if filepath_reference:
-        R = trajectory_from_logfile(filepath_trajectory)
+        R = trajectory_from_logfile(filepath_reference)
+        # Crop reference to the time window of the network trajectory.
+        ind = (R['t'].values >= t[0]) & (R['t'].values < t[-1])
+        R = R.loc[ind, :]
+        # Resample reference to match network trajectory.
+        x = R['t'].values
+        xn = t
+        ndict = {}
+        for n in R.columns:
+            ndict[n] = np.interp(xn, x, R[n].values)
+        R = pd.DataFrame(ndict, index=list(range(len(ndict[n]))))
+        # Get Reference state variables.
         t_ref = R['t'].values
         px_ref = R['px'].values
         py_ref = R['py'].values
@@ -559,211 +577,85 @@ def extract_performance_features(
         pz_ref = None
     # Load events
     E = pd.read_csv(filepath_events)
+    # Determine start and end time
+    t_trajectory_start = t[0]
+    t_trajectory_end = t[-1]
+    ind = nw == 1
+    if np.sum(ind) > 0:
+        t_network_start = t[ind][0]
+        t_network_end = t[ind][-1]
+        network_in_control = True
+    else:
+        t_network_start = None
+        t_network_end = None
+        network_in_control = False
+    if np.sum(E['is-collision'].values) > 0:
+        ind = E['is-collision'].values == 1
+        t_first_collision = E.loc[ind, 't'].values[0]
+    else:
+        t_first_collision = None
+    if t_network_start is not None:
+        t_start = t_network_start
+    else:
+        t_start = t_trajectory_start
+    if t_first_collision is not None:
+        t_end = t_first_collision
+    else:
+        if t_network_end is not None:
+            t_end = t_network_end
+        else:
+            t_end = t_trajectory_end
+    # Get performance metrics within the start and end time window
+    # ..number of passed gates
+    ind = (E['t'].values >= t_start)  & (E['t'].values <= t_end)
+    num_gates_passed = np.sum(E.loc[ind, 'is-pass'].values)
+    num_collisions = np.sum(E.loc[ind, 'is-collision'].values)
+    # ..flight distance
+    ind = (t >= t_start) & (t <= t_end)
+    position = np.hstack((px.reshape((-1, 1)),
+                          np.hstack((py.reshape((-1, 1)),
+                                     pz.reshape((-1, 1))))))
+    position = position[ind, :]
+    total_distance = np.sum(np.linalg.norm(np.diff(position, axis=0), axis=1))
+    total_duration = t_end - t_start
+    #..median and iqr path deviation from reference
+    ind = (t_ref >= t_start) & (t_ref <= t_end)
+    position_ref = np.hstack((px_ref.reshape((-1, 1)),
+                              np.hstack((py_ref.reshape((-1, 1)),
+                                         pz_ref.reshape((-1, 1))))))
+    position_ref = position_ref[ind, :]
+    deviation_from_reference = np.linalg.norm(position - position_ref, axis=1)
+    median_deviation = np.nanmedian(deviation_from_reference)
+    iqr_deviation = iqr(deviation_from_reference)
+    # Save the features to pandas dataframe
+    P = pd.DataFrame({
+        't_start': t_start,
+        't_end': t_end,
+        'flight_time': total_duration,
+        'travel_distance': total_distance,
+        'median_path_deviation' : median_deviation,
+        'iqr_path_deviation' : iqr_deviation,
+        'num_gates_passed': num_gates_passed,
+        'num_collisions': num_collisions,
+        'filepath': filepath_trajectory
+        }, index=[0])
+    return P
 
-    return True
 
 
+# Todo: plot a comparison of position and control commands MPC vs Network
 
-
-    #
-    #
-    #
-    #
-    #
-    # print('------------------------')
-    # print(PATH)
-    # print('')
-    # # find switchtime
-    # filename = PATH.split('/')[-1]
-    # tSwitch = None
-    # for s in ['_st-', '_switch-']:
-    #     if filename.find(s) != -1:
-    #         tSwitch = int(filename.split(s)[-1].split('_')[0]) / 10
-    # # read drone state logs
-    # d = pd.read_csv(PATH)
-    # d = d.sort_values(by=['time-since-start [s]'])
-    # # read gate poses for the current track
-    # t = pd.read_csv('./tracks/flat.csv')
-    # # add zoffset to gate positions in flightmare
-    # zOffset = 0.35
-    # t['pos_z'] += zOffset
-    # # make gate passing surfaces
-    # objGatePass = [Gate(t.iloc[i], dtype='gazesim', dims=(2.5, 2.5)) for i
-    #                in range(t.shape[0])]
-    # # make gate collision surfaces
-    # objGateCollider = [Gate(t.iloc[i], dtype='gazesim', dims=(3.5, 3.5)) for
-    #                    i in range(t.shape[0])]
-    # # make wall collision surfaces
-    # objWallCollider = wall_colliders(dims=(66, 36, 9),
-    #                                    center=(0, 0, 4.5 + zOffset))
-    # # get drone state variables for event detection
-    # _t = d.loc[:, 'time-since-start [s]'].values
-    # _p = d.loc[:,
-    #      ('position_x [m]', 'position_y [m]', 'position_z [m]')].values
-    # # gate passing event
-    # evGatePass = [(i, detect_gate_passing(_t, _p, objGatePass[i])) for i in
-    #               range(len(objGatePass))]
-    # evGatePass = [(i, v) for i, v in evGatePass if v.shape[0] > 0]
-    # print('gate passes:')
-    # print(evGatePass)
-    # print('')
-    # # gate collision event (discard the ones that are valid gate passes
-    # evGateCollision = []
-    # _tmp = [(i, detect_gate_passing(_t, _p, objGateCollider[i])) for i in
-    #         range(len(objGateCollider))]
-    # _tmp = [(i, v) for i, v in _tmp if v.shape[0] > 0]
-    # for key, values in _tmp:
-    #     new_vals = []
-    #     for _k, _v in evGatePass:
-    #         if _k == key:
-    #             for value in values:
-    #                 if value not in _v:
-    #                     new_vals.append(_v)
-    #     if len(new_vals) > 0:
-    #         evGateCollision.append((key, np.array(new_vals)))
-    # print('gate collisions:')
-    # print(evGateCollision)
-    # print('')
-    # # wall collision events
-    # evWallCollision = [(i, detect_gate_passing(_t, _p, objWallCollider[i]))
-    #                    for i in range(len(objWallCollider))]
-    # evWallCollision = [(i, v) for i, v in evWallCollision if v.shape[0] > 0]
-    # print('wall collisions:')
-    # print(evWallCollision)
-    # print('')
-    # # save timestamps
-    # e = pd.DataFrame([])
-    # for i, v in evGatePass:
-    #     for _v in v:
-    #         e = e.append(pd.DataFrame(
-    #             {'time-since-start [s]': _v, 'object-id': i,
-    #              'object-name': 'gate', 'is-collision': 0, 'is-pass': 1},
-    #             index=[0]))
-    # for i, v in evGateCollision:
-    #     for _v in v:
-    #         e = e.append(pd.DataFrame(
-    #             {'time-since-start [s]': _v, 'object-id': i,
-    #              'object-name': 'gate', 'is-collision': 1, 'is-pass': 0},
-    #             index=[0]))
-    # for i, v in evWallCollision:
-    #     for _v in v:
-    #         e = e.append(pd.DataFrame(
-    #             {'time-since-start [s]': _v, 'object-id': i,
-    #              'object-name': 'wall', 'is-collision': 1, 'is-pass': 0},
-    #             index=[0]))
-    # e = e.sort_values(by=['time-since-start [s]'])
-    # # make output folder
-    # outpath = '/process/'.join(
-    #     (PATH.split('.csv')[0] + '/').split('/logs/'))
-    # if os.path.exists(outpath) == False:
-    #     make_path(outpath)
-    # # copy trajectory data
-    # copyfile(PATH, outpath + 'trajectory.csv')
-    # # save the events
-    # e.to_csv(outpath + 'events.csv', index=False)
-    # # compute performance metrics
-    # # ----------------------------
-    # # start time: start of the flight
-    # tStart = e['time-since-start [s]'].iloc[0]
-    # # find collision events
-    # ec = e.loc[(e['is-collision'].values == 1), :]
-    # # if collisions detected
-    # if ec.shape[0] > 0:
-    #     tFirstCollision = ec['time-since-start [s]'].iloc[0]
-    #     hasCollision = 1
-    #     ind = e['time-since-start [s]'].values < tFirstCollision
-    #     en = e.copy().iloc[ind, :]
-    # # if no collisions detected
-    # else:
-    #     hasCollision = 0
-    #     tFirstCollision = np.nan
-    #     en = e.copy()
-    # # end time: time of first collision or end of logging
-    # if np.isnan(tFirstCollision):
-    #     tEnd = np.nanmax(d['time-since-start [s]'].values)
-    # else:
-    #     tEnd = tFirstCollision
-    # # compute the flight times
-    # flightTimeTotal = tEnd - tStart
-    # flightTimeMPC = flightTimeTotal
-    # flightTimeNetwork = 0.
-    # if tSwitch is not None:
-    #     flightTimeMPC = tSwitch - tStart
-    #     flightTimeNetwork = tEnd - tSwitch
-    # # how many gates were passed in total
-    # ind = en['is-pass'].values == 1
-    # numGatePassesTotal = np.sum(ind)
-    # idGatePassesTotal = [en.loc[ind, 'object-id'].values]
-    # tsGatePassesTotal = [en.loc[ind, 'time-since-start [s]'].values]
-    # if tSwitch is not None:
-    #     # how many gates were passed by MPC
-    #     ind = (en['time-since-start [s]'].values <= tSwitch) & (
-    #                 en['is-pass'].values == 1)
-    #     numGatePassesMPC = np.sum(ind)
-    #     idGatePassesMPC = [en.loc[ind, 'object-id'].values]
-    #     tsGatePassesMPC = [en.loc[ind, 'time-since-start [s]'].values]
-    #     # how many gates were passed by the network
-    #     ind = (en['time-since-start [s]'].values > tSwitch) & (
-    #                 en['time-since-start [s]'].values <= tEnd) & (
-    #                       en['is-pass'].values == 1)
-    #     numGatePassesNetwork = np.sum(ind)
-    #     idGatePassesNetwork = [en.loc[ind, 'object-id'].values]
-    #     tsGatePassesNetwork = [en.loc[ind, 'time-since-start [s]'].values]
-    # else:
-    #     # how many gates were passed by MPC
-    #     numGatePassesMPC = numGatePassesTotal
-    #     idGatePassesMPC = idGatePassesTotal
-    #     tsGatePassesMPC = tsGatePassesTotal
-    #     # how many gates were passed by the network
-    #     numGatePassesNetwork = 0
-    #     idGatePassesNetwork = None
-    #     tsGatePassesNetwork = None
-    # # flight distance
-    # ind = (_t >= tStart) & (_t <= tEnd)
-    # flightDistanceTotal = np.nansum(
-    #     np.linalg.norm(np.diff(_p[ind, :], axis=0), axis=1))
-    # if tSwitch is not None:
-    #     ind = (_t >= tStart) & (_t <= tSwitch)
-    #     flightDistanceMPC = np.nansum(
-    #         np.linalg.norm(np.diff(_p[ind, :], axis=0), axis=1))
-    #     ind = (_t > tSwitch) & (_t <= tEnd)
-    #     flightDistanceNetwork = np.nansum(
-    #         np.linalg.norm(np.diff(_p[ind, :], axis=0), axis=1))
-    # else:
-    #     flightDistanceMPC = flightDistanceTotal
-    #     flightDistanceNetwork = 0
-    # # collect performance metrics in pandas dataframe
-    # p = pd.DataFrame({'time-start [s]': tStart, 'time-switch [s]': tSwitch,
-    #                   'time-end [s]': tEnd,
-    #                   'flight-time-total [s]': flightTimeTotal,
-    #                   'flight-time-mpc [s]': flightTimeMPC,
-    #                   'flight-time-network [s]': flightTimeNetwork,
-    #                   'flight-distance-total [m]': flightDistanceTotal,
-    #                   'flight-distance-mpc [m]': flightDistanceMPC,
-    #                   'flight-distance-network [m]': flightDistanceNetwork,
-    #                   'num-gate-passes-total': numGatePassesTotal,
-    #                   'num-gate-passes-mpc': numGatePassesMPC,
-    #                   'num-gate-passes-network': numGatePassesNetwork,
-    #                   'gate-id-total': idGatePassesTotal,
-    #                   'gate-id-mpc': idGatePassesMPC,
-    #                   'gate-id-network': idGatePassesNetwork,
-    #                   'gate-ts-total': tsGatePassesTotal,
-    #                   'gate-ts-mpc': tsGatePassesMPC,
-    #                   'gate-ts-network': tsGatePassesNetwork,
-    #                   'has-collision': hasCollision, 'filepath': outpath},
-    #                  index=[0])
-    # # save performance metrics
-    # p.to_csv(outpath + 'performance.csv', index=False)
-    # # save the animation
-    # # if toSaveAnimation or toShowAnimation:
-    # #     print('..saving animation')
-    # #     gate_objects = objGatePass + objGateCollider + objWallCollider
-    # #     d['simulation-time-since-start [s]'] = d[
-    # #         'time-since-start [s]'].values
-    # #     anim = Animation3D(d, Gate_objects=gate_objects,
-    # #                        equal_lims=(-30, 30))
-    # #     if toSaveAnimation:
-    # #         if os.path.isfile(outpath + 'anim.mp4') == False:
-    # #             anim.save(outpath + 'anim.mp4', writer='ffmpeg', fps=25)
-    # #     if toShowAnimation:
-    # #         anim.show()
+# Todo: save an animation
+    # save the animation
+    # if toSaveAnimation or toShowAnimation:
+    #     print('..saving animation')
+    #     gate_objects = objGatePass + objGateCollider + objWallCollider
+    #     d['simulation-time-since-start [s]'] = d[
+    #         'time-since-start [s]'].values
+    #     anim = Animation3D(d, Gate_objects=gate_objects,
+    #                        equal_lims=(-30, 30))
+    #     if toSaveAnimation:
+    #         if os.path.isfile(outpath + 'anim.mp4') == False:
+    #             anim.save(outpath + 'anim.mp4', writer='ffmpeg', fps=25)
+    #     if toShowAnimation:
+    #         anim.show()
