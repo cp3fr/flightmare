@@ -11,10 +11,13 @@ from skspatial.objects import Vector, Points, Line, Point, Plane
 from skspatial.plotting import plot_3d
 
 
-class Gate(object):
+class Checkpoint(object):
     """
-    Racing gate object, represented as 2D surface, with some useful methods
-    for detecting intersections and 3D-2D projections.
+    Checkpoint object represented as 2D surface in 3D space with x-axis
+    pointing in the direction of flight/desired passing direction.
+
+    Contains useful methods for determining distance of points,
+    and intersections with the plane.
     """
 
     def __init__(self, df, dims=None, dtype='gazesim'):
@@ -179,7 +182,10 @@ class Gate(object):
                          length_py_projected / self.length_y_axis])
 
 
-def get_wall_colliders(dims=(1, 1, 1), center=(0, 0, 0)):
+def get_wall_colliders(
+        dims: tuple=(1, 1, 1),
+        center: tuple=(0, 0, 0)
+        ) -> list:
     """Returns a list of 'Gate' objects representing the walls of a race
     track in 3D.
         dims: x, y, z dimensions in meters
@@ -188,7 +194,7 @@ def get_wall_colliders(dims=(1, 1, 1), center=(0, 0, 0)):
 
     _q = (Rotation.from_euler('y', [np.pi/2]) * Rotation.from_quat(np.array([0, 0, 0, 1]))).as_quat().flatten()
 
-    objWallCollider.append(Gate(pd.DataFrame({'pos_x': [center[0]],
+    objWallCollider.append(Checkpoint(pd.DataFrame({'pos_x': [center[0]],
                                               'pos_y': [center[1]],
                                               'pos_z': [center[2] - dims[2]/2],
                                               'rot_x_quat': [_q[0]],
@@ -198,53 +204,56 @@ def get_wall_colliders(dims=(1, 1, 1), center=(0, 0, 0)):
                                               'dim_x': [0],
                                               'dim_y': [dims[1]],
                                               'dim_z': [dims[0]]},
-                                             index=[0]).iloc[0],
-                                dims=(dims[1], dims[0]), dtype='gazesim'))
+                                                   index=[0]).iloc[0],
+                                      dims=(dims[1], dims[0]), dtype='gazesim'))
 
     _q = (Rotation.from_euler('y', [-np.pi/2]) * Rotation.from_quat(np.array([0, 0, 0, 1]))).as_quat().flatten()
-    objWallCollider.append(Gate(pd.DataFrame({'pos_x': center[0], 'pos_y': center[1], 'pos_z' : center[2] + dims[2] / 2,
+    objWallCollider.append(Checkpoint(pd.DataFrame({'pos_x': center[0], 'pos_y': center[1], 'pos_z' : center[2] + dims[2] / 2,
                                             'rot_x_quat': _q[0], 'rot_y_quat':_q[1], 'rot_z_quat':_q[2], 'rot_w_quat':_q[3],
                                             'dim_x':0, 'dim_y':dims[1], 'dim_z':dims[0]}, index=[0]).iloc[0],
-                                dims=(dims[1], dims[0]), dtype='gazesim'))
+                                      dims=(dims[1], dims[0]), dtype='gazesim'))
 
     _q = np.array([0, 0, 0, 1])
-    objWallCollider.append(Gate(pd.DataFrame({'pos_x': center[0] + dims[0] / 2, 'pos_y': center[1], 'pos_z' : center[2],
+    objWallCollider.append(Checkpoint(pd.DataFrame({'pos_x': center[0] + dims[0] / 2, 'pos_y': center[1], 'pos_z' : center[2],
                                             'rot_x_quat': _q[0], 'rot_y_quat':_q[1], 'rot_z_quat':_q[2], 'rot_w_quat':_q[3],
                                             'dim_x':0, 'dim_y':dims[1], 'dim_z':dims[2]}, index=[0]).iloc[0],
-                                dims=(dims[1], dims[2]), dtype='gazesim'))
+                                      dims=(dims[1], dims[2]), dtype='gazesim'))
 
     _q = (Rotation.from_euler('z', [np.pi]) * Rotation.from_quat(np.array([0, 0, 0, 1]))).as_quat().flatten()
-    objWallCollider.append(Gate(pd.DataFrame({'pos_x': center[0] - dims[0] / 2, 'pos_y': center[1], 'pos_z' : center[2],
+    objWallCollider.append(Checkpoint(pd.DataFrame({'pos_x': center[0] - dims[0] / 2, 'pos_y': center[1], 'pos_z' : center[2],
                                             'rot_x_quat': _q[0], 'rot_y_quat':_q[1], 'rot_z_quat':_q[2], 'rot_w_quat':_q[3],
                                             'dim_x':0, 'dim_y':dims[1], 'dim_z':dims[2]}, index=[0]).iloc[0],
-                                dims=(dims[1], dims[2]), dtype='gazesim'))
+                                      dims=(dims[1], dims[2]), dtype='gazesim'))
 
     _q = (Rotation.from_euler('z', [np.pi/2]) * Rotation.from_quat(np.array([0, 0, 0, 1]))).as_quat().flatten()
-    objWallCollider.append(Gate(pd.DataFrame({'pos_x': center[0], 'pos_y': center[1] + dims[1] / 2, 'pos_z' : center[2],
+    objWallCollider.append(Checkpoint(pd.DataFrame({'pos_x': center[0], 'pos_y': center[1] + dims[1] / 2, 'pos_z' : center[2],
                                             'rot_x_quat': _q[0], 'rot_y_quat':_q[1], 'rot_z_quat':_q[2], 'rot_w_quat':_q[3],
                                             'dim_x':0, 'dim_y':dims[1], 'dim_z':dims[2]}, index=[0]).iloc[0],
-                                dims=(dims[0], dims[2]), dtype='gazesim'))
+                                      dims=(dims[0], dims[2]), dtype='gazesim'))
 
     _q = (Rotation.from_euler('z', [-np.pi/2]) * Rotation.from_quat(np.array([0, 0, 0, 1]))).as_quat().flatten()
-    objWallCollider.append(Gate(pd.DataFrame({'pos_x': center[0], 'pos_y': center[1] - dims[1] / 2, 'pos_z' : center[2],
+    objWallCollider.append(Checkpoint(pd.DataFrame({'pos_x': center[0], 'pos_y': center[1] - dims[1] / 2, 'pos_z' : center[2],
                                             'rot_x_quat': _q[0], 'rot_y_quat':_q[1], 'rot_z_quat':_q[2], 'rot_w_quat':_q[3],
                                             'dim_x':0, 'dim_y':dims[1], 'dim_z':dims[2]}, index=[0]).iloc[0],
-                                dims=(dims[0], dims[2]), dtype='gazesim'))
+                                      dims=(dims[0], dims[2]), dtype='gazesim'))
     return objWallCollider
 
 
-def detect_gate_passing(
-        t: np.ndarray([]), px: np.ndarray([]), py: np.ndarray([]),
-        pz: np.ndarray([]), gate_object: Gate, max_step_size: int=40,
-        distance_threshold: int=None) -> np.ndarray([]):
+def detect_checkpoint_pass(
+        t: np.ndarray([]),
+        px: np.ndarray([]),
+        py: np.ndarray([]),
+        pz: np.ndarray([]),
+        checkpoint: Checkpoint,
+        distance_threshold: int=None
+        ) -> np.ndarray([]):
     """
-    Return the timestamps at which the drone passes the gate object.
+    Return timestamps when drone passes a checkpoint from given drone
+    timestamps (t), position (px, py, pz), and checkpoint object.
 
         t: timestamps in seconds,
         px, py, pz: drone position in x, y, z in meters
-        gate_object: Gate object, i.e. 2D surface in 3D space
-        max_step_size: maximum number of sampling steps to consider when
-            searching for gate passing events
+        checkpoint: Gate object, i.e. 2D surface in 3D space
         distance_threshold: distance threshold in meters for which to
             consider candidate sampling point for detecting gate interaction
 
@@ -258,11 +267,11 @@ def detect_gate_passing(
 
     # Set distance threshold to 60% of the gate surface diagonale.
     if distance_threshold is None:
-        distance_threshold = 0.6 * np.sqrt((gate_object.width)**2
-                                          + (gate_object.height)**2)
+        distance_threshold = 0.6 * np.sqrt((checkpoint.width) ** 2
+                                           + (checkpoint.height) ** 2)
     # Select candidate timestamps in three steps:
     # First, find all timestamps when quad is close to gate.
-    gate_center = gate_object.center.reshape((1, 3)).astype(float)
+    gate_center = checkpoint.center.reshape((1, 3)).astype(float)
     distance_from_gate_center = np.linalg.norm(position - gate_center, axis=1)
     timestamps_near_gate = t[distance_from_gate_center < distance_threshold]
     # Second, cluster the timestamps that occur consecutively
@@ -285,7 +294,7 @@ def detect_gate_passing(
         curr_time = t[ind]
         curr_position = position[ind, :]
         curr_signed_distance = np.array([
-            gate_object.get_signed_distance(curr_position[i, :]) for i in range(
+            checkpoint.get_signed_distance(curr_position[i, :]) for i in range(
                 curr_position.shape[0]
             )
         ])
@@ -302,7 +311,9 @@ def detect_gate_passing(
     return event_timestamps
 
 
-def make_path(path: str) -> bool():
+def make_path(
+        path: str
+        ) -> bool():
     """Make (nested) folders, if not already existent, from provided path."""
     path = path.replace('//', '/')
     if path[0] == '/':
@@ -320,7 +331,9 @@ def make_path(path: str) -> bool():
     return made_some_folders
 
 
-def trajectory_from_logfile(filepath: str) -> pd.DataFrame():
+def trajectory_from_logfile(
+        filepath: str
+        ) -> pd.DataFrame():
     """Returns a trajectory dataframe with standard headers from a flightmare
     log filepath."""
     ndict = {
@@ -364,10 +377,16 @@ def trajectory_from_logfile(filepath: str) -> pd.DataFrame():
 
 
 def plot_trajectory(
-        px: np.ndarray([]), py: np.ndarray([]), pz: np.ndarray([])=np.array([]),
-        qx: np.ndarray([])=np.array([]), qy: np.ndarray([])=np.array([]),
-        qz: np.ndarray([])=np.array([]), qw: np.ndarray([])=np.array([]),
-        c: str=None, ax: plt.axis()=None, axis_length: float=1.,
+        px: np.ndarray([]),
+        py: np.ndarray([]),
+        pz: np.ndarray([])=np.array([]),
+        qx: np.ndarray([])=np.array([]),
+        qy: np.ndarray([])=np.array([]),
+        qz: np.ndarray([])=np.array([]),
+        qw: np.ndarray([])=np.array([]),
+        c: str=None,
+        ax: plt.axis()=None,
+        axis_length: float=1.,
         ) -> plt.axis():
     """Returns an axis handle for a 2D or 3D trajectory based on position and
     rotation data."""
@@ -416,8 +435,14 @@ def plot_trajectory(
 
 
 def format_trajectory_figure(
-        ax: plt.axis(), xlims: tuple=(), ylims: tuple=(), zlims: tuple=(),
-        xlabel: str='', ylabel: str='', zlabel: str='', title: str='',
+        ax: plt.axis(),
+        xlims: tuple=(),
+        ylims: tuple=(),
+        zlims: tuple=(),
+        xlabel: str='',
+        ylabel: str='',
+        zlabel: str='',
+        title: str='',
         ) -> plt.axis():
     """Apply limits, labels, and title formatting for a supplied figure axis."""
     if len(xlims) > 0:
@@ -444,7 +469,8 @@ def get_pass_collision_events(
         gate_outer_dimensions: tuple=(3.5, 3.5),
         wall_collider_dimensions: tuple=(66, 36, 9),
         wall_collider_center: tuple=(0, 0, 4.85),
-        gate_offsets: tuple=(0, 0, 0.35)) -> pd.DataFrame():
+        gate_offsets: tuple=(0, 0, 0.35)
+        ) -> pd.DataFrame():
     """Returns an events dataframe of pass and collision events from given
     trajectory and track filepaths."""
     # Load race track information.
@@ -454,9 +480,9 @@ def get_pass_collision_events(
     T['pos_z'] += gate_offsets[2]
     # Define checkpoints and colliders.
     gate_checkpoints = [
-        Gate(T.iloc[i], dims=gate_inner_dimensions) for i in range(T.shape[0])]
+        Checkpoint(T.iloc[i], dims=gate_inner_dimensions) for i in range(T.shape[0])]
     gate_colliders = [
-        Gate(T.iloc[i], dims=gate_outer_dimensions) for i in range(T.shape[0])]
+        Checkpoint(T.iloc[i], dims=gate_outer_dimensions) for i in range(T.shape[0])]
     wall_colliders = get_wall_colliders(dims=wall_collider_dimensions,
                                         center=wall_collider_center)
     # Load a trajectory
@@ -473,7 +499,7 @@ def get_pass_collision_events(
                         ]:
         for id in range(len(objects)):
             object = objects[id]
-            for timestamp in detect_gate_passing(t, px, py, pz, object):
+            for timestamp in detect_checkpoint_pass(t, px, py, pz, object):
                 if not ((key == 'gate_collision') and (
                         timestamp in events.keys())):
                     events[timestamp] = (key, id)

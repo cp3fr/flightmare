@@ -11,8 +11,8 @@ zOffset = 0.35
 T['pos_z'] += zOffset
 
 # Define checkpoints and colliders.
-gate_checkpoints = [Gate(T.iloc[i], dims=(2.5, 2.5)) for i in range(T.shape[0])]
-gate_colliders = [Gate(T.iloc[i], dims=(3.5, 3.5)) for i in range(T.shape[0])]
+gate_checkpoints = [Checkpoint(T.iloc[i], dims=(2.5, 2.5)) for i in range(T.shape[0])]
+gate_colliders = [Checkpoint(T.iloc[i], dims=(3.5, 3.5)) for i in range(T.shape[0])]
 wall_colliders = get_wall_colliders(dims=(66, 36, 9), center=(0, 0, 4.5))
 
 # Load a trajectory
@@ -32,7 +32,7 @@ for key, objects in [
         ]:
     for id in range(len(objects)):
         object = objects[id]
-        for timestamp in detect_gate_passing(t, px, py, pz, object):
+        for timestamp in detect_checkpoint_pass(t, px, py, pz, object):
             if not ((key == 'gate_collision') and (timestamp in events.keys())):
                 events[timestamp] = (key, id)
 
