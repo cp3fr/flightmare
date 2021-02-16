@@ -323,7 +323,7 @@ class FlightmareSimulation(Simulation):
 
         # self.current_state = state[:10]
         # self.current_state = self.reference_sampler.get_initial_state()
-        self.current_state = self.reference_sampler.get_initial_state(columns=["pos", "rot", "vel", "omega", "acc"])
+        self.current_state = self.reference_sampler.get_initial_state(columns=["pos", "rot", "vel", "omega"])
         self.flightmare_wrapper.set_reduced_state(self.current_state)
 
     #####################################

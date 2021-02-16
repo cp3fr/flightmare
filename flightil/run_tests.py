@@ -109,7 +109,7 @@ def sample_from_trajectory(trajectory, time_stamp):
     # return row_to_state(trajectory.iloc[0])
 
 
-def ensure_quaternion_consistency(trajectory):
+def ensure_quaternion_consistency(trajectory, use_norm=True):
     trajectory = trajectory.reset_index(drop=True)
     flipped = 0
     trajectory["flipped"] = 0
@@ -119,20 +119,30 @@ def ensure_quaternion_consistency(trajectory):
     prev_quaternion = trajectory.loc[0, quat_columns]
     prev_signs_positive = prev_quaternion >= 0
 
+    norm_diffs = []
     for i in range(1, len(trajectory.index)):
         current_quaternion = trajectory.loc[i, quat_columns]
         current_signs_positive = current_quaternion >= 0
         condition_sign = prev_signs_positive == ~current_signs_positive
 
-        if np.sum(condition_sign) >= 3:
-            flipped = 1 - flipped
+        # TODO: should probably do something like X standard deviations above the running mean for "good methodology"
+        norm_diff = np.linalg.norm(prev_quaternion.values - current_quaternion.values)
+        norm_diffs.append(norm_diff)
+
+        if use_norm:
+            if norm_diff >= 0.5:  # TODO should this be 1.0?
+                flipped = 1 - flipped
+        else:
+            if np.sum(condition_sign) >= 3:
+                flipped = 1 - flipped
         trajectory.loc[i, "flipped"] = flipped
 
         prev_signs_positive = current_signs_positive
+        prev_quaternion = current_quaternion
 
     trajectory.loc[trajectory["flipped"] == 1, quat_columns] *= -1.0
 
-    return trajectory
+    return trajectory, norm_diffs
 
 
 def visualise_states(states, trajectory, simulation_time_horizon, simulation_time_step, exclude_first=False, skip_show=False):

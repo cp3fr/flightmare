@@ -198,10 +198,10 @@ class MPCSolver(object):
         action_max = [self._thrust_max, self._w_max_xy, self._w_max_xy, self._w_max_yaw]
 
         state_bound = ca.inf
-        # state_min = [-state_bound for _ in range(self._state_dim)]
-        # state_max = [+state_bound for _ in range(self._state_dim)]
-        state_min = ([-state_bound] * 3) + ([-1.1] * 4) + ([-state_bound] * 3)
-        state_max = ([state_bound] * 3) + ([1.1] * 4) + ([state_bound] * 3)
+        state_min = [-state_bound for _ in range(self._state_dim)]
+        state_max = [+state_bound for _ in range(self._state_dim)]
+        # state_min = ([-state_bound] * 3) + ([-1.1] * 4) + ([-state_bound] * 3)
+        # state_max = ([state_bound] * 3) + ([1.1] * 4) + ([state_bound] * 3)
 
         constraint_min = [0 for _ in range(self._state_dim)]
         constraint_max = [0 for _ in range(self._state_dim)]
@@ -250,8 +250,9 @@ class MPCSolver(object):
             cost_traj_k = cost_traj(delta_traj_k)
 
             # cost for deviating from the 1 norm
-            delta_norm_k = traj_states[3:7, k + 1]
-            cost_norm_k = cost_norm(delta_norm_k)
+            # delta_norm_k = traj_states[3:7, k + 1]
+            # cost_norm_k = cost_norm(delta_norm_k)
+            # cost_norm_k = cost_norm(delta_norm_k)
 
             # just the regularisation cost for the control command (try to keep it close to hovering)
             delta_action_k = traj_actions[:, k] - [self._gravity, 0.0, 0.0, 0.0]

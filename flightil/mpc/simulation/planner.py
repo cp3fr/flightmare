@@ -91,7 +91,7 @@ class TrajectorySampler:
             index = self._trajectory.loc[row_idx, "time-since-start [s]"].idxmax()
         return row_to_state(self._trajectory.iloc[index], columns, self._correct_height_flightmare)
 
-    def _ensure_quaternion_consistency(self):
+    def _ensure_quaternion_consistency(self, use_norm=True):
         flipped = 0
         self._trajectory["flipped"] = 0
         self._trajectory.loc[0, "flipped"] = flipped
@@ -105,11 +105,18 @@ class TrajectorySampler:
             current_signs_positive = current_quaternion >= 0
             condition_sign = prev_signs_positive == ~current_signs_positive
 
-            if np.sum(condition_sign) >= 3:
-                flipped = 1 - flipped
+            norm_diff = np.linalg.norm(prev_quaternion.values - current_quaternion.values)
+
+            if use_norm:
+                if norm_diff >= 0.5:
+                    flipped = 1 - flipped
+            else:
+                if np.sum(condition_sign) >= 3:
+                    flipped = 1 - flipped
             self._trajectory.loc[i, "flipped"] = flipped
 
             prev_signs_positive = current_signs_positive
+            prev_quaternion = current_quaternion
 
         self._trajectory.loc[self._trajectory["flipped"] == 1, quat_columns] *= -1.0
 

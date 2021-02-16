@@ -14,7 +14,7 @@ from run_tests import ensure_quaternion_consistency, visualise_actions, visualis
 def show_state_action_plots(trajectory_path, states, actions, network_actions, time_step, time_total, save_path=None):
     trajectory = pd.read_csv(trajectory_path)
     trajectory = trajectory[trajectory["time-since-start [s]"] <= time_total]
-    trajectory = ensure_quaternion_consistency(trajectory)
+    trajectory, norm_diffs = ensure_quaternion_consistency(trajectory)
     trajectory = trajectory[[
         "position_x [m]",
         "position_y [m]",
@@ -28,6 +28,9 @@ def show_state_action_plots(trajectory_path, states, actions, network_actions, t
         "velocity_z [m/s]",
         "time-since-start [s]",
     ]].values
+
+    plt.plot(trajectory[1:(len(norm_diffs) + 1), -1], norm_diffs)
+    plt.show()
 
     visualise_states(states, trajectory, time_total, time_step, True, False if save_path is None else True)
     if save_path is not None:
@@ -82,6 +85,7 @@ def test():
         "/home/simon/Downloads/trajectory_s024_r08_flat_li09.csv",  # fast
         "/home/simon/Downloads/trajectory_s018_r09_wave_li04.csv",  # medium wave
         "/home/simon/Downloads/trajectory_s020_r13_wave_li04.csv",  # fast wave
+        "/home/simon/Downloads/trajectory_barrel_roll.csv",  # barrel roll from DDA
     ]
     trajectory_path = trajectories[2]
     model_load_path = os.path.join(os.getenv("FLIGHTMARE_PATH"),
@@ -91,7 +95,7 @@ def test():
     show_plots = True
     save_data = False
     write_video = False
-    max_time = 7.0
+    max_time = 15.0
     switch_times = np.arange(0.0, 5.0, step=0.5).tolist() + [max_time + 1.0]
     switch_times = [max_time + 1.0]
     repetitions = 1
