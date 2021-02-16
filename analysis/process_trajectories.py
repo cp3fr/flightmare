@@ -13,7 +13,7 @@ T['pos_z'] += zOffset
 # Define checkpoints and colliders.
 gate_checkpoints = [Gate(T.iloc[i], dims=(2.5, 2.5)) for i in range(T.shape[0])]
 gate_colliders = [Gate(T.iloc[i], dims=(3.5, 3.5)) for i in range(T.shape[0])]
-wall_colliders = wall_colliders(dims=(66, 36, 9), center=(0, 0, 4.5))
+wall_colliders = get_wall_colliders(dims=(66, 36, 9), center=(0, 0, 4.5))
 
 # Load a trajectory
 filepath = './logs/resnet_test/trajectory_reference_original.csv'

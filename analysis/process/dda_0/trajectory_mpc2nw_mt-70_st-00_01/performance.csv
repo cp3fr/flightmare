@@ -1,2 +1,0 @@
-time-start [s],time-switch [s],time-end [s],flight-time-total [s],flight-time-mpc [s],flight-time-network [s],flight-distance-total [m],flight-distance-mpc [m],flight-distance-network [m],num-gate-passes-total,num-gate-passes-mpc,num-gate-passes-network,gate-id-total,gate-id-mpc,gate-id-network,gate-ts-total,gate-ts-mpc,gate-ts-network,has-collision,filepath
-0.02,0.0,1.1200000000000008,1.1000000000000008,-0.02,1.1200000000000008,20.450590197422123,0.0,20.573218032423718,1,0,1,[9],[],[9],[0.02],[],[0.02],1,./process/dda_0/trajectory_mpc2nw_mt-70_st-00_01/
