@@ -165,6 +165,8 @@ class Trainer:
             # run the main loop until the simulation "signals" that the trajectory is done
             print("\n[Trainer] Starting experiment {}\n".format(self.learner.rollout_idx))
             while not self.trajectory_done:
+                # TODO: whenever the image has been update, get the feature tracks and visualise them in a video
+                #  to check whether everything with the image capturing and feature tracking works correctly
                 # states.append(info_dict["state"])
                 info_dict, successes = self.simulation.step(action["network"] if action["use_network"] else action["expert"])
                 self.trajectory_done = info_dict["done"]

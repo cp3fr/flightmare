@@ -162,10 +162,38 @@ class ControllerLearning:
         if not self.reference_updated:
             self.reference_updated = True
 
+        """
+        self.reference = np.array([
+            "r_pos_x", "r_pos_y", "r_pos_z",
+            "r_rot_w", "r_rot_x", "r_rot_y", "r_rot_z",
+            "r_vel_x", "r_vel_y", "r_vel_z",
+            "r_omega_x", "r_omega_y", "r_omega_z",
+        ])
+        self.reference_rot = [
+            "r_r00", "r_r01", "r_r02",
+            "r_r10", "r_r11", "r_r12",
+            "r_r20", "r_r21", "r_r22",
+        ]
+        """
+
     def update_state_estimate(self, state_estimate):
         self.state_estimate = state_estimate[:13]
         self.state_estimate_rot = self.state_estimate[4:7].tolist() + self.state_estimate[3:4].tolist()
         self.state_estimate_rot = Rotation.from_quat(self.state_estimate_rot).as_matrix().reshape((9,)).tolist()
+
+        """
+        self.state_estimate = np.array([
+            "se_pos_x", "se_pos_y", "se_pos_z",
+            "se_rot_w", "se_rot_x", "se_rot_y", "se_rot_z",
+            "se_vel_x", "se_vel_y", "se_vel_z",
+            "se_omega_x", "se_omega_y", "se_omega_z",
+        ])
+        self.state_estimate_rot = [
+            "se_r00", "se_r01", "se_r02",
+            "se_r10", "se_r11", "se_r12",
+            "se_r20", "se_r21", "se_r22",
+        ]
+        """
 
     def update_image(self, image):
         # TODO: for now do the feature track computation/update here, but might want to
@@ -383,6 +411,9 @@ class ControllerLearning:
 
         # format the state and feature track inputs as numpy arrays for the network
         state_inputs = np.stack(self.state_queue, axis=0)
+        # print("state_inputs:")
+        # print(state_inputs)
+        # exit()
         feature_inputs = np.stack(
             [np.stack([v for v in self.fts_queue[j].values()]) for j in range(self.config.seq_len)])
         inputs = {"fts": np.expand_dims(feature_inputs, axis=0).astype(np.float32),

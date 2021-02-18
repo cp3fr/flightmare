@@ -184,9 +184,9 @@ class SafeDataset(BodyDataset):
         # I don't think these indices are correct... they only work if IMU data is also used
         # ref_rot = R.from_quat(fts[11:15]).as_matrix().reshape((9,)).tolist()
         if self.config.use_pos:
-            ref_rot = R.from_quat(fts[11:15]).as_matrix().reshape((9,)).tolist()
-        else:
             ref_rot = R.from_quat(fts[14:18]).as_matrix().reshape((9,)).tolist()
+        else:
+            ref_rot = R.from_quat(fts[11:15]).as_matrix().reshape((9,)).tolist()
         if self.config.use_imu:
             odom_rot = R.from_quat(fts[1:5]).as_matrix().reshape((9,)).tolist()
             if self.config.use_pos:
@@ -352,3 +352,12 @@ class SafeDataset(BodyDataset):
         dataset = dataset.batch(self.config.batch_size, drop_remainder=not self.training)
         dataset = dataset.prefetch(buffer_size=10 * self.config.batch_size)
         self.batched_dataset = dataset
+
+
+if __name__ == "__main__":
+    from dda.config.settings import create_settings
+
+    load_dir = "/home/simon/gazesim-data/fpv_saliency_maps/data/dda/data/testing/train/"
+    settings_path = "../../../config/dagger_settings.yaml"
+    settings = create_settings(settings_path, mode="dagger")
+    ds = create_dataset(load_dir, settings)
