@@ -375,9 +375,10 @@ class ControllerLearning:
         if self.config.use_pos:
             state_inputs += self.reference[:3].tolist()
         if self.config.use_imu:
-            state_inputs += self.state_estimate_rot + self.state_estimate[7:].tolist()
+            estimate = self.state_estimate_rot + self.state_estimate[7:].tolist()
             if self.config.use_pos:
-                state_inputs += self.state_estimate[:3].tolist()
+                estimate += self.state_estimate[:3].tolist()
+            state_inputs = estimate + state_inputs
         self.state_queue.append(state_inputs)
 
         # format the state and feature track inputs as numpy arrays for the network
