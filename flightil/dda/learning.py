@@ -144,17 +144,28 @@ class ControllerLearning:
         # assumed ordering of state variables is [pos. rot, vel, omega]
         # simulation returns full state (with linear acc and motor torques) => take only first 13 entries
         self.state = state[:13]
-        self.state_rot = Rotation.from_quat(self.state[3:7]).as_matrix().reshape((9,)).tolist()
+        # print("\nState:", self.state, sep="\n")
+        self.state_rot = self.state[4:7].tolist() + self.state[3:4].tolist()
+        # state_rot_wrong = self.state[3:7]
+        # print("State rotation (XYZW):", self.state_rot)
+        # print("State rotation wrong (WXYZ):", state_rot_wrong)
+        self.state_rot = Rotation.from_quat(self.state_rot).as_matrix()
+        # state_rot_wrong = Rotation.from_quat(state_rot_wrong).as_matrix()
+        # print("State rotation (matrix):", self.state_rot, sep="\n")
+        # print("State rotation wrong (matrix):", state_rot_wrong, sep="\n")
+        self.state_rot = self.state_rot.reshape((9,)).tolist()
 
     def update_reference(self, reference):
         self.reference = reference
-        self.reference_rot = Rotation.from_quat(self.reference[3:7]).as_matrix().reshape((9,)).tolist()
+        self.reference_rot = self.reference[4:7].tolist() + self.reference[3:4].tolist()
+        self.reference_rot = Rotation.from_quat(self.reference_rot).as_matrix().reshape((9,)).tolist()
         if not self.reference_updated:
             self.reference_updated = True
 
     def update_state_estimate(self, state_estimate):
         self.state_estimate = state_estimate[:13]
-        self.state_estimate_rot = Rotation.from_quat(self.state_estimate[3:7]).as_matrix().reshape((9,)).tolist()
+        self.state_estimate_rot = self.state_estimate[4:7].tolist() + self.state_estimate[3:4].tolist()
+        self.state_estimate_rot = Rotation.from_quat(self.state_estimate_rot).as_matrix().reshape((9,)).tolist()
 
     def update_image(self, image):
         # TODO: for now do the feature track computation/update here, but might want to
