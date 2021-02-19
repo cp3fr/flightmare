@@ -134,7 +134,8 @@ class Trainer:
 
         with open(os.path.join(self.settings.log_dir, "metrics.csv"), "w") as f:
             writer = csv.writer(f)
-            writer.writerows([["rollout", "traj_err_mean", "traj_err_median", "expert_usage"]])
+            writer.writerows([["rollout", "traj_err_mean", "traj_err_median",
+                               "expert_usage", "network_usage", "randomised_usage"]])
 
         while (not shutdown_requested) and (self.learner.rollout_idx < self.settings.max_rollouts):
             # TODO: add switch into training mode when MPC is started earlier to reach "stable" flight
@@ -168,7 +169,8 @@ class Trainer:
                 # TODO: whenever the image has been update, get the feature tracks and visualise them in a video
                 #  to check whether everything with the image capturing and feature tracking works correctly
                 # states.append(info_dict["state"])
-                info_dict, successes = self.simulation.step(action["network"] if action["use_network"] else action["expert"])
+                info_dict, successes = self.simulation.step(action["network"] if action["use_network"]
+                                                            else action["expert"])
                 self.trajectory_done = info_dict["done"]
                 if not self.trajectory_done:
                     if info_dict["time"] > self.settings.start_buffer and not self.learner.record_data:
@@ -187,16 +189,18 @@ class Trainer:
             tracking_error = np.mean(error_log)
             median_traj_error = np.median(error_log)
             t_log = np.stack((ref_log, gt_pos_log), axis=0)
-            expert_usage = self.learner.stop_data_recording()
+            usage = self.learner.stop_data_recording()
 
             print("\n[Trainer]")
-            print("Expert used {:.03f}% of the times".format(100.0 * expert_usage))
+            print("Expert|network|randomised used {:.03f}|{:.03f}|{:.03f}% of the time".format(
+                100.0 * usage["expert"], 100.0 * usage["network"], 100.0 * usage["randomised"]))
             print("Mean Tracking Error is {:.03f}".format(tracking_error))
             print("Median Tracking Error is {:.03f}\n".format(median_traj_error))
 
             with open(os.path.join(self.settings.log_dir, "metrics.csv"), "a") as f:
                 writer = csv.writer(f)
-                writer.writerows([[self.learner.rollout_idx, tracking_error, median_traj_error, expert_usage]])
+                writer.writerows([[self.learner.rollout_idx, tracking_error, median_traj_error,
+                                   usage["expert"], usage["network"], usage["randomised"]]])
 
             if self.learner.rollout_idx % self.settings.train_every_n_rollouts == 0:
                 # here the simulation basically seems to be stopped while the network is being trained

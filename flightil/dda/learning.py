@@ -43,6 +43,7 @@ class ControllerLearning:
         self.rollout_idx = 0
         self.n_times_net = 0
         self.n_times_expert = 0
+        self.n_times_randomised = 0
         self.recorded_samples = 0
         self.counter = 0
 
@@ -80,6 +81,7 @@ class ControllerLearning:
         #  should also reset feature tracker (and maybe other stuff?)
         self.n_times_net = 0
         self.n_times_expert = 0
+        self.n_times_randomised = 0
         self.counter = 0
         if new_rollout:
             self.rollout_idx += 1
@@ -126,8 +128,13 @@ class ControllerLearning:
     def stop_data_recording(self):
         print("[ControllerLearning] Stop data collection")
         self.record_data = False
-        expert_usage = self.n_times_expert / (self.n_times_net + self.n_times_expert)
-        return expert_usage
+        total = self.n_times_net + self.n_times_expert + self.n_times_randomised
+        usage = {
+            "expert": self.n_times_expert / total,
+            "network": self.n_times_net / total,
+            "randomised": self.n_times_randomised / total,
+        }
+        return usage
 
     def train(self):
         # not sure whether all these booleans are actually relevant
@@ -354,7 +361,7 @@ class ControllerLearning:
             self.control_command[1] += self.config.rand_rate_mag * (random.random() - 0.5) * 2
             self.control_command[2] += self.config.rand_rate_mag * (random.random() - 0.5) * 2
             self.control_command[3] += self.config.rand_rate_mag * (random.random() - 0.5) * 2
-            self.n_times_expert += 1
+            self.n_times_randomised += 1
             return control_command_dict
 
         # Dagger (on control command label).

@@ -63,9 +63,9 @@ def save_trajectory_data(time_stamps, mpc_actions, network_actions, states,
         "rotation_x [quaternion]": states[:, 4],
         "rotation_y [quaternion]": states[:, 5],
         "rotation_z [quaternion]": states[:, 6],
-        "velocity_x [m]": states[:, 7],
-        "velocity_y [m]": states[:, 8],
-        "velocity_z [m]": states[:, 9],
+        "velocity_x [m/s]": states[:, 7],
+        "velocity_y [m/s]": states[:, 8],
+        "velocity_z [m/s]": states[:, 9],
         "omega_x [rad/s]": states[:, 10],
         "omega_y [rad/s]": states[:, 11],
         "omega_z [rad/s]": states[:, 12],
@@ -82,29 +82,52 @@ def test():
         "/home/simon/Downloads/trajectory_s016_r05_flat_li01.csv",  # medium (median)
         "/home/simon/Downloads/trajectory_mpc_20_s016_r05_flat_li01.csv",  # medium (median) MPC
         "/home/simon/Downloads/trajectory_s016_r05_flat_li01_buffer10.csv",  # medium (median) w/ "buffer"
+        "/home/simon/Downloads/trajectory_s016_r05_flat_li01_buffer20.csv",  # medium (median) w/ "buffer"
         "/home/simon/Downloads/trajectory_s024_r08_flat_li09.csv",  # fast
         "/home/simon/Downloads/trajectory_s018_r09_wave_li04.csv",  # medium wave
         "/home/simon/Downloads/trajectory_s020_r13_wave_li04.csv",  # fast wave
         "/home/simon/Downloads/trajectory_barrel_roll.csv",  # barrel roll from DDA
     ]
-    trajectory_path = trajectories[2]
-    model_load_path = os.path.join(os.getenv("FLIGHTMARE_PATH"),
-                                   "flightil/dda/results/loop/20210211-002220/train/ckpt-156")
+    model_load_paths = [
+        os.path.join(os.getenv("FLIGHTMARE_PATH"), "flightil/dda/results/loop/20210211-002220/train/ckpt-156"),
+        "/home/simon/gazesim-data/fpv_saliency_maps/data/dda/results/first-gate-3s/20210213-014940/train/ckpt-229",
+        "/home/simon/gazesim-data/fpv_saliency_maps/data/dda/results/br-dbg/20210218-224207/train/ckpt-57",
+        "/home/simon/gazesim-data/fpv_saliency_maps/data/dda/results/lturn-1gate-bf2/20210219-013255/train/ckpt-53",
+    ]
+    settings_paths = [
+        "./dda/config/dagger_settings.yaml",
+        "/home/simon/gazesim-data/fpv_saliency_maps/data/dda/results/first-gate-3s/20210213-014940/snaga_dagger_settings_.yaml",
+        "/home/simon/gazesim-data/fpv_saliency_maps/data/dda/results/br-dbg/20210218-224207/snaga_br_dbg.yaml",
+        "/home/simon/gazesim-data/fpv_saliency_maps/data/dda/results/lturn-1gate-bf2/20210219-013255/snaga_lturn-1gate-bf2.yaml",
+    ]
+
+    trajectory_path = trajectories[-1]
+    model_load_path = model_load_paths[-2]
+    settings_path = settings_paths[-2]
 
     # defining some settings
     show_plots = True
     save_data = False
-    write_video = False
-    max_time = 15.0
+    write_video = True
+    max_time = 6.0
     switch_times = np.arange(0.0, 5.0, step=0.5).tolist() + [max_time + 1.0]
     switch_times = [max_time + 1.0]
+    # switch_times = [2.0]
     repetitions = 1
     experiment_path = "/home/simon/Desktop/weekly_meeting/meeting18/dda_0"
 
     # creating settings
-    settings = create_settings("./dda/config/dagger_settings.yaml", mode="dagger")
+    settings = create_settings(settings_path, mode="dagger")
     settings.resume_training = True
     settings.resume_ckpt_file = model_load_path
+    settings.gpu = 0
+    settings.flightmare_pub_port = 10253
+    settings.flightmare_sub_port = 10254
+
+    # TODO: this should be changed if we want to check "generalisation beyond trained trajectory" (for racing)
+    max_time = settings.max_time
+
+    switch_times = [settings.start_buffer]
 
     # using "learner" as controller
     controller = ControllerLearning(settings, trajectory_path, mode="testing", max_time=max_time)
@@ -122,7 +145,7 @@ def test():
                 writer = cv2.VideoWriter(
                     "/home/simon/Desktop/flightmare_cam_test/test_network_eval_tf.mp4",
                     cv2.VideoWriter_fourcc("m", "p", "4", "v"),
-                    simulation.image_time_step,
+                    simulation.command_frequency,
                     (simulation.flightmare_wrapper.image_width, simulation.flightmare_wrapper.image_height),
                     True,
                 )
