@@ -23,8 +23,6 @@ class Trainer:
         self.trajectory_path = self.settings.trajectory_path
         self.trajectory_done = False
 
-        # TODO: either define trajectory with buffer at the start or do smth
-
         self.simulation = FlightmareSimulation(self.settings, self.trajectory_path,
                                                max_time=self.settings.max_time)
         self.learner = ControllerLearning(self.settings, self.trajectory_path,
@@ -37,7 +35,7 @@ class Trainer:
         print("---------------------------\n")
 
         # defining some settings
-        max_time = self.settings.max_time + 4.0
+        max_time = min(self.settings.max_time + 4.0, self.simulation.reference_sampler.get_final_time_stamp())
         switch_times = np.array(np.arange(0.0, max_time - 2.0, step=1.0).tolist() + [max_time + 1.0])
         switch_times += self.settings.start_buffer
         repetitions = 1
@@ -173,18 +171,17 @@ class Trainer:
             # run the main loop until the simulation "signals" that the trajectory is done
             print("\n[Trainer] Starting experiment {}\n".format(self.learner.rollout_idx))
             while not self.trajectory_done:
-                # TODO: whenever the image has been update, get the feature tracks and visualise them in a video
+                # TODO?: whenever the image has been update, get the feature tracks and visualise them in a video
                 #  to check whether everything with the image capturing and feature tracking works correctly
-                # states.append(info_dict["state"])
-                info_dict, successes = self.simulation.step(action["network"] if action["use_network"]
-                                                            else action["expert"])
+                info_dict = self.simulation.step(action["network"] if action["use_network"] else action["expert"])
                 self.trajectory_done = info_dict["done"]
                 if not self.trajectory_done:
                     if info_dict["time"] > self.settings.start_buffer and not self.learner.record_data:
                         self.learner.start_data_recording()
 
                     self.learner.update_info(info_dict)
-                    action = self.learner.get_control_command()
+                    if info_dict["update"]["command"]:
+                        action = self.learner.get_control_command()
 
                     if self.learner.record_data:
                         pos_ref_dict = self.learner.compute_trajectory_error()
@@ -237,49 +234,6 @@ class Trainer:
                                     self.simulation.command_time_step, self.simulation.total_time)
             break
             """
-
-    def old_perform_testing(self):
-        """
-        learner = TrajectoryLearning.TrajectoryLearning(self.settings, mode="testing")
-        shutdown_requested = False
-        rollout_idx = 0
-        while (not shutdown_requested) and (rollout_idx < self.settings.max_rollouts):
-            self.trajectory_done = False
-            # setup_sim()
-            if self.settings.verbose:
-                # Will save data for debugging reasons
-                learner.start_data_recording()
-            # self.start_experiment(learner)
-            # start_time = time.time()
-            # time_run = 0
-
-            # this loop basically needs to be manual advancing of the simulation etc.
-            ref_log = []
-            gt_pos_log = []
-            error_log = []
-            while not self.trajectory_done:  # and (time_run < 100):
-                # time.sleep(0.1)
-                # time_run = time.time() - start_time
-                if learner.use_network and learner.reference_updated:
-                    pos_ref_dict = learner.compute_trajectory_error()
-                    gt_pos_log.append(pos_ref_dict["gt_pos"])
-                    ref_log.append(pos_ref_dict["gt_ref"])
-                    error_log.append(np.linalg.norm(pos_ref_dict["gt_pos"] - pos_ref_dict["gt_ref"]))
-
-            # final logging
-            tracking_error = np.mean(error_log)
-            median_traj_error = np.median(error_log)
-            t_log = np.stack((ref_log, gt_pos_log), axis=0)
-            expert_usage = learner.stop_data_recording()
-            shutdown_requested = learner.shutdown_requested()
-            print("{} Rollout: Expert used {:.03f}% of the times".format(rollout_idx + 1, 100.0 * expert_usage))
-            print("Mean Tracking Error is {:.03f}".format(tracking_error))
-            print("Median Tracking Error is {:.03f}".format(median_traj_error))
-            rollout_idx += 1
-            if self.settings.verbose:
-                t_log_fname = os.path.join(self.settings.log_dir, "traj_log_{:05d}.npy".format(rollout_idx))
-                np.save(t_log_fname, t_log)
-        """
 
 
 def main():

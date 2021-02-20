@@ -67,7 +67,7 @@ class ControllerLearning:
         self.network_command = None
 
         # objects
-        self.feature_tracker = FeatureTracker(self.config.min_number_fts * 2)
+        self.feature_tracker = FeatureTracker(int(self.config.min_number_fts * 1.5))
         self.learner = BodyrateLearner(settings=self.config, expect_partial=(mode == "testing"))
         self.planner = TrajectoryPlanner(trajectory_path, 4.0, 0.2, max_time=max_time)
         self.expert = MPCSolver(4.0, 0.2)
@@ -77,8 +77,6 @@ class ControllerLearning:
             self.write_csv_header()
 
     def reset(self, new_rollout=True):
-        # TODO: if this is used for anything but initialisation,
-        #  should also reset feature tracker (and maybe other stuff?)
         self.n_times_net = 0
         self.n_times_expert = 0
         self.n_times_randomised = 0
@@ -90,13 +88,10 @@ class ControllerLearning:
 
         self.fts_queue.clear()
         self.state_queue.clear()
-        # TODO: THESE ARE ACTUALLY PRETTY IMPORTANT => I think the only reason it's set to 1 in dagger_settings.yaml
-        #  is to be machine-independent, but it should actually be 8 for the model to be trained
 
         self.state = np.zeros((13,), dtype=np.float32)
         self.reference = np.zeros((13,), dtype=np.float32)
         self.state_estimate = np.zeros((13,), dtype=np.float32)
-        # TODO: these should actually be fewer right? n_init_states should be the number of actual inputs
 
         if self.config.use_imu:
             if self.config.use_pos:
@@ -119,8 +114,6 @@ class ControllerLearning:
 
         self.feature_tracks = copy.copy(init_dict)
         self.feature_tracker.reset()
-        # self.feature_tracks = np.stack([np.stack([v for v in self.fts_queue[j].values()])
-        #                                 for j in range(self.config.seq_len)])
 
     def start_data_recording(self):
         print("[ControllerLearning] Collecting data")
@@ -142,8 +135,7 @@ class ControllerLearning:
         self.is_training = True
         self.learner.train()
         self.is_training = False
-        self.use_network = False  # TODO: probably remove this, since we don't have any VIO init or anything like that
-        # TODO: where is the simulation reset though?
+        self.use_network = False
 
     def update_simulation_time(self, simulation_time):
         self.simulation_time = simulation_time
@@ -152,16 +144,8 @@ class ControllerLearning:
         # assumed ordering of state variables is [pos. rot, vel, omega]
         # simulation returns full state (with linear acc and motor torques) => take only first 13 entries
         self.state = state[:13]
-        # print("\nState:", self.state, sep="\n")
         self.state_rot = self.state[4:7].tolist() + self.state[3:4].tolist()
-        # state_rot_wrong = self.state[3:7]
-        # print("State rotation (XYZW):", self.state_rot)
-        # print("State rotation wrong (WXYZ):", state_rot_wrong)
-        self.state_rot = Rotation.from_quat(self.state_rot).as_matrix()
-        # state_rot_wrong = Rotation.from_quat(state_rot_wrong).as_matrix()
-        # print("State rotation (matrix):", self.state_rot, sep="\n")
-        # print("State rotation wrong (matrix):", state_rot_wrong, sep="\n")
-        self.state_rot = self.state_rot.reshape((9,)).tolist()
+        self.state_rot = Rotation.from_quat(self.state_rot).as_matrix().reshape((9,)).tolist()
 
     def update_reference(self, reference):
         self.reference = reference
@@ -170,47 +154,20 @@ class ControllerLearning:
         if not self.reference_updated:
             self.reference_updated = True
 
-        """
-        self.reference = np.array([
-            "r_pos_x", "r_pos_y", "r_pos_z",
-            "r_rot_w", "r_rot_x", "r_rot_y", "r_rot_z",
-            "r_vel_x", "r_vel_y", "r_vel_z",
-            "r_omega_x", "r_omega_y", "r_omega_z",
-        ])
-        self.reference_rot = [
-            "r_r00", "r_r01", "r_r02",
-            "r_r10", "r_r11", "r_r12",
-            "r_r20", "r_r21", "r_r22",
-        ]
-        """
-
     def update_state_estimate(self, state_estimate):
         self.state_estimate = state_estimate[:13]
         self.state_estimate_rot = self.state_estimate[4:7].tolist() + self.state_estimate[3:4].tolist()
         self.state_estimate_rot = Rotation.from_quat(self.state_estimate_rot).as_matrix().reshape((9,)).tolist()
 
-        """
-        self.state_estimate = np.array([
-            "se_pos_x", "se_pos_y", "se_pos_z",
-            "se_rot_w", "se_rot_x", "se_rot_y", "se_rot_z",
-            "se_vel_x", "se_vel_y", "se_vel_z",
-            "se_omega_x", "se_omega_y", "se_omega_z",
-        ])
-        self.state_estimate_rot = [
-            "se_r00", "se_r01", "se_r02",
-            "se_r10", "se_r11", "se_r12",
-            "se_r20", "se_r21", "se_r22",
-        ]
-        """
-
     def update_image(self, image):
-        # TODO: for now do the feature track computation/update here, but might want to
-        #  consider doing this stuff in a subclass instead (including the stuff in __init__)
         if not self.config.use_fts_tracks and self.mode == "testing":
             return
 
         # get the features for the current frame
         feature_tracks = self.feature_tracker.process_image(image, current_time=self.simulation_time)
+
+        if feature_tracks is None:
+            return
 
         # "format" the features like original DDA
         features_dict = {}
@@ -249,31 +206,20 @@ class ControllerLearning:
                 del processed_dict[k]
 
         self.fts_queue.append(processed_dict)
-        # self.feature_tracks = np.stack([np.stack([v for v in self.fts_queue[j].values()])
-        #                                 for j in range(self.config.seq_len)])
-        # TODO: might actually just move this to network input prep, since that's where it's supposed to be used
 
     def update_info(self, info_dict):
         self.update_simulation_time(info_dict["time"])
         self.update_state(info_dict["state"])
         self.update_state_estimate(info_dict["state_estimate"])
         if info_dict["update"]["image"]:
-            # self.update_image(info_dict["image"])
-            pass
-            # TODO: this needs to be updated to only start doing stuff when the first actual
-            #  image arrives, otherwise the feature tracker gets a black image at the start
+            self.update_image(info_dict["image"])
         if info_dict["update"]["reference"]:
             self.update_reference(info_dict["reference"])
         if info_dict["update"]["expert"]:
             self.prepare_expert_command()
-        # TODO: maybe also update with "done" and don't do anything anymore after this if it is
 
     def prepare_expert_command(self):
-        # TODO: need to update expert command thingy
         # get the reference trajectory over the time horizon
-        # TODO: should really think about whether the planner isn't the one that should supply the references
-        #  => could have the timing be determined by the simulation though
-        #  => but then again, we only want to sample the current/next reference state...
         planned_traj = self.planner.plan(self.state[:10], self.simulation_time)
         planned_traj = np.array(planned_traj)
 
@@ -337,22 +283,9 @@ class ControllerLearning:
 
         # Apply Network
         results = self.learner.inference(inputs)
-        # control_command = ControlCommand()
-        # control_command.armed = True
-        # control_command.expected_execution_time = rospy.Time.now()
-        # control_command.control_mode = 2
-        # control_command.collective_thrust = results[0][0].numpy()
-        # control_command.bodyrates.x = results[0][1].numpy()
-        # control_command.bodyrates.y = results[0][2].numpy()
-        # control_command.bodyrates.z = results[0][3].numpy()
         control_command = np.array([results[0][0], results[0][1], results[0][2], results[0][3]])
         self.network_command = control_command
         control_command_dict["network"] = self.network_command
-
-        """
-        if self.mode == "testing" and self.use_network:
-            return control_command
-        """
 
         # Log everything immediately to avoid surprises (if required)
         if self.record_data:
@@ -374,7 +307,6 @@ class ControllerLearning:
         d_br_x = control_command[1] - self.control_command[1]
         d_br_y = control_command[2] - self.control_command[2]
         d_br_z = control_command[3] - self.control_command[3]
-        # TODO: probably add if self.use_network and self.mode == "testing" or something like that
         if (self.mode == "testing" and self.use_network) \
                 or (self.config.execute_nw_predictions
                     and abs(d_thrust) < self.config.fallback_threshold_rates \
@@ -410,9 +342,6 @@ class ControllerLearning:
             return inputs
 
         # reference is always used, state estimate if specified in config
-        # TODO: potentially use position instead (or in addition to) body rates
-        #  => probably won't require changing anything in the networks, but will for data loading
-        #     and n_init_states will also have to be changed
         state_inputs = self.reference_rot + self.reference[7:].tolist()
         if self.config.use_pos:
             state_inputs += self.reference[:3].tolist()
@@ -425,9 +354,6 @@ class ControllerLearning:
 
         # format the state and feature track inputs as numpy arrays for the network
         state_inputs = np.stack(self.state_queue, axis=0)
-        # print("state_inputs:")
-        # print(state_inputs)
-        # exit()
         feature_inputs = np.stack(
             [np.stack([v for v in self.fts_queue[j].values()]) for j in range(self.config.seq_len)])
         inputs = {"fts": np.expand_dims(feature_inputs, axis=0).astype(np.float32),
@@ -441,7 +367,6 @@ class ControllerLearning:
         return results
 
     def write_csv_header(self):
-        # TODO: will need to store different stuff for our MPC => for data loading with existing framework, keep this
         row = [
             "Rollout_idx",
             "Odometry_stamp",
@@ -516,7 +441,6 @@ class ControllerLearning:
             writer.writerows([row])
 
     def save_data(self):
-        # TODO: need to update what gets returned by the (Flightmare) simulation in terms of references and state est.
         row = [
             self.rollout_idx,
             self.simulation_time,  # time stamp
@@ -578,8 +502,6 @@ class ControllerLearning:
             0,
         ]
 
-        # if self.record_data and self.gt_odometry.pose.pose.position.z > 0.3 and \
-        #         self.control_command.collective_thrust > 0.2:  TODO: not sure if these are really needed
         if self.record_data:
             with open(self.csv_filename, "a") as writeFile:
                 writer = csv.writer(writeFile)

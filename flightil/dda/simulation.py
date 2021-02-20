@@ -73,6 +73,7 @@ class Simulation:
 
         self.image_updated = False
         self.reference_updated = False
+        self.command_to_be_updated = False
         self.expert_to_be_updated = False
 
     def reset(self):
@@ -87,6 +88,7 @@ class Simulation:
 
         self.image_updated = False
         self.reference_updated = False
+        self.command_to_be_updated = False
         self.expert_to_be_updated = False
 
         self._reset()
@@ -107,37 +109,48 @@ class Simulation:
             "update": {
                 "image": self.image_updated,
                 "reference": self.reference_updated,
+                "command": self.command_to_be_updated,
                 "expert": self.expert_to_be_updated,
             },
         }
         return result
 
     def step(self, action):
-        self.command_time += self.command_time_step
+        # self.command_time += self.command_time_step
 
         self.image_updated = False
         self.reference_updated = False
+        self.command_to_be_updated = False
         self.expert_to_be_updated = False
 
-        successes = []
+        # successes = []
 
-        while self.base_time < self.command_time <= self.total_time:  # TODO: should just be until next "command time"
-            # TODO: this apparently leads to numerical problems... would probably be better to use integers for counting... somehow
-            self.base_time += self.base_time_step
-            self.current_state, success = self._get_state(action)
-            self.current_state_estimate = self._get_state_estimate()
-            self.current_image = self._get_image()  # TODO: maybe decouple step and image
-            self.current_reference = self._get_reference()  # TODO: do something with the planner
-            self.expert_to_be_updated = self._determine_expert_update()
-            successes.append(success)
+        # TODO: somehow need to change this so that even at faster rates the correct thing is returned...
+        #  => just return after one "base step"?
+        #  => have queues of stuff...
+        #  => also, images should probably have time_stamps attached, since otherwise the velocity calc will be wrong
 
-        if self.base_time > self.total_time or self.command_time > self.total_time:
+        # while self.base_time < self.command_time <= self.total_time:
+        # TODO: this apparently leads to numerical problems... would probably be better to use integers for counting... somehow
+        self.base_time += self.base_time_step
+        if self.command_time <= self.base_time:
+            self.command_time += self.command_time_step
+            self.command_to_be_updated = True
+
+        self.current_state, success = self._get_state(action)
+        self.current_state_estimate = self._get_state_estimate()
+        self.current_image = self._get_image()
+        self.current_reference = self._get_reference()
+        self.expert_to_be_updated = self._determine_expert_update()
+        # successes.append(success)
+
+        if self.base_time > self.total_time:  # or self.command_time > self.total_time:
             # TODO: there should be a more elegant way of doing this than having to check the command_time separately
             self.trajectory_done = True
 
         result = {
             "done": self.trajectory_done,
-            "time": self.base_time,  # TODO: should this be command_time?
+            "time": self.base_time,
             "state": self.current_state,
             "state_estimate": self.current_state_estimate,
             "image": self.current_image,
@@ -145,11 +158,12 @@ class Simulation:
             "update": {
                 "image": self.image_updated,
                 "reference": self.reference_updated,
+                "command": self.command_to_be_updated,
                 "expert": self.expert_to_be_updated,
             },
         }
 
-        return result, successes
+        return result
 
     def _reset(self):
         pass
