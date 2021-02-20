@@ -3,6 +3,7 @@ import cv2
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import time
 
 from dda.simulation import FlightmareSimulation
 from dda.learning import ControllerLearning
@@ -84,26 +85,33 @@ def test():
         "/home/simon/Downloads/trajectory_s016_r05_flat_li01_buffer10.csv",  # medium (median) w/ "buffer"
         "/home/simon/Downloads/trajectory_s016_r05_flat_li01_buffer20.csv",  # medium (median) w/ "buffer"
         "/home/simon/Downloads/trajectory_s024_r08_flat_li09.csv",  # fast
+        "/home/simon/Downloads/trajectory_s024_r08_flat_li09_buffer20.csv",  # fast w/ "buffer"
         "/home/simon/Downloads/trajectory_s018_r09_wave_li04.csv",  # medium wave
         "/home/simon/Downloads/trajectory_s020_r13_wave_li04.csv",  # fast wave
         "/home/simon/Downloads/trajectory_barrel_roll.csv",  # barrel roll from DDA
+        "/home/simon/Downloads/trajectory_s018_r09_wave_li04_buffer20.csv",  # medium wave w/ "buffer"
     ]
     model_load_paths = [
         os.path.join(os.getenv("FLIGHTMARE_PATH"), "flightil/dda/results/loop/20210211-002220/train/ckpt-156"),
         "/home/simon/gazesim-data/fpv_saliency_maps/data/dda/results/first-gate-3s/20210213-014940/train/ckpt-229",
         "/home/simon/gazesim-data/fpv_saliency_maps/data/dda/results/br-dbg/20210218-224207/train/ckpt-57",
         "/home/simon/gazesim-data/fpv_saliency_maps/data/dda/results/lturn-1gate-bf2/20210219-013255/train/ckpt-53",
+        "/home/simon/gazesim-data/fpv_saliency_maps/data/dda/results/fl-med-full-bf2/20210219-153643/train/ckpt-26",
+        "/home/simon/gazesim-data/fpv_saliency_maps/data/dda/results/fl-med-full-bf2/20210219-153643/train/ckpt-55",
+        "/home/simon/gazesim-data/fpv_saliency_maps/data/dda/results/wv-med-full-bf2/20210219-222117/train/ckpt-38",
     ]
     settings_paths = [
         "./dda/config/dagger_settings.yaml",
         "/home/simon/gazesim-data/fpv_saliency_maps/data/dda/results/first-gate-3s/20210213-014940/snaga_dagger_settings_.yaml",
         "/home/simon/gazesim-data/fpv_saliency_maps/data/dda/results/br-dbg/20210218-224207/snaga_br_dbg.yaml",
         "/home/simon/gazesim-data/fpv_saliency_maps/data/dda/results/lturn-1gate-bf2/20210219-013255/snaga_lturn-1gate-bf2.yaml",
+        "/home/simon/gazesim-data/fpv_saliency_maps/data/dda/results/fl-med-full-bf2/20210219-153643/snaga_fl_med_full_bf2.yaml",
+        "/home/simon/gazesim-data/fpv_saliency_maps/data/dda/results/wv-med-full-bf2/20210219-222117/snaga_wv_med_full_bf2.yaml",
     ]
 
     trajectory_path = trajectories[-1]
-    model_load_path = model_load_paths[-2]
-    settings_path = settings_paths[-2]
+    model_load_path = model_load_paths[-1]
+    settings_path = settings_paths[-1]
 
     # defining some settings
     show_plots = True
@@ -177,6 +185,11 @@ def test():
             # connect to the simulation either at the start or after training has been run
             simulation.connect_unity(settings.flightmare_pub_port, settings.flightmare_sub_port)
 
+            # wait until Unity rendering/image queue has calmed down
+            for _ in range(50):
+                simulation.flightmare_wrapper.get_image()
+                time.sleep(0.1)
+
             # run the main loop until the simulation "signals" that the trajectory is done
             while not trajectory_done:
                 if info_dict["time"] > switch_time:
@@ -190,6 +203,8 @@ def test():
 
                 # write to video
                 if write_video:
+                    # print("Writing to video at time {} (image updated: {})".format(
+                    #     info_dict["time"], info_dict["update"]["image"]))
                     writer.write(info_dict["image"])
 
                 # record actions after the decision has been made for the current state

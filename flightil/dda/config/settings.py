@@ -65,13 +65,17 @@ class TrainSetting(Settings):
             settings = yaml.safe_load(stream)
             # --- Train Time --- #
             train_conf = settings['train']
+            self.gpu = train_conf["gpu"]
             self.max_training_epochs = train_conf['max_training_epochs']
             self.max_allowed_error = train_conf['max_allowed_error']
             self.batch_size = train_conf['batch_size']
+            self.learning_rate = train_conf["learning_rate"]
             self.summary_freq = train_conf['summary_freq']
             self.train_dir = os.path.join(os.getenv("GAZESIM_ROOT"), os.pardir, train_conf['train_dir'])
             self.use_fts_tracks = train_conf['use_fts_tracks']
             self.use_imu = train_conf['use_imu']
+            self.use_pos = train_conf["use_pos"]
+            self.use_activation = train_conf["use_activation"]
             self.val_dir = os.path.join(os.getenv("GAZESIM_ROOT"), os.pardir, train_conf['val_dir'])
             self.min_number_fts = train_conf['min_number_fts']
             self.save_every_n_epochs = train_conf['save_every_n_epochs']

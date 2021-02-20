@@ -299,7 +299,8 @@ class FlightmareSimulation(Simulation):
         self.action_dim = 4
 
         # Flightmare wrapper/bridge, in this class mostly to get images
-        self.flightmare_wrapper = RacingEnvWrapper(wave_track=False)
+        self.flightmare_wrapper = RacingEnvWrapper(wave_track=("wave" in trajectory_path))
+        # self.flightmare_wrapper = RacingEnvWrapper(wave_track=False)
         self.current_image = np.zeros((self.flightmare_wrapper.image_width, self.flightmare_wrapper.image_height, 3),
                                       dtype=np.uint8)
 

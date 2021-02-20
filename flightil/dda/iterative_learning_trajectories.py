@@ -3,6 +3,7 @@
 import argparse
 import os
 import csv
+import time
 
 import numpy as np
 from dda.config.settings import create_settings
@@ -47,6 +48,11 @@ class Trainer:
         if self.connect_to_sim:
             self.simulation.connect_unity(self.settings.flightmare_pub_port, self.settings.flightmare_sub_port)
             self.connect_to_sim = False
+
+            # wait until Unity rendering/image queue is actually ready
+            for _ in range(20):
+                self.simulation.flightmare_wrapper.get_image()
+                time.sleep(0.1)
 
         for switch_time in switch_times:
             for repetition in range(repetitions if switch_time < max_time else 1):
@@ -138,14 +144,10 @@ class Trainer:
                                "expert_usage", "network_usage", "randomised_usage"]])
 
         while (not shutdown_requested) and (self.learner.rollout_idx < self.settings.max_rollouts):
-            # TODO: add switch into training mode when MPC is started earlier to reach "stable" flight
-
-            # TODO: if there is a buffer, only start recording when time > buffer
-
             self.trajectory_done = False
             info_dict = self.simulation.reset()
             if info_dict["time"] > self.settings.start_buffer:
-                self.learner.start_data_recording()  # TODO: this should only be after the "buffer time" I guess => maybe it's enough to do that?
+                self.learner.start_data_recording()
             self.learner.reset()
             self.learner.update_info(info_dict)
             self.learner.prepare_expert_command()
@@ -155,6 +157,11 @@ class Trainer:
             if self.connect_to_sim:
                 self.simulation.connect_unity(self.settings.flightmare_pub_port, self.settings.flightmare_sub_port)
                 self.connect_to_sim = False
+
+                # wait until Unity rendering/image queue is actually ready
+                for _ in range(50):
+                    self.simulation.flightmare_wrapper.get_image()
+                    time.sleep(0.1)
 
             # keep track of some metrics
             ref_log = []

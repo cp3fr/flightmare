@@ -118,6 +118,7 @@ class ControllerLearning:
             self.fts_queue.append(init_dict)
 
         self.feature_tracks = copy.copy(init_dict)
+        self.feature_tracker.reset()
         # self.feature_tracks = np.stack([np.stack([v for v in self.fts_queue[j].values()])
         #                                 for j in range(self.config.seq_len)])
 
@@ -130,9 +131,9 @@ class ControllerLearning:
         self.record_data = False
         total = self.n_times_net + self.n_times_expert + self.n_times_randomised
         usage = {
-            "expert": self.n_times_expert / total,
-            "network": self.n_times_net / total,
-            "randomised": self.n_times_randomised / total,
+            "expert": self.n_times_expert / total if total != 0 else np.nan,
+            "network": self.n_times_net / total if total != 0 else np.nan,
+            "randomised": self.n_times_randomised / total if total != 0 else np.nan,
         }
         return usage
 
@@ -311,14 +312,16 @@ class ControllerLearning:
             # => this should basically not happen... (in the Flightmare implementation?)
             if self.use_network:
                 print("[ControllerLearning] Using expert wait for ref")
-            self.n_times_expert += 1
+            if self.record_data:
+                self.n_times_expert += 1
             return control_command_dict
 
         # always use expert at the beginning (approximately 0.2s) to avoid synchronization problems
         # => should be a better way of doing this than this counter...
         if self.counter < 10:
             self.counter += 1
-            self.n_times_expert += 1
+            if self.record_data:
+                self.n_times_expert += 1
             return control_command_dict
 
         # TODO: Part of the problem with having "blocking execution" and all that jazz is that the expert
@@ -361,7 +364,9 @@ class ControllerLearning:
             self.control_command[1] += self.config.rand_rate_mag * (random.random() - 0.5) * 2
             self.control_command[2] += self.config.rand_rate_mag * (random.random() - 0.5) * 2
             self.control_command[3] += self.config.rand_rate_mag * (random.random() - 0.5) * 2
-            self.n_times_randomised += 1
+            # TODO: maybe record magnitude?
+            if self.record_data:
+                self.n_times_randomised += 1
             return control_command_dict
 
         # Dagger (on control command label).
@@ -376,13 +381,15 @@ class ControllerLearning:
                     and abs(d_br_x) < self.config.fallback_threshold_rates \
                     and abs(d_br_y) < self.config.fallback_threshold_rates \
                     and abs(d_br_z) < self.config.fallback_threshold_rates):
-            self.n_times_net += 1
+            if self.record_data:
+                self.n_times_net += 1
             control_command_dict["use_network"] = True
             return control_command_dict
 
         # for now just return the expert control command to see if everything works as intended/expected
         # (i.e. it should look similar to running sim.py or stuff in run_tests.py)
-        self.n_times_expert += 1
+        if self.record_data:
+            self.n_times_expert += 1
         return control_command_dict
 
     def _prepare_net_inputs(self):
