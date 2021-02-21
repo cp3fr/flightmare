@@ -94,12 +94,12 @@ class Trainer:
                     network_actions.append(action["network"])
                     network_used.append(action["use_network"])
 
-                    info_dict, successes = self.simulation.step(
-                        action["network"] if action["use_network"] else action["expert"])
+                    info_dict = self.simulation.step(action["1network"] if action["use_network"] else action["expert"])
                     trajectory_done = info_dict["done"]
                     if not trajectory_done:
                         self.learner.update_info(info_dict)
-                        action = self.learner.get_control_command()
+                        if info_dict["update"]["command"]:
+                            action = self.learner.get_control_command()
 
                 states = np.vstack(states)
                 reduced_states = np.vstack(reduced_states)
