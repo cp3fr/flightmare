@@ -1,6 +1,6 @@
 log_dir: "dda/results/testing"
 quad_name: "none"
-seq_len: 1 # History Lenght. When increasing to more than one, the model becomes machine dependent due to data saving latency.
+seq_len: 1 # History Length. When increasing to more than one, the model becomes machine dependent due to data saving latency.
 checkpoint:
   # Put to true and add a path for loading a ckpt
   resume_training: False
@@ -20,3 +20,5 @@ train:
   use_fts_tracks: True
   use_pos: False
   use_activation: False
+  attention_fts_type: "none"  # chose from "none", "decoder_fts", "map_tracks", "gaze_tracks"
+  attention_model_path: "/home/simon/dda-inputs/attention_model_0/model/attention_model_0.pt"
