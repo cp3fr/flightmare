@@ -102,7 +102,8 @@ class Trainer:
                     trajectory_done = info_dict["done"]
                     if not trajectory_done:
                         self.learner.update_info(info_dict)
-                        action = self.learner.get_control_command()
+                        if not self.settings.save_at_net_frequency or info_dict["update"]["command"]:
+                            action = self.learner.get_control_command()
 
                 states = np.vstack(states)
                 reduced_states = np.vstack(reduced_states)
@@ -191,7 +192,8 @@ class Trainer:
                         self.learner.start_data_recording()
 
                     self.learner.update_info(info_dict)
-                    action = self.learner.get_control_command()
+                    if not self.settings.save_at_net_frequency or info_dict["update"]["command"]:
+                        action = self.learner.get_control_command()
 
                     if self.learner.record_data:
                         pos_ref_dict = self.learner.compute_trajectory_error()

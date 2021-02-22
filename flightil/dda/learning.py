@@ -269,6 +269,7 @@ class ControllerLearning:
         self.control_command = optimal_action
 
     def get_control_command(self):
+        # TODO: if save_at_net_frequency == True, should not do stuff...
         control_command_dict = self._generate_control_command()
         return control_command_dict
 

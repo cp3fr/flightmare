@@ -309,7 +309,7 @@ class SafeDataset(BodyDataset):
             inputs.append(fts_seq)
 
         # for attention features all features are saved in the file for now, so it just has to be loaded
-        if self.config.attention_fts_type:
+        if self.config.attention_fts_type != "none":
             att_fts_seq = tf.py_function(func=self.load_att_fts_sequence, inp=[sample_num], Tout=tf.float32)
             inputs.append(att_fts_seq)
 

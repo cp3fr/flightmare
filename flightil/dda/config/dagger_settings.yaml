@@ -27,6 +27,7 @@ train:
   use_activation: False
   attention_fts_type: "none"  # chose from "none", "decoder_fts", "map_tracks", "gaze_tracks"
   attention_model_path: "/home/simon/dda-inputs/attention_model_0/model/attention_model_0.pt"
+  save_at_net_frequency: False
 test_time:
   test_every_n_rollouts: 30
   execute_nw_predictions: True
