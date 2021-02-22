@@ -200,16 +200,10 @@ class SafeDataset(BodyDataset):
             att_fts_fname = None
             if self.config.attention_fts_type != "none":
                 att_fts_fname = os.path.join(dir_subpath[1], "{:08d}.{}".format(frame_number, self.att_fts_format))
-                print(att_fts_fname)
             if os.path.isfile(img_fname) \
                     and (self.config.attention_fts_type == "none" or os.path.isfile(att_fts_fname)) \
                     and (rollout_fts_v[frame_number] in good_rollouts):
                 is_valid = True
-            else:
-                print("{} is file: {}".format(img_fname, os.path.isfile(img_fname)))
-                print("{} is file: {}".format(att_fts_fname, os.path.isfile(att_fts_fname)))
-                print("self.config.attention_fts_type:", self.config.attention_fts_type)
-                print("rollout in good rollouts:", rollout_fts_v[frame_number] in good_rollouts)
             if is_valid:
                 self.features.append(self.preprocess_fts(features_v[frame_number]))
                 self.labels.append(labels_v[frame_number])

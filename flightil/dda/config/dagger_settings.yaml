@@ -13,7 +13,7 @@ data_generation:
 train:
   gpu: 0
   max_training_epochs: 20
-  max_allowed_error: 2.0 # Collision rollouts are eliminated from the training
+  max_allowed_error: 3.0 # Collision rollouts are eliminated from the training
   min_number_fts: 40 # Number of feature tracks per image
   batch_size: 32
   learning_rate: 0.0001
