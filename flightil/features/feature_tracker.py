@@ -184,7 +184,7 @@ class FeatureTracker:
             current_points = self._filter_outliers(current_points)
 
             if len(current_points) == 0:
-                print("FEATURE TRACKER: No point matches, need to reset.")
+                print("\n[FeatureTracker] No point matches, need to reset.\n")
                 self.reset()
                 # TODO: should probably just act like this is the first iteration though...
                 #  => actually, instead of doing the stuff below, could just reset/empty all the arrays I think
@@ -217,7 +217,7 @@ class FeatureTracker:
                 else:
                     current_points = np.concatenate((current_points, additional_points[:additional_points_count]), axis=0)
             elif current_points_count == 0:
-                print("FEATURE TRACKER: No features to track found, need to reset.")
+                print("\n[FeatureTracker] No features to track found, need to reset.\n")
                 self.reset()
                 return None
 

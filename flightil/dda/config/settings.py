@@ -144,6 +144,8 @@ class DaggerSetting(Settings):
             self.use_activation = train_conf["use_activation"]
             self.save_every_n_epochs = train_conf['save_every_n_epochs']
             self.verbose = settings['verbose']
+            self.attention_fts_type = train_conf.get("attention_fts_type", "none")
+            self.attention_model_path = train_conf.get("attention_model_path", "")
             assert isinstance(self.verbose, bool)
             # --- Flightmare simulation --- #
             sim_conf = settings["simulation"]

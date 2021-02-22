@@ -9,6 +9,7 @@ from collections import deque
 from scipy.spatial.transform import Rotation
 from dda.src.ControllerLearning.models.bodyrate_learner import BodyrateLearner
 from features.feature_tracker import FeatureTracker
+from features.attention import AttentionDecoderFeatures, AttentionMapTracks
 from mpc.mpc.mpc_solver import MPCSolver
 from mpc.simulation.planner import TrajectoryPlanner
 
@@ -32,6 +33,7 @@ class ControllerLearning:
 
         self.csv_filename = None
         self.image_save_dir = None
+        self.attention_fts_save_dir = None
 
         # things to keep track of the current "status"
         self.record_data = False
@@ -49,6 +51,7 @@ class ControllerLearning:
 
         self.fts_queue = deque([], maxlen=self.config.seq_len)
         self.state_queue = deque([], maxlen=self.config.seq_len)
+        self.attention_fts_queue = deque([], maxlen=self.config.seq_len)
 
         # simulation time (for now mostly for the feature tracker for velocity calculation)
         self.simulation_time = 0.0
@@ -72,6 +75,18 @@ class ControllerLearning:
         self.planner = TrajectoryPlanner(trajectory_path, 4.0, 0.2, max_time=max_time)
         self.expert = MPCSolver(4.0, 0.2)
 
+        # TODO: should probably only have one of these at a time and gather some sort of attention features
+        #  => also need to set the feature size according to that
+
+        self.attention_fts_extractor = None
+        self.attention_fts_size = -1
+        if self.config.attention_fts_type == "decoder_fts":
+            self.attention_fts_extractor = AttentionDecoderFeatures(self.config)
+            self.attention_fts_size = 128
+        elif self.config.attention_fts_type == "decoder_fts":
+            self.attention_fts_extractor = AttentionMapTracks(self.config)
+            self.attention_fts_size = 4
+
         # preparing for data saving
         if self.mode == "iterative" or self.config.verbose:
             self.write_csv_header()
@@ -88,6 +103,7 @@ class ControllerLearning:
 
         self.fts_queue.clear()
         self.state_queue.clear()
+        self.attention_fts_queue.clear()
 
         self.state = np.zeros((13,), dtype=np.float32)
         self.reference = np.zeros((13,), dtype=np.float32)
@@ -111,9 +127,12 @@ class ControllerLearning:
         for _ in range(self.config.seq_len):
             self.state_queue.append(np.zeros((n_init_states,), dtype=np.float32))
             self.fts_queue.append(init_dict)
+            if self.config.attention_fts_type != "none":
+                self.attention_fts_queue.append(np.zeros((self.attention_fts_size,), dtype=np.float32))
 
         self.feature_tracks = copy.copy(init_dict)
         self.feature_tracker.reset()
+        # TODO: also reset attention feature extractor if necessary
 
     def start_data_recording(self):
         print("[ControllerLearning] Collecting data")
@@ -207,6 +226,12 @@ class ControllerLearning:
 
         self.fts_queue.append(processed_dict)
 
+        # TODO: once implemented, get attention features/attention tracks/etc. here
+        if self.config.attention_fts_type != "none":
+            attention_fts = self.attention_fts_extractor.get_attention_features(
+                image, current_time=self.simulation_time)  # TODO: add other parameters if necessary
+            self.attention_fts_queue.append(attention_fts)
+
     def update_info(self, info_dict):
         self.update_simulation_time(info_dict["time"])
         self.update_state(info_dict["state"])
@@ -215,8 +240,24 @@ class ControllerLearning:
             self.update_image(info_dict["image"])
         if info_dict["update"]["reference"]:
             self.update_reference(info_dict["reference"])
+        if info_dict["update"]["command"]:
+            self.prepare_network_command()
         if info_dict["update"]["expert"]:
             self.prepare_expert_command()
+
+    def prepare_network_command(self):
+        # format the inputs
+        inputs = self._prepare_net_inputs()
+
+        # "initialise" the network structure if it hasn't been done already
+        if not self.network_initialised:
+            self.learner.inference(inputs)
+            print("[ControllerLearning] Network initialized")
+            self.network_initialised = True
+
+        # apply network
+        results = self.learner.inference(inputs)
+        self.network_command = np.array([results[0][0], results[0][1], results[0][2], results[0][3]])
 
     def prepare_expert_command(self):
         # get the reference trajectory over the time horizon
@@ -235,32 +276,10 @@ class ControllerLearning:
         # return self.control_command
         control_command_dict = {
             "expert": self.control_command,
-            "network": np.array([np.nan, np.nan, np.nan, np.nan]) if self.network_command is None else self.network_command,
+            "network": np.array([np.nan, np.nan, np.nan, np.nan])
+            if self.network_command is None else self.network_command,
             "use_network": False,
         }
-
-        inputs = self._prepare_net_inputs()
-        if not self.network_initialised:
-            # apply network to init TODO: not sure what this means/why this is needed => maybe just some TF stuff?
-            results = self.learner.inference(inputs)
-            print("[ControllerLearning] Net initialized")
-            self.network_initialised = True
-            # I guess at this point the control command should be the one the expert has generated...
-            # since we have to "request" that manually, will probably have to do it here...
-            # TODO: why no return here?
-
-        if self.mode != "testing" and (not self.use_network or
-                                       not self.reference_updated
-                                       or len(inputs["fts"].shape) != 4):
-            # Will be in here if:
-            # - starting and VIO init
-            # - Image queue is not ready, can only run expert
-            # => this should basically not happen... (in the Flightmare implementation?)
-            if self.use_network:
-                print("[ControllerLearning] Using expert wait for ref")
-            if self.record_data:
-                self.n_times_expert += 1
-            return control_command_dict
 
         # always use expert at the beginning (approximately 0.2s) to avoid synchronization problems
         # => should be a better way of doing this than this counter...
@@ -281,17 +300,11 @@ class ControllerLearning:
         #  in PythonSimulation could return a boolean "notifying" this) and then, whenever the expert output should be
         #  used, the "cached" command is used!
 
-        # Apply Network
-        results = self.learner.inference(inputs)
-        control_command = np.array([results[0][0], results[0][1], results[0][2], results[0][3]])
-        self.network_command = control_command
-        control_command_dict["network"] = self.network_command
-
-        # Log everything immediately to avoid surprises (if required)
+        # log everything at the base frequency (i.e. the state "estimate" frequency)
         if self.record_data:
             self.save_data()
 
-        # Apply random controller now and then to facilitate exploration
+        # apply random controller now and then to facilitate exploration
         if (self.mode != "testing") and random.random() < self.config.rand_controller_prob:
             self.control_command[0] += self.config.rand_thrust_mag * (random.random() - 0.5) * 2
             self.control_command[1] += self.config.rand_rate_mag * (random.random() - 0.5) * 2
@@ -302,11 +315,11 @@ class ControllerLearning:
                 self.n_times_randomised += 1
             return control_command_dict
 
-        # Dagger (on control command label).
-        d_thrust = control_command[0] - self.control_command[0]
-        d_br_x = control_command[1] - self.control_command[1]
-        d_br_y = control_command[2] - self.control_command[2]
-        d_br_z = control_command[3] - self.control_command[3]
+        # DAgger (on control command label).
+        d_thrust = self.network_command[0] - self.control_command[0]
+        d_br_x = self.network_command[1] - self.control_command[1]
+        d_br_y = self.network_command[2] - self.control_command[2]
+        d_br_z = self.network_command[3] - self.control_command[3]
         if (self.mode == "testing" and self.use_network) \
                 or (self.config.execute_nw_predictions
                     and abs(d_thrust) < self.config.fallback_threshold_rates \
@@ -315,6 +328,7 @@ class ControllerLearning:
                     and abs(d_br_z) < self.config.fallback_threshold_rates):
             if self.record_data:
                 self.n_times_net += 1
+            control_command_dict["network"] = self.network_command
             control_command_dict["use_network"] = True
             return control_command_dict
 
@@ -339,6 +353,8 @@ class ControllerLearning:
                     n_init_states = 15
             inputs = {"fts": np.zeros((1, self.config.seq_len, self.config.min_number_fts, 5), dtype=np.float32),
                       "state": np.zeros((1, self.config.seq_len, n_init_states), dtype=np.float32)}
+            if self.config.attention_fts_type != "none":
+                inputs["attention_fts"] = np.zeros((1, self.config.seq_len, self.attention_fts_size), dtype=np.float32)
             return inputs
 
         # reference is always used, state estimate if specified in config
@@ -358,6 +374,9 @@ class ControllerLearning:
             [np.stack([v for v in self.fts_queue[j].values()]) for j in range(self.config.seq_len)])
         inputs = {"fts": np.expand_dims(feature_inputs, axis=0).astype(np.float32),
                   "state": np.expand_dims(state_inputs, axis=0).astype(np.float32)}
+        if self.config.attention_fts_type != "none":
+            attention_fts_inputs = np.stack(self.attention_fts_queue)
+            inputs["attention_fts"] = np.expand_dims(attention_fts_inputs, axis=0).astype(np.float32)
         return inputs
 
     def compute_trajectory_error(self):
@@ -432,13 +451,21 @@ class ControllerLearning:
             root_save_dir = self.config.train_dir
         else:
             root_save_dir = self.config.log_dir
+
         self.csv_filename = os.path.join(root_save_dir, "data_" + current_time + ".csv")
         self.image_save_dir = os.path.join(root_save_dir, "img_data_" + current_time)
+
         if not os.path.exists(self.image_save_dir):
             os.makedirs(self.image_save_dir)
         with open(self.csv_filename, "w") as writeFile:
             writer = csv.writer(writeFile)
             writer.writerows([row])
+
+        if self.config.attention_fts_type != "none":
+            self.attention_fts_save_dir = os.path.join(root_save_dir, "{}_{}"
+                                                       .format(self.config.attention_fts_type, current_time))
+            if not os.path.exists(self.attention_fts_save_dir):
+                os.makedirs(self.attention_fts_save_dir)
 
     def save_data(self):
         row = [
@@ -503,10 +530,20 @@ class ControllerLearning:
         ]
 
         if self.record_data:
+            # save the state data and commands
             with open(self.csv_filename, "a") as writeFile:
                 writer = csv.writer(writeFile)
                 writer.writerows([row])
+
+            # save the feature track data
             fts_name = "{:08d}.npy"
             fts_filename = os.path.join(self.image_save_dir, fts_name.format(self.recorded_samples))
             np.save(fts_filename, self.feature_tracks)
+
+            # save attention feature data if specified
+            if self.config.attention_fts_type != "none":
+                attention_fts_filename = os.path.join(self.attention_fts_save_dir,
+                                                      "{:08d}.npy".format(self.recorded_samples))
+                np.save(attention_fts_filename, np.stack(self.attention_fts_queue, axis=0))
+
             self.recorded_samples += 1

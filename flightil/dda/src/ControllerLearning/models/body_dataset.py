@@ -28,30 +28,49 @@ class BodyDataset:
         self.labels = []
         self.filenames = []
         self.stacked_filenames = []  # Will be used for passing stacked fnames
-        img_rootname = 'img_data'
+        self.att_fts_filenames = []
+        img_rootname = "img_data"
+        att_fts_rootname = self.config.attention_fts_type
+        att_fts_experiments = []
         for root, dirs, files in os.walk(directory, topdown=True, followlinks=True):
             for name in dirs:
                 if name.startswith(img_rootname):
                     exp_dir = os.path.join(root, name)
                     self.experiments.append(os.path.abspath(exp_dir))
+                elif att_fts_rootname != "none" and name.startswith(att_fts_rootname):
+                    exp_dir = os.path.join(root, name)
+                    att_fts_experiments.append(os.path.abspath(exp_dir))
+
+        if self.config.attention_fts_type != "none":
+            self.experiments = sorted(self.experiments)
+            att_fts_experiments = sorted(att_fts_experiments)
+            self.experiments = list(zip(self.experiments, att_fts_experiments))
+
+            # check that time stamps/names match
+            if not all([exp.endswith(af_exp[-15:]) for exp, af_exp in self.experiments]):
+                raise ImportError("With attention feature type '{}' specified, feature track and attention "
+                                  "feature folders do not match".format(self.config.attention_fts_type))
+
+        # TODO: need to match this with features....
+        # one other "issue": if different experiments have different feature types everything
+        # falls apart, but that would be really dumb and more of a user error
 
         self.num_experiments = len(self.experiments)
-        self.img_format = 'npy'
-        self.data_format = 'csv'
+        self.img_format = "npy"
+        self.data_format = "csv"
+        self.att_fts_format = "npy"
 
         for exp_dir in self.experiments:
             try:
                 self._decode_experiment_dir(exp_dir)
             except:
-                raise ImportWarning("Image reading in {} failed".format(
-                    exp_dir))
+                raise ImportWarning("Image reading in {} failed".format(exp_dir))
         if self.samples == 0:
             raise IOError("Did not find any file in the dataset folder")
-        print('[BodyDataset] Found {} images  belonging to {} experiments:'.format(
-            self.samples, self.num_experiments))
+        print("[BodyDataset] Found {} images belonging to {} experiments:".format(self.samples, self.num_experiments))
 
-    def _recursive_list(self, subpath, fmt='jpg'):
-        return fnmatch.filter(os.listdir(subpath), '*.{}'.format(fmt))
+    def _recursive_list(self, subpath, fmt="jpg"):
+        return fnmatch.filter(os.listdir(subpath), "*.{}".format(fmt))
 
     def build_dataset(self):
         self._build_dataset()
@@ -70,15 +89,28 @@ class SafeDataset(BodyDataset):
         self.build_dataset()
 
     def _decode_experiment_dir(self, dir_subpath):
-        base_path = os.path.basename(dir_subpath)
-        parent_dict = os.path.dirname(dir_subpath)
-        data_name = 'data' + base_path[8:] + ".csv"
+        # TODO: if this is a tuple, then stuff should change
+        if not isinstance(dir_subpath, tuple):
+            dir_subpath = (dir_subpath,)
+
+        base_path = os.path.basename(dir_subpath[0])
+        parent_dict = os.path.dirname(dir_subpath[0])
+
+        # load the state/command data
+        data_name = "data" + base_path[8:] + ".csv"
         data_name = os.path.join(parent_dict, data_name)
         assert os.path.isfile(data_name), "Not Found data file"
-        df = pd.read_csv(data_name, delimiter=',')
+        df = pd.read_csv(data_name, delimiter=",")
         num_files = df.shape[0]
-        num_images = len(self._recursive_list(dir_subpath, fmt=self.img_format))
-        assert num_files == num_images, "Number of features and images does not match"
+
+        # get the number of saved feature track dicts TODO: do the same for attention fts (also assert stuff)
+        num_images = len(self._recursive_list(dir_subpath[0], fmt=self.img_format))
+        if self.config.attention_fts_type != "none":
+            num_att_fts = len(self._recursive_list(dir_subpath[1], fmt=self.att_fts_format))
+            assert num_files == num_images == num_att_fts, \
+                "Number of state measurements, images and attention features does not match"
+        else:
+            assert num_files == num_images, "Number of state measurements and images does not match"
 
         features_imu = [  # VIO Estimate
             "Orientation_x",
@@ -164,14 +196,19 @@ class SafeDataset(BodyDataset):
 
         for frame_number in range(num_files):
             is_valid = False
-            img_fname = os.path.join(dir_subpath, "{:08d}.{}".format(frame_number, self.img_format))
-            if os.path.isfile(img_fname) and (rollout_fts_v[frame_number] in good_rollouts):
+            img_fname = os.path.join(dir_subpath[0], "{:08d}.{}".format(frame_number, self.img_format))
+            att_fts_fname = os.path.join(dir_subpath[1], "{:08d}.{}".format(frame_number, self.att_fts_format))
+            if os.path.isfile(img_fname) \
+                    and (self.config.attention_fts_type == "none" or os.path.isfile(att_fts_fname)) \
+                    and (rollout_fts_v[frame_number] in good_rollouts):
                 is_valid = True
             if is_valid:
                 self.features.append(self.preprocess_fts(features_v[frame_number]))
                 self.labels.append(labels_v[frame_number])
                 if self.config.use_fts_tracks:
-                    self.filenames.append(img_fname)
+                    self.filenames.append(img_fname)  # TODO is this necessary for attention fts?
+                if self.config.attention_fts_type != "none":
+                    self.att_fts_filenames.append(att_fts_fname)
                 self.samples += 1
 
     def preprocess_fts(self, fts):
@@ -243,27 +280,48 @@ class SafeDataset(BodyDataset):
                                    for j in range(self.config.seq_len)])
         return features_input
 
-    def _dataset_map(self, sample_num):
-        # First is rollout idx
-        label = tf.gather(self.labels, sample_num)
-        state_seq = []
+    def load_att_fts_sequence(self, sample_num):
+        att_fts_seq = np.load(self.att_fts_filenames[sample_num.numpy()])
+        if att_fts_seq.shape[0] > self.config.seq_len:
+            att_fts_seq = att_fts_seq[-self.config.seq_len:]
+        elif att_fts_seq.shape[0] < self.config.seq_len:
+            raise ImportError("Attention features can only be loaded with seq_len <= what they were saved with.")
+        return att_fts_seq
 
-        # For states is easy: nothing to do.
+    def _dataset_map(self, sample_num):
+        # first is rollout idx
+        inputs = []
+        label = tf.gather(self.labels, sample_num)
+
+        # for states it is easy: nothing to do
+        state_seq = []
         for idx in reversed(range(self.config.seq_len)):
             state = tf.gather(self.features, sample_num - idx)[1:]
             state_seq.append(state)
-
         state_seq = tf.stack(state_seq)
+        inputs.append(state_seq)
 
-        # For images, take care they do not overlap
+        # for images, take care they do not overlap
         if self.config.use_fts_tracks:
-            fts_seq = tf.py_function(func=self.load_fts_sequence,
-                                     inp=[sample_num],
-                                     Tout=tf.float32)
+            fts_seq = tf.py_function(func=self.load_fts_sequence, inp=[sample_num], Tout=tf.float32)
+            inputs.append(fts_seq)
 
+        # for attention features all features are saved in the file for now, so it just has to be loaded
+        if self.config.attention_fts_type:
+            att_fts_seq = tf.py_function(func=self.load_att_fts_sequence, inp=[sample_num], Tout=tf.float32)
+            inputs.append(att_fts_seq)
+
+        """
             return (state_seq, fts_seq), label
         else:
-            return state_seq, label
+            return state_seq, label#
+        """
+
+        if len(inputs) == 1:
+            inputs = inputs[0]
+        else:
+            inputs = tuple(inputs)
+        return inputs, label
 
     def check_equal_dict(self, d1, d2):
         for k_1, v_1 in d1.items():
@@ -276,23 +334,36 @@ class SafeDataset(BodyDataset):
         return True
 
     def _preprocess_fnames(self):
+        # TODO: this is still the biggest mystery
+        #  => need to figure out what this whole "overlapping" is supposed to mean
+        #  => does it mean that only features that are not the same are used as input?
+        #     that seems like it doesn't make sense since features might indeed still be the same, no?
+        #  => wait, nevermind, the whole point of the asynchronous architecture is that the features can be recorded
+        #     with slower frequency than e.g. the states, but since everything is saved at the "network" command
+        #     frequency some of the recorded feature files should actually be skipped!!
+
         # Append filenames up to seq_len for fast loading.
         # A bit ugly and inefficient, can be improved
         self.last_init_fts = None
         for k in range(len(self.filenames)):
             if k % 3000 == 0:
-                print("[BodyDataset] Built {:.2f}% of the dataset".format(k / len(self.filenames) * 100), end='\r')
+                print("[BodyDataset] Built {:.2f}% of the dataset".format(k / len(self.filenames) * 100), end="\r")
             # Check if you can copy the things before
+            # TODO: I guess this is relevant because the frequency is low enough that upon save the same feature
+            #  tracks might be written to files multiple times
+            #  => thus, just (pre-)loading one file is more efficient
+            #  => the same can be done (even easier) with attention fts, just check array equality
             kth_fts = self.filenames[k]
             kth_fts = np.load(kth_fts, allow_pickle=True).item()
             if k > 0:
                 if self.check_equal_dict(self.last_init_fts, kth_fts):
                     self.stacked_filenames.append(self.stacked_filenames[-1])
                     continue
+
             # This is the latest observed feature track different from others
             self.last_init_fts = kth_fts
             idx = 0
-            rollout_idxes = []
+            rollout_indices = []
             fname_seq = []
             fts_seq = []
             while len(fts_seq) < self.config.seq_len:
@@ -306,10 +377,10 @@ class SafeDataset(BodyDataset):
                 if idx == 0:
                     fname_seq.append(current_idx)
                     fts_seq.append(kth_fts)
-                    rollout_idxes.append(rollout_idx)
+                    rollout_indices.append(rollout_idx)
                 else:
-                    if rollout_idx != rollout_idxes[-1]:
-                        # it is a transient! Can only append zeros.
+                    if rollout_idx != rollout_indices[-1]:
+                        # it is a transient! Can only append zeros.  TODO: I guess they mean transition?
                         fname_seq.append(-1)
                         fts_seq.append(0.)
                     else:
@@ -320,7 +391,9 @@ class SafeDataset(BodyDataset):
                             # Objects are not equal, can append
                             fname_seq.append(current_idx)
                             fts_seq.append(fts)
-                            rollout_idxes.append(rollout_idx)
+                            rollout_indices.append(rollout_idx)
+                        # TODO: so I think this basically just tries to go back through the last x features...
+                        #  no wtf I have no clue what this is doing
                 idx += 1
             assert len(fts_seq) == len(fname_seq)
             self.stacked_filenames.append(fname_seq)
@@ -339,6 +412,7 @@ class SafeDataset(BodyDataset):
         # Preprocess filenames to assess consistency of experiment
         for idx in range(self.config.seq_len - 1, self.samples):
             if self.features[idx, 0] == self.features[idx - self.config.seq_len + 1, 0]:
+                # so I guess this includes all the file name "indices" while we are still in the same rollout?
                 last_fname_numbers.append(np.int32(idx))
 
         if self.training:
@@ -348,16 +422,35 @@ class SafeDataset(BodyDataset):
         dataset = tf.data.Dataset.from_tensor_slices(last_fname_numbers)
         if self.training:
             dataset = dataset.shuffle(buffer_size=len(last_fname_numbers))
-        dataset = dataset.map(self._dataset_map, num_parallel_calls=10 if self.training else 1)
-        dataset = dataset.batch(self.config.batch_size, drop_remainder=not self.training)
+        dataset = dataset.map(self._dataset_map, num_parallel_calls=10 if self.training else 1)  # applies the function to each element of the dataset
+        dataset = dataset.batch(self.config.batch_size, drop_remainder=not self.training)  # guess this is just to specify batch size and other behaviour
         dataset = dataset.prefetch(buffer_size=10 * self.config.batch_size)
         self.batched_dataset = dataset
 
 
 if __name__ == "__main__":
     from dda.config.settings import create_settings
+    from pprint import pprint
 
     load_dir = "/home/simon/gazesim-data/fpv_saliency_maps/data/dda/data/testing/train/"
     settings_path = "../../../config/dagger_settings.yaml"
     settings = create_settings(settings_path, mode="dagger")
+    settings.batch_size = 1
     ds = create_dataset(load_dir, settings)
+
+    pprint(ds.stacked_filenames)
+    print()
+    pprint(ds.filenames)
+
+    c = 0
+    for k, (features, label) in enumerate(ds.batched_dataset):
+        if c > 5:
+            break
+
+        state_seq, fts_seq, att_fts_seq = features
+        print(state_seq.shape)
+        print(fts_seq.shape)
+        print(att_fts_seq.shape)
+        print("\n\n\n")
+
+        c += 1

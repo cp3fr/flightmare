@@ -25,6 +25,8 @@ train:
   use_fts_tracks: True
   use_pos: False
   use_activation: False
+  attention_fts_type: "none"  # chose from "none", "decoder_fts", "map_tracks", "gaze_tracks"
+  attention_model_path: "/home/simon/dda-inputs/attention_model_0/model/attention_model_0.pt"
 test_time:
   test_every_n_rollouts: 30
   execute_nw_predictions: True
@@ -44,4 +46,4 @@ simulation:
   expert_command_frequency: 20
   start_buffer: 0.0
   max_time: 6.0
-  trajectory_path: "/home/simon/Downloads/trajectory_barrel_roll.csv"
+  trajectory_path: "/home/simon/dda-inputs/trajectory_barrel_roll.csv"

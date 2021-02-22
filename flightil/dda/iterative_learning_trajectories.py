@@ -30,13 +30,15 @@ class Trainer:
         self.connect_to_sim = True
 
     def perform_testing(self):
-        print("\n---------------------------")
-        print("[Trainer] Starting Testing (rollout {})".format(self.learner.rollout_idx))
-        print("---------------------------\n")
+        print("\n-----------------------------------------")
+        print("[Trainer] Starting Testing (rollout {: >4d})".format(self.learner.rollout_idx))
+        print("-----------------------------------------\n")
+
+        testing_start = time.time()
 
         # defining some settings
         max_time = min(self.settings.max_time + 4.0, self.simulation.reference_sampler.get_final_time_stamp())
-        switch_times = np.array(np.arange(0.0, max_time - 2.0, step=1.0).tolist() + [max_time + 1.0])
+        switch_times = np.array(np.arange(0.0, max_time - 2.0, step=2.0).tolist() + [max_time + 1.0])
         switch_times += self.settings.start_buffer
         repetitions = 1
         save_path = os.path.join(self.settings.log_dir, "online_eval_rollout-{:04d}".format(self.learner.rollout_idx))
@@ -55,6 +57,8 @@ class Trainer:
         for switch_time in switch_times:
             for repetition in range(repetitions if switch_time < max_time else 1):
                 print("\n[Trainer] Testing for switch time {}, repetition {}\n".format(switch_time, repetition))
+
+                repetition_start = time.time()
 
                 # data to record
                 states = []
@@ -94,12 +98,11 @@ class Trainer:
                     network_actions.append(action["network"])
                     network_used.append(action["use_network"])
 
-                    info_dict = self.simulation.step(action["1network"] if action["use_network"] else action["expert"])
+                    info_dict = self.simulation.step(action["network"] if action["use_network"] else action["expert"])
                     trajectory_done = info_dict["done"]
                     if not trajectory_done:
                         self.learner.update_info(info_dict)
-                        if info_dict["update"]["command"]:
-                            action = self.learner.get_control_command()
+                        action = self.learner.get_control_command()
 
                 states = np.vstack(states)
                 reduced_states = np.vstack(reduced_states)
@@ -114,11 +117,15 @@ class Trainer:
                 save_trajectory_data(time_stamps, mpc_actions, network_actions, states,
                                      network_used, max_time, switch_time, repetition, save_path)
 
+                print("\n[Trainer] Finished testing for switch time {:.1f}s, repetition {} after {:.2f}s\n"
+                      .format(switch_time, repetition, time.time() - repetition_start))
+
         self.learner.mode = "iterative"
 
-        print("\n---------------------------")
-        print("[Trainer] Finished testing (rollout {})".format(self.learner.rollout_idx))
-        print("---------------------------\n")
+        print("\n--------------------------------------------------------")
+        print("[Trainer] Finished testing after {:.2f}s (rollout {})"
+              .format(time.time() - testing_start, self.learner.rollout_idx))
+        print("--------------------------------------------------------\n")
 
     def perform_training(self):
         shutdown_requested = False
@@ -142,12 +149,15 @@ class Trainer:
                                "expert_usage", "network_usage", "randomised_usage"]])
 
         while (not shutdown_requested) and (self.learner.rollout_idx < self.settings.max_rollouts):
+            rollout_start = time.time()
+
             self.trajectory_done = False
             info_dict = self.simulation.reset()
             if info_dict["time"] > self.settings.start_buffer:
                 self.learner.start_data_recording()
             self.learner.reset()
             self.learner.update_info(info_dict)
+            self.learner.prepare_network_command()
             self.learner.prepare_expert_command()
             action = self.learner.get_control_command()
 
@@ -170,6 +180,7 @@ class Trainer:
 
             # run the main loop until the simulation "signals" that the trajectory is done
             print("\n[Trainer] Starting experiment {}\n".format(self.learner.rollout_idx))
+            step_counter = 0
             while not self.trajectory_done:
                 # TODO?: whenever the image has been update, get the feature tracks and visualise them in a video
                 #  to check whether everything with the image capturing and feature tracking works correctly
@@ -180,14 +191,14 @@ class Trainer:
                         self.learner.start_data_recording()
 
                     self.learner.update_info(info_dict)
-                    if info_dict["update"]["command"]:
-                        action = self.learner.get_control_command()
+                    action = self.learner.get_control_command()
 
                     if self.learner.record_data:
                         pos_ref_dict = self.learner.compute_trajectory_error()
                         gt_pos_log.append(pos_ref_dict["gt_pos"])
                         ref_log.append(pos_ref_dict["gt_ref"])
                         error_log.append(np.linalg.norm(pos_ref_dict["gt_pos"] - pos_ref_dict["gt_ref"]))
+                step_counter += 1
 
             # final logging
             tracking_error = np.mean(error_log)
@@ -195,11 +206,14 @@ class Trainer:
             t_log = np.stack((ref_log, gt_pos_log), axis=0)
             usage = self.learner.stop_data_recording()
 
+            rollout_time = time.time() - rollout_start
             print("\n[Trainer]")
-            print("Expert|network|randomised used {:.03f}|{:.03f}|{:.03f}% of the time".format(
-                100.0 * usage["expert"], 100.0 * usage["network"], 100.0 * usage["randomised"]))
-            print("Mean Tracking Error is {:.03f}".format(tracking_error))
-            print("Median Tracking Error is {:.03f}\n".format(median_traj_error))
+            print("Finished rollout after {:.2f}s ({:.4f}s average per step)"
+                  .format(rollout_time, rollout_time / step_counter))
+            print("Expert|network|randomised used {:06.3f}|{:06.3f}|{:06.3f}% of the time"
+                  .format(100.0 * usage["expert"], 100.0 * usage["network"], 100.0 * usage["randomised"]))
+            print("Mean tracking error is {:.3f}".format(tracking_error))
+            print("Median tracking error is {:.3f}\n".format(median_traj_error))
 
             with open(os.path.join(self.settings.log_dir, "metrics.csv"), "a") as f:
                 writer = csv.writer(f)
@@ -220,9 +234,9 @@ class Trainer:
                 # this seems to encourage more use of the network/more exploration the further we progress in training
                 print("\n[Trainer]")
                 self.settings.fallback_threshold_rates += 0.5
-                print("Setting Rate Threshold to {}".format(self.settings.fallback_threshold_rates))
+                print("Setting rate threshold to {: >2.2f}".format(self.settings.fallback_threshold_rates))
                 self.settings.rand_controller_prob = np.minimum(0.3, self.settings.rand_controller_prob * 2)
-                print("Setting Rand Controller Prob to {}\n".format(self.settings.rand_controller_prob))
+                print("Setting rand controller probability to {: >2.2f}%\n".format(self.settings.rand_controller_prob * 100.0))
 
             if self.settings.verbose:
                 t_log_fname = os.path.join(self.settings.log_dir, "traj_log_{:5d}.npy".format(self.learner.rollout_idx))
@@ -234,6 +248,7 @@ class Trainer:
                                     self.simulation.command_time_step, self.simulation.total_time)
             break
             """
+            # break
 
 
 def main():
