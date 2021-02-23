@@ -222,17 +222,19 @@ class SafeDataset(BodyDataset):
         fts = fts.tolist()
         # I don't think these indices are correct... they only work if IMU data is also used
         # ref_rot = R.from_quat(fts[11:15]).as_matrix().reshape((9,)).tolist()
-        if self.config.use_pos:
-            ref_rot = R.from_quat(fts[14:18]).as_matrix().reshape((9,)).tolist()
-        else:
-            ref_rot = R.from_quat(fts[11:15]).as_matrix().reshape((9,)).tolist()
         if self.config.use_imu:
+            if self.config.use_pos:
+                ref_rot = R.from_quat(fts[14:18]).as_matrix().reshape((9,)).tolist()
+            else:
+                ref_rot = R.from_quat(fts[11:15]).as_matrix().reshape((9,)).tolist()
+
             odom_rot = R.from_quat(fts[1:5]).as_matrix().reshape((9,)).tolist()
             if self.config.use_pos:
                 processed_fts = [fts[0]] + odom_rot + fts[5:14] + ref_rot + fts[18:]
             else:
                 processed_fts = [fts[0]] + odom_rot + fts[5:11] + ref_rot + fts[15:]
         else:
+            ref_rot = R.from_quat(fts[1:5]).as_matrix().reshape((9,)).tolist()
             if self.config.use_pos:
                 processed_fts = [fts[0]] + ref_rot + fts[5:14]
             else:
