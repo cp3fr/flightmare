@@ -321,10 +321,7 @@ class SafeDataset(BodyDataset):
             return state_seq, label#
         """
 
-        if len(inputs) == 1:
-            inputs = inputs[0]
-        else:
-            inputs = tuple(inputs)
+        inputs = tuple(inputs)
         return inputs, label
 
     def check_equal_dict(self, d1, d2):
@@ -442,9 +439,9 @@ if __name__ == "__main__":
     settings.batch_size = 1
     ds = create_dataset(load_dir, settings)
 
-    pprint(ds.stacked_filenames)
-    print()
-    pprint(ds.filenames)
+    # pprint(ds.stacked_filenames)
+    # print()
+    # pprint(ds.filenames)
 
     c = 0
     for k, (features, label) in enumerate(ds.batched_dataset):

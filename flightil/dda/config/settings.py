@@ -78,6 +78,7 @@ class TrainSetting(Settings):
             self.use_activation = train_conf["use_activation"]
             self.attention_fts_type = train_conf.get("attention_fts_type", "none")
             self.attention_model_path = train_conf.get("attention_model_path", "")
+            self.shallow_control_module = train_conf.get("shallow_control_module", False)
             self.val_dir = os.path.join(os.getenv("GAZESIM_ROOT"), os.pardir, train_conf['val_dir'])
             self.min_number_fts = train_conf['min_number_fts']
             self.save_every_n_epochs = train_conf['save_every_n_epochs']

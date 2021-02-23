@@ -9,7 +9,7 @@ train:
   gpu: 0
   max_training_epochs: 150
   max_allowed_error: 2.0
-  batch_size: 32
+  batch_size: 1
   learning_rate: 0.0001
   summary_freq: 400
   min_number_fts: 40
@@ -17,8 +17,9 @@ train:
   val_dir: "dda/data/testing/test"
   save_every_n_epochs: 5
   use_imu: True
-  use_fts_tracks: True
+  use_fts_tracks: False
   use_pos: False
   use_activation: False
   attention_fts_type: "none"  # chose from "none", "decoder_fts", "map_tracks", "gaze_tracks"
   attention_model_path: "/home/simon/dda-inputs/attention_model_0/model/attention_model_0.pt"
+  shallow_control_module: False
