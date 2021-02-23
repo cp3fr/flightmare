@@ -9,7 +9,7 @@ from collections import deque
 from scipy.spatial.transform import Rotation
 from dda.src.ControllerLearning.models.bodyrate_learner import BodyrateLearner
 from features.feature_tracker import FeatureTracker
-from features.attention import AttentionDecoderFeatures, AttentionMapTracks, GazeTracks
+from features.attention import AttentionDecoderFeatures, AttentionMapTracks, GazeTracks, AllAttentionFeatures
 from mpc.mpc.mpc_solver import MPCSolver
 from mpc.simulation.planner import TrajectoryPlanner
 
@@ -80,15 +80,17 @@ class ControllerLearning:
 
         self.attention_fts_extractor = None
         self.attention_fts_size = -1
+        if self.config.attention_record_all_features:
+            self.attention_fts_extractor = AllAttentionFeatures(self.config)
         if self.config.attention_fts_type == "decoder_fts":
-            self.attention_fts_extractor = AttentionDecoderFeatures(self.config)
             self.attention_fts_size = 128
+            self.attention_fts_extractor = self.attention_fts_extractor or AttentionDecoderFeatures(self.config)
         elif self.config.attention_fts_type == "map_tracks":
-            self.attention_fts_extractor = AttentionMapTracks(self.config)
             self.attention_fts_size = 4
+            self.attention_fts_extractor = self.attention_fts_extractor or AttentionMapTracks(self.config)
         elif self.config.attention_fts_type == "gaze_tracks":
-            self.attention_fts_extractor = GazeTracks(self.config)
             self.attention_fts_size = 4
+            self.attention_fts_extractor = self.attention_fts_extractor or GazeTracks(self.config)
 
         # preparing for data saving
         if self.mode == "iterative" or self.config.verbose:
@@ -130,7 +132,9 @@ class ControllerLearning:
         for _ in range(self.config.seq_len):
             self.state_queue.append(np.zeros((n_init_states,), dtype=np.float32))
             self.fts_queue.append(init_dict)
-            if self.config.attention_fts_type != "none":
+            if self.config.attention_record_all_features:
+                self.attention_fts_queue.append({att_f_t: np.zeros((att_f_sz,), dtype=np.float32) for att_f_t, att_f_sz in [("decoder_fts", 128), ("map_tracks", 4), ("gaze_tracks", 4)]})
+            elif self.config.attention_fts_type != "none":
                 self.attention_fts_queue.append(np.zeros((self.attention_fts_size,), dtype=np.float32))
 
         self.feature_tracks = copy.copy(init_dict)
@@ -230,7 +234,7 @@ class ControllerLearning:
         self.fts_queue.append(processed_dict)
 
         # TODO: once implemented, get attention features/attention tracks/etc. here
-        if self.config.attention_fts_type != "none":
+        if self.config.attention_fts_type != "none" or self.config.attention_record_all_features:
             attention_fts = self.attention_fts_extractor.get_attention_features(
                 image, current_time=self.simulation_time)  # TODO: add other parameters if necessary
             self.attention_fts_queue.append(attention_fts)
@@ -379,7 +383,10 @@ class ControllerLearning:
         inputs = {"fts": np.expand_dims(feature_inputs, axis=0).astype(np.float32),
                   "state": np.expand_dims(state_inputs, axis=0).astype(np.float32)}
         if self.config.attention_fts_type != "none":
-            attention_fts_inputs = np.stack(self.attention_fts_queue)
+            attention_fts = self.attention_fts_queue
+            if self.config.attention_record_all_features:
+                attention_fts = [att_f[self.config.attention_fts_type] for att_f in self.attention_fts_queue]
+            attention_fts_inputs = np.stack(attention_fts)
             inputs["attention_fts"] = np.expand_dims(attention_fts_inputs, axis=0).astype(np.float32)
         return inputs
 
@@ -465,9 +472,17 @@ class ControllerLearning:
             writer = csv.writer(writeFile)
             writer.writerows([row])
 
-        if self.config.attention_fts_type != "none":
-            self.attention_fts_save_dir = os.path.join(root_save_dir, "{}_{}"
-                                                       .format(self.config.attention_fts_type, current_time))
+        if self.config.attention_record_all_features:
+            self.attention_fts_save_dir = {
+                att_f_t: os.path.join(root_save_dir, "{}_{}".format(att_f_t, current_time))
+                for att_f_t in ["decoder_fts", "map_tracks", "gaze_tracks"]
+            }
+            for _, fts_dir in self.attention_fts_save_dir.items():
+                if not os.path.exists(fts_dir):
+                    os.makedirs(fts_dir)
+        elif self.config.attention_fts_type != "none":
+            self.attention_fts_save_dir = os.path.join(root_save_dir, "{}_{}".format(
+                self.config.attention_fts_type, current_time))
             if not os.path.exists(self.attention_fts_save_dir):
                 os.makedirs(self.attention_fts_save_dir)
 
@@ -545,7 +560,14 @@ class ControllerLearning:
             np.save(fts_filename, self.feature_tracks)
 
             # save attention feature data if specified
-            if self.config.attention_fts_type != "none":
+            if self.config.attention_record_all_features:
+                for att_f_t, fts_dir in self.attention_fts_save_dir.items():
+                    print(att_f_t)
+                    current_fts = [att_f[att_f_t] for att_f in self.attention_fts_queue]
+                    print(len(current_fts), len(self.attention_fts_queue))
+                    attention_fts_filename = os.path.join(fts_dir, "{:08d}.npy".format(self.recorded_samples))
+                    np.save(attention_fts_filename, np.stack(current_fts, axis=0))
+            elif self.config.attention_fts_type != "none":
                 attention_fts_filename = os.path.join(self.attention_fts_save_dir,
                                                       "{:08d}.npy".format(self.recorded_samples))
                 np.save(attention_fts_filename, np.stack(self.attention_fts_queue, axis=0))

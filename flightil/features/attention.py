@@ -24,9 +24,10 @@ class AttentionDecoderFeatures(AttentionFeatures):
         print("\n[AttentionDecoderFeatures] Loading attention model.\n")
 
         # load model and move to correct device
+        load_path = config.attention_model_path if isinstance(config.attention_model_path, str) else config.attention_model_path[0]
         use_cuda = torch.cuda.is_available()
         self.device = torch.device("cuda:{}".format(config.gpu) if use_cuda else "cpu")
-        self.model, self.model_config = load_model(config.attention_model_path, gpu=config.gpu, return_config=True)
+        self.model, self.model_config = load_model(load_path, gpu=config.gpu, return_config=True)
         self.model.to(self.device)
 
         # set model to only return features
@@ -69,9 +70,10 @@ class AttentionMapTracks(AttentionFeatures):
         print("\n[AttentionMapTracks] Loading attention model.\n")
 
         # load model and move to correct device
+        load_path = config.attention_model_path if isinstance(config.attention_model_path, str) else config.attention_model_path[0]
         use_cuda = torch.cuda.is_available()
         self.device = torch.device("cuda:{}".format(config.gpu) if use_cuda else "cpu")
-        self.model, self.model_config = load_model(config.attention_model_path, gpu=config.gpu, return_config=True)
+        self.model, self.model_config = load_model(load_path, gpu=config.gpu, return_config=True)
         self.model.to(self.device)
 
         # prepare transform
@@ -134,9 +136,10 @@ class GazeTracks(AttentionFeatures):
         print("\n[GazeTracks] Loading attention model.\n")
 
         # load model and move to correct device
+        load_path = config.attention_model_path if isinstance(config.attention_model_path, str) else config.attention_model_path[1]
         use_cuda = torch.cuda.is_available()
         self.device = torch.device("cuda:{}".format(config.gpu) if use_cuda else "cpu")
-        self.model, self.model_config = load_model(config.attention_model_path, gpu=config.gpu, return_config=True)
+        self.model, self.model_config = load_model(load_path, gpu=config.gpu, return_config=True)
         self.model.to(self.device)
 
         # prepare transform
