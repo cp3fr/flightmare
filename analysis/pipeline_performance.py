@@ -49,6 +49,8 @@ for filepath in filepaths:
         filepath_events=outpath + 'events.csv')
     P.to_csv(outpath + 'features.csv', index=False)
 
+    # Todo: add comparison to MPC control commands
+
     # Todo: Save plot of drone state comparison trajectory vs reference
 
     # Todo: Save plot trajectory with poses
