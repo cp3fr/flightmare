@@ -99,6 +99,8 @@ def test():
         "/home/simon/gazesim-data/fpv_saliency_maps/data/dda/results/fl-med-full-bf2/20210219-153643/train/ckpt-26",
         "/home/simon/gazesim-data/fpv_saliency_maps/data/dda/results/fl-med-full-bf2/20210219-153643/train/ckpt-55",
         "/home/simon/gazesim-data/fpv_saliency_maps/data/dda/results/wv-med-full-bf2/20210219-222117/train/ckpt-38",
+        "/home/simon/gazesim-data/fpv_saliency_maps/data/dda/results/flat-med-full-bf2-decfts/20210222-115636/train/ckpt-15",
+        "/home/simon/gazesim-data/fpv_saliency_maps/data/dda/results/flat-med-full-bf2-cf25-decfts/20210222-192137/train/ckpt-25",
     ]
     settings_paths = [
         "./dda/config/dagger_settings.yaml",
@@ -107,9 +109,11 @@ def test():
         "/home/simon/gazesim-data/fpv_saliency_maps/data/dda/results/lturn-1gate-bf2/20210219-013255/snaga_lturn-1gate-bf2.yaml",
         "/home/simon/gazesim-data/fpv_saliency_maps/data/dda/results/fl-med-full-bf2/20210219-153643/snaga_fl_med_full_bf2.yaml",
         "/home/simon/gazesim-data/fpv_saliency_maps/data/dda/results/wv-med-full-bf2/20210219-222117/snaga_wv_med_full_bf2.yaml",
+        "/home/simon/gazesim-data/fpv_saliency_maps/data/dda/results/flat-med-full-bf2-decfts/20210222-115636/snaga_flat_med_full_bf2_decfts.yaml",
+        "/home/simon/gazesim-data/fpv_saliency_maps/data/dda/results/flat-med-full-bf2-cf25-decfts/20210222-192137/snaga_flat_med_full_bf2_cf25_decfts.yaml",
     ]
 
-    trajectory_path = trajectories[-1]
+    trajectory_path = trajectories[3]
     model_load_path = model_load_paths[-1]
     settings_path = settings_paths[-1]
 
@@ -142,6 +146,14 @@ def test():
 
     # creating simulation
     simulation = FlightmareSimulation(settings, trajectory_path, max_time=max_time)
+
+    # connect to the simulation either at the start or after training has been run
+    simulation.connect_unity(settings.flightmare_pub_port, settings.flightmare_sub_port)
+
+    # wait until Unity rendering/image queue has calmed down
+    for _ in range(50):
+        simulation.flightmare_wrapper.get_image()
+        time.sleep(0.1)
 
     # TODO: add loop for testing multiple start times here
     switch_time = 0.0
@@ -176,19 +188,9 @@ def test():
             controller.use_network = use_network
             controller.record_data = False
             controller.update_info(info_dict)
+            controller.prepare_network_command()
             controller.prepare_expert_command()
             action = controller.get_control_command()
-
-            # TODO: try also setting the acceleration and body rates from the reference when resetting,
-            #  maybe this helps with the unwanted MPC behaviour at the start?
-
-            # connect to the simulation either at the start or after training has been run
-            simulation.connect_unity(settings.flightmare_pub_port, settings.flightmare_sub_port)
-
-            # wait until Unity rendering/image queue has calmed down
-            for _ in range(50):
-                simulation.flightmare_wrapper.get_image()
-                time.sleep(0.1)
 
             # run the main loop until the simulation "signals" that the trajectory is done
             while not trajectory_done:
@@ -213,11 +215,12 @@ def test():
                 network_actions.append(action["network"])  # action["network_action"]
                 network_used.append(action["use_network"])  # action["network_used"]
 
-                info_dict, successes = simulation.step(action["network"] if action["use_network"] else action["expert"])
+                info_dict = simulation.step(action["network"] if action["use_network"] else action["expert"])
                 trajectory_done = info_dict["done"]
                 if not trajectory_done:
                     controller.update_info(info_dict)
-                    action = controller.get_control_command()
+                    if not settings.save_at_net_frequency or info_dict["update"]["command"]:
+                        action = controller.get_control_command()
 
             if write_video:
                 writer.release()
@@ -229,7 +232,7 @@ def test():
 
             if show_plots:
                 show_state_action_plots(trajectory_path, reduced_states, mpc_actions, network_actions,
-                                        simulation.command_time_step, simulation.total_time)
+                                        simulation.base_time_step, simulation.total_time)
             if save_data:
                 save_trajectory_data(time_stamps, mpc_actions, network_actions, states, network_used, max_time,
                                      switch_time, repetition, experiment_path)

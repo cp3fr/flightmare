@@ -107,15 +107,20 @@ class AggressiveNet(Network):
             Dense(int(64 * g))
         ]
 
-        self.control_module = [
-            Dense(64 * g),
-            LeakyReLU(alpha=1e-2),
-            Dense(32 * g),
-            LeakyReLU(alpha=1e-2),
-            Dense(16 * g),
-            LeakyReLU(alpha=1e-2),
-            Dense(4)
-        ]
+        if self.config.shallow_control_module:
+            self.control_module = [
+                Dense(4)
+            ]
+        else:
+            self.control_module = [
+                Dense(64 * g),
+                LeakyReLU(alpha=1e-2),
+                Dense(32 * g),
+                LeakyReLU(alpha=1e-2),
+                Dense(16 * g),
+                LeakyReLU(alpha=1e-2),
+                Dense(4)
+            ]
 
     def _pointnet_branch(self, single_t_features):
         x = tf.expand_dims(single_t_features, axis=1)

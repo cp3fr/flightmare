@@ -9,7 +9,7 @@ from collections import deque
 from scipy.spatial.transform import Rotation
 from dda.src.ControllerLearning.models.bodyrate_learner import BodyrateLearner
 from features.feature_tracker import FeatureTracker
-from features.attention import AttentionDecoderFeatures, AttentionMapTracks
+from features.attention import AttentionDecoderFeatures, AttentionMapTracks, GazeTracks
 from mpc.mpc.mpc_solver import MPCSolver
 from mpc.simulation.planner import TrajectoryPlanner
 
@@ -83,8 +83,11 @@ class ControllerLearning:
         if self.config.attention_fts_type == "decoder_fts":
             self.attention_fts_extractor = AttentionDecoderFeatures(self.config)
             self.attention_fts_size = 128
-        elif self.config.attention_fts_type == "decoder_fts":
+        elif self.config.attention_fts_type == "map_tracks":
             self.attention_fts_extractor = AttentionMapTracks(self.config)
+            self.attention_fts_size = 4
+        elif self.config.attention_fts_type == "gaze_tracks":
+            self.attention_fts_extractor = GazeTracks(self.config)
             self.attention_fts_size = 4
 
         # preparing for data saving
