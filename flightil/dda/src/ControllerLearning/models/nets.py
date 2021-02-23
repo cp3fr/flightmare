@@ -107,6 +107,7 @@ class AggressiveNet(Network):
             Dense(int(64 * g))
         ]
 
+        # TODO: makes these lists of lists for "attention-induced" branching
         if self.config.shallow_control_module:
             self.control_module = [
                 Dense(4)

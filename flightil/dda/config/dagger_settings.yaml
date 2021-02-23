@@ -1,7 +1,7 @@
 log_dir: "dda/results/testing"
 quad_name: "hummingbird"
 verbose: False
-seq_len: 1 # History Length. When increasing to more than one, the model becomes machine dependent due to data saving latency.
+seq_len: 8 # History Length. When increasing to more than one, the model becomes machine dependent due to data saving latency.
 checkpoint:
   # Put to true and add a path for loading a ckpt
   resume_training: False
@@ -16,7 +16,7 @@ train:
   max_allowed_error: 3.0 # Collision rollouts are eliminated from the training
   min_number_fts: 40 # Number of feature tracks per image
   batch_size: 32
-  learning_rate: 0.0001
+  learning_rate: 0.0003
   summary_freq: 400
   train_dir: "dda/data/testing/train" # Where data will be generated and where the network will train
   val_dir: "dda/data/testing/test" # Validation Data, change to a new data folder!
@@ -27,7 +27,8 @@ train:
   use_activation: False
   attention_fts_type: "none"  # choose from "none", "decoder_fts", "map_tracks", "gaze_tracks"
   attention_model_path: "/home/simon/dda-inputs/attention_model_0/model/attention_model_0.pt"
-  save_at_net_frequency: False
+  attention_record_all_features: False
+  save_at_net_frequency: True
   shallow_control_module: False
 test_time:
   test_every_n_rollouts: 30

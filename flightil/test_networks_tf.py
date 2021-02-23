@@ -100,7 +100,7 @@ def test():
         "/home/simon/gazesim-data/fpv_saliency_maps/data/dda/results/fl-med-full-bf2/20210219-153643/train/ckpt-55",
         "/home/simon/gazesim-data/fpv_saliency_maps/data/dda/results/wv-med-full-bf2/20210219-222117/train/ckpt-38",
         "/home/simon/gazesim-data/fpv_saliency_maps/data/dda/results/flat-med-full-bf2-decfts/20210222-115636/train/ckpt-15",
-        "/home/simon/gazesim-data/fpv_saliency_maps/data/dda/results/flat-med-full-bf2-cf25-decfts/20210222-192137/train/ckpt-25",
+        "/home/simon/gazesim-data/fpv_saliency_maps/data/dda/results/flat-med-full-bf2-cf25-decfts/20210222-192137/train/ckpt-47",
     ]
     settings_paths = [
         "./dda/config/dagger_settings.yaml",
@@ -118,15 +118,16 @@ def test():
     settings_path = settings_paths[-1]
 
     # defining some settings
-    show_plots = True
-    save_data = False
-    write_video = True
+    show_plots = False
+    save_data = True
+    write_video = False
     max_time = 6.0
     switch_times = np.arange(0.0, 5.0, step=0.5).tolist() + [max_time + 1.0]
     switch_times = [max_time + 1.0]
     # switch_times = [2.0]
-    repetitions = 1
+    repetitions = 20
     experiment_path = "/home/simon/Desktop/weekly_meeting/meeting18/dda_0"
+    experiment_path = "/home/simon/Desktop/weekly_meeting/meeting20/test/dda_flat_med_full_bf2_cf25_decfts_ep100"
 
     # creating settings
     settings = create_settings(settings_path, mode="dagger")

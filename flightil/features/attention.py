@@ -12,9 +12,6 @@ from gazesim.training.utils import load_model, to_batch, to_device
 
 class AttentionFeatures:
 
-    def __init__(self):
-        self.model = None
-
     def get_attention_features(self, image, **kwargs):
         raise NotImplementedError()
 
@@ -40,7 +37,6 @@ class AttentionDecoderFeatures(AttentionFeatures):
             transforms.ToPILImage(),
             transforms.Resize(self.model_config["resize"]),
             transforms.ToTensor(),
-            # transforms.Normalize([0.0, 0.0, 0.0], [1.0, 1.0, 1.0]),
         ])
 
         print("\n[AttentionDecoderFeatures] Done loading attention model.\n")
@@ -195,3 +191,19 @@ class GazeTracks(AttentionFeatures):
 
         attention_track = np.array([gaze_location[0], gaze_location[1], gaze_velocity[0], gaze_velocity[1]])
         return attention_track
+
+
+class AllAttentionFeatures(AttentionFeatures):
+
+    def __init__(self, config):
+        self.attention_decoder_features = AttentionDecoderFeatures(config)
+        self.attention_map_tracks = AttentionMapTracks(config)
+        self.gaze_tracks = GazeTracks(config)
+
+    def get_attention_features(self, image, **kwargs):
+        out = {
+            "decoder_fts": self.attention_decoder_features.get_attention_features(image, **kwargs),
+            "map_tracks": self.attention_map_tracks.get_attention_features(image, **kwargs),
+            "gaze_tracks": self.gaze_tracks.get_attention_features(image, **kwargs),
+        }
+        return out
