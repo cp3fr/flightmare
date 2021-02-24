@@ -525,14 +525,6 @@ def get_pass_collision_events(
         )
     return E
 
-    # Todo: save events to logfile
-
-    # Todo: extract performance features for current trajectory
-
-    # Todo: collect performance features across multiple trajectories
-
-    # Todo: plot and save performance feature summary
-
 
 def extract_performance_features(
         filepath_trajectory: str,
@@ -641,9 +633,89 @@ def extract_performance_features(
         }, index=[0])
     return P
 
+def compare_trajectories_3d(
+        reference_filepath: str,
+        data_path: str=None,
+        ) -> None:
+    """
+    Comparison of 3D flight trajectories from two given trajectory logfile
+    paths, showing 3D poses.
+    """
+    # Plot reference, MPC, and network trajectories in 3D
+    if data_path:
+        ref = trajectory_from_logfile(
+            filepath=reference_filepath)
+        ref = ref.iloc[np.arange(0, ref.shape[0], 50), :]
+        ax = plot_trajectory(
+            ref.px.values,
+            ref.py.values,
+            ref.pz.values,
+            c='k')
+        for w in os.walk(data_path):
+            for f in w[2]:
+                if (f.find('trajectory.csv') != -1):
+                    if f.find('mpc_eval_nw') != -1:
+                        color = 'r'
+                    else:
+                        color = 'b'
+                    filepath = os.path.join(w[0], f)
+                    print(filepath)
+                    df = trajectory_from_logfile(
+                        filepath=filepath)
+                    print(df.columns)
+                    plot_trajectory(df.px, df.py, df.pz, c=color, ax=ax)
+        ax = format_trajectory_figure(
+            ax, xlims=(-30, 30), ylims=(-30, 30), zlims=(-30, 30), xlabel='px [m]',
+            ylabel='py [m]', zlabel='pz [m]', title=data_path)
 
+def plot_gates_3d(
+        track: pd.DataFrame,
+        ax: plt.axis=None,
+        color: str='b',
+        width: float=4,
+        ) -> plt.axis:
+    """
+    Plot gates as rectangles in 3D.
+    """
+    if ax is None:
+        fig = plt.figure()
+        fig.set_figwidth(20)
+        fig.set_figheight(20)
+        ax = fig.add_subplot(1, 1, 1, projection="3d")
+    # loop over gates
+    for igate in range(track.shape[0]):
+        # gate center
+        position = track.loc[:, ('px', 'py', 'pz')].iloc[igate].values
+        # gate rotation
+        rotation = track.loc[:, ('qx', 'qy', 'qz', 'qw')].iloc[igate].values
+        # checkpoint center
+        checkpoint_center = position
+        # checkpoint size
+        checkpoint_size = track.loc[:, ('dx', 'dy', 'dz')].iloc[igate].values
+        # loop over axes
+        corners = np.empty((0, 3))
 
-# Todo: plot a comparison of position and control commands MPC vs Network
+        for y, z in [
+            (-1, 1),
+            (1, 1),
+            (1, -1),
+            (-1, -1),
+            (-1, 1),
+            ]:
+                # determine gate corner by: 1. add half the xyz size to checkpoint center, 2. rotate according to rotation quaternion
+                corner = Rotation.from_quat(rotation).apply(
+                    np.array([0,
+                              y * checkpoint_size[1] / 2,
+                              z * checkpoint_size[2] / 2])).reshape((1, -1))
+
+                corners = np.vstack((corners,
+                                     corner))
+        # plot current corner
+        ax.plot(checkpoint_center[0] + corners[:, 0],
+                checkpoint_center[1] + corners[:, 1],
+                checkpoint_center[2] + corners[:, 2],
+                color=color, linewidth=width)
+    return ax
 
 # Todo: save an animation
     # save the animation
