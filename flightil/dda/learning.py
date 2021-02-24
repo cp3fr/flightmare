@@ -260,8 +260,6 @@ class ControllerLearning:
         # format the inputs
         inputs = self._prepare_net_inputs()
 
-        print("Network inputs (state) shape:", inputs["state"].shape)
-
         # "initialise" the network structure if it hasn't been done already
         if not self.network_initialised:
             self.learner.inference(inputs)
@@ -569,9 +567,7 @@ class ControllerLearning:
             # save attention feature data if specified
             if self.config.attention_record_all_features:
                 for att_f_t, fts_dir in self.attention_fts_save_dir.items():
-                    print(att_f_t)
                     current_fts = [att_f[att_f_t] for att_f in self.attention_fts_queue]
-                    print(len(current_fts), len(self.attention_fts_queue))
                     attention_fts_filename = os.path.join(fts_dir, "{:08d}.npy".format(self.recorded_samples))
                     np.save(attention_fts_filename, np.stack(current_fts, axis=0))
             elif self.config.attention_fts_type != "none":
