@@ -11,8 +11,7 @@ compared to some reference (human pilot or MPC).
 # Settings
 to_collect = False
 to_summary = True
-to_plot = True
-
+to_plot = False
 
 # Chose input files and folders for processing.
 track_filepath = './tracks/flat.csv'
@@ -20,7 +19,10 @@ logfile_path = './logs/'
 reference_filepath = (
         logfile_path +
         'resnet_test/trajectory_reference_original.csv')
-model_name = 'dda_flat_med_full_bf2_cf25_decfts_ep100'
+models = [
+    'dda_flat_med_full_bf2_cf25_decfts_ep45',
+    'dda_flat_med_full_bf2_cf25_decfts_ep100'
+        ]
 
 
 if to_collect:
@@ -75,7 +77,64 @@ if to_collect:
         # Todo: Optional: Save Animation
 
 
-# Todo: Collect features across muliple repetitions
+# Todo: Make performance summary table across muliple repetitions
+if to_summary:
+
+    # Collect summaries across runs
+    for model in models:
+        outpath = './performance/' + model + '/'
+        outfilepath = outpath + 'summary.csv'
+        if not os.path.isfile(outfilepath):
+            filepaths = []
+            for w in os.walk('./process/'+model+'/'):
+                for f in w[2]:
+                    if f == 'features.csv':
+                        filepaths.append(os.path.join(w[0], f))
+            summary = pd.DataFrame([])
+            for filepath in sorted(filepaths):
+                print('collecting performance summary: {}'.format(
+                    filepath
+                    ))
+                df = pd.read_csv(filepath)
+                summary = summary.append(df)
+
+            if not os.path.exists(outpath):
+                make_path(outpath)
+            summary.to_csv(
+                outfilepath,
+                index=False)
+
+    #todo: Plot path deviation across time.
+
+    # Make tables.
+    for model in models:
+        inpath = './performance/'+model+'/summary.csv'
+        summary = pd.read_csv(inpath)
+        names = [
+            'flight_time',
+            'travel_distance',
+            'median_path_deviation',
+            'iqr_path_deviation',
+            'num_gates_passed',
+            'num_collisions'
+        ]
+        tdict = {
+            'model': model,
+        }
+
+        #todo: make the output drag and drop for latex
+        for name in names:
+            tdict[name+'_mean'] = np.nanmean(
+                summary[name].values)
+            tdict[name + '_sd'] = np.nanstd(
+                summary[name].values)
+        table = pd.DataFrame(tdict, index=[0])
+        outpath = './performance/'+model+'/table.csv'
+        table.to_csv(outpath, index=False)
+
+
+
+
 
 if to_plot:
     # Load track.
@@ -144,11 +203,12 @@ if to_plot:
 
     plt.savefig(plot_path + 'reference_3d.jpg')
 
-    # # Plot individual runs
-    # data_path = './process/' + model_name + '/'
-    # compare_trajectories_3d(
-    #     reference_filepath=reference_filepath,
-    #     data_path=data_path,
-    # )
+    # # Plot flight path overlay of individual runs
+    # for model in models:
+    #   data_path = './process/' + model + '/'
+    #   compare_trajectories_3d(
+    #       reference_filepath=reference_filepath,
+    #       data_path=data_path,
+    #       )
 
     plt.show()
