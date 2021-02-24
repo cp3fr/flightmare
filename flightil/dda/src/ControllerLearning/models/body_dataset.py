@@ -230,9 +230,9 @@ class SafeDataset(BodyDataset):
 
             odom_rot = R.from_quat(fts[1:5]).as_matrix().reshape((9,)).tolist()
             if self.config.use_pos:
-                processed_fts = [fts[0]] + odom_rot + fts[5:14] + ref_rot + fts[18:]
+                processed_fts = [fts[0]] + ([] if self.config.imu_no_rot else odom_rot) + fts[5:14] + ref_rot + fts[18:]
             else:
-                processed_fts = [fts[0]] + odom_rot + fts[5:11] + ref_rot + fts[15:]
+                processed_fts = [fts[0]] + ([] if self.config.imu_no_rot else odom_rot) + fts[5:11] + ref_rot + fts[15:]
         else:
             ref_rot = R.from_quat(fts[1:5]).as_matrix().reshape((9,)).tolist()
             if self.config.use_pos:

@@ -9,7 +9,8 @@ from collections import deque
 from scipy.spatial.transform import Rotation
 from dda.src.ControllerLearning.models.bodyrate_learner import BodyrateLearner
 from features.feature_tracker import FeatureTracker
-from features.attention import AttentionDecoderFeatures, AttentionMapTracks, GazeTracks, AllAttentionFeatures
+from features.attention import AttentionDecoderFeatures, AttentionMapTracks, GazeTracks
+from features.attention import AllAttentionFeatures, AttentionHighLevelLabel
 from mpc.mpc.mpc_solver import MPCSolver
 from mpc.simulation.planner import TrajectoryPlanner
 
@@ -91,6 +92,7 @@ class ControllerLearning:
         elif self.config.attention_fts_type == "gaze_tracks":
             self.attention_fts_size = 4
             self.attention_fts_extractor = self.attention_fts_extractor or GazeTracks(self.config)
+        self.attention_high_level_label_extractor = AttentionHighLevelLabel()
 
         # preparing for data saving
         if self.mode == "iterative" or self.config.verbose:
@@ -119,6 +121,8 @@ class ControllerLearning:
                 n_init_states = 36
             else:
                 n_init_states = 30
+            if self.config.imu_no_rot:
+                n_init_states -= 9
         else:
             if self.config.use_pos:
                 n_init_states = 18
@@ -233,11 +237,11 @@ class ControllerLearning:
 
         self.fts_queue.append(processed_dict)
 
-        # TODO: once implemented, get attention features/attention tracks/etc. here
         if self.config.attention_fts_type != "none" or self.config.attention_record_all_features:
             attention_fts = self.attention_fts_extractor.get_attention_features(
-                image, current_time=self.simulation_time)  # TODO: add other parameters if necessary
+                image, current_time=self.simulation_time)
             self.attention_fts_queue.append(attention_fts)
+        # self.attention_high_level_label_extractor.get_attention_features(image, drone_state=self.state_estimate)
 
     def update_info(self, info_dict):
         self.update_simulation_time(info_dict["time"])
@@ -255,6 +259,8 @@ class ControllerLearning:
     def prepare_network_command(self):
         # format the inputs
         inputs = self._prepare_net_inputs()
+
+        print("Network inputs (state) shape:", inputs["state"].shape)
 
         # "initialise" the network structure if it hasn't been done already
         if not self.network_initialised:
@@ -276,7 +282,6 @@ class ControllerLearning:
         self.control_command = optimal_action
 
     def get_control_command(self):
-        # TODO: if save_at_net_frequency == True, should not do stuff...
         control_command_dict = self._generate_control_command()
         return control_command_dict
 
@@ -354,6 +359,8 @@ class ControllerLearning:
                     n_init_states = 36
                 else:
                     n_init_states = 30
+                if self.config.imu_no_rot:
+                    n_init_states -= 9
             else:
                 if self.config.use_pos:
                     n_init_states = 18
@@ -370,7 +377,7 @@ class ControllerLearning:
         if self.config.use_pos:
             state_inputs += self.reference[:3].tolist()
         if self.config.use_imu:
-            estimate = self.state_estimate_rot + self.state_estimate[7:].tolist()
+            estimate = ([] if self.config.imu_no_rot else self.state_estimate_rot) + self.state_estimate[7:].tolist()
             if self.config.use_pos:
                 estimate += self.state_estimate[:3].tolist()
             state_inputs = estimate + state_inputs

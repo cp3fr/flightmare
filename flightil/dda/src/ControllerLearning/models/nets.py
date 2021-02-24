@@ -108,6 +108,8 @@ class AggressiveNet(Network):
         ]
 
         # TODO: makes these lists of lists for "attention-induced" branching
+        if self.config.attention_fts_type == "branching":
+            pass
         if self.config.shallow_control_module:
             self.control_module = [
                 Dense(4)
@@ -151,7 +153,7 @@ class AggressiveNet(Network):
             x = f(x)
         return x
 
-    def _control_branch(self, embeddings):
+    def _control_branch(self, embeddings, branch=None):
         x = embeddings
         for f in self.control_module:
             x = f(x)
@@ -187,7 +189,8 @@ class AggressiveNet(Network):
             total_embeddings = tf.concat((total_embeddings, attention_fts_embeddings), axis=1)
 
         # get the output of the final "control" module
-        output = self._control_branch(total_embeddings)
+        # TODO: probably add branching input
+        output = self._control_branch(total_embeddings, branch=inputs.get("branch", None))
 
         # apply different activation functions to the different components
         if self.config.use_activation:

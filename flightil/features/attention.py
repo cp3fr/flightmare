@@ -6,6 +6,7 @@ import cv2
 import numpy as np
 
 from torchvision import transforms
+from scipy.spatial.transform import Rotation
 from gazesim.models.utils import image_softmax, convert_attention_to_image
 from gazesim.training.utils import load_model, to_batch, to_device
 
@@ -179,7 +180,7 @@ class GazeTracks(AttentionFeatures):
         gaze_location = out["output_gaze"].squeeze().cpu().detach().numpy()
 
         # transform into normalised image coordinates (also, to be consistent with the other gaze tracks,
-        # x-coords from left to right, y-coords from top to bottom => need to be inverted)
+        # x-coords from left to right, y-coords from top to bottom)
         if self.scale_gaze:
             gaze_location = (gaze_location / 2.0) / np.array([400.0, 300.0])
         gaze_location = gaze_location[::-1]
@@ -194,6 +195,81 @@ class GazeTracks(AttentionFeatures):
 
         attention_track = np.array([gaze_location[0], gaze_location[1], gaze_velocity[0], gaze_velocity[1]])
         return attention_track
+
+
+class AttentionHighLevelLabel(AttentionFeatures):
+
+    def __init__(self):
+        # TODO: probably use one of the two gaze models to do stuff...
+        #  => would be good to do offline evaluation of both of them in some way
+        #     to e.g. see whether the map to gaze model actually works well/better
+
+        self.camera_fov = 80
+        self.camera_uptilt_angle = -(30.0 / 90.0) * (np.pi / 2)
+        self.camera_pos_body_frame = np.array([0.2, 0.0, 0.1])
+        self.camera_rot_body_frame = Rotation.from_quat([0.0, np.sin(0.5 * self.camera_uptilt_angle),
+                                                         0.0, np.cos(0.5 * self.camera_uptilt_angle)])
+        self.camera_rot_body_frame *= Rotation.from_quat([0.0, 0.0, np.sin(-0.5 * (np.pi / 2)),
+                                                          np.cos(-0.5 * (np.pi / 2))])
+        self.camera_matrix = np.array([
+            [0.5, 0.0, 0.5],
+            [0.0, 0.5, 0.5],
+            [0.0, 0.0, 1.0],
+        ])
+
+    def get_attention_features(self, image, **kwargs):
+        drone_state = kwargs.get("drone_state", np.array([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]))
+        drone_pos = drone_state[:3]
+        drone_rot = Rotation.from_quat(drone_state[4:7].tolist() + drone_state[3:4].tolist())
+        drone_vel = drone_state[7:10]
+
+        # transform camera pos/rot from drone body frame to world frame
+        camera_pos_world_frame = drone_rot.apply(self.camera_pos_body_frame) + drone_pos
+        # camera_rot_world_frame = (drone_rot * self.camera_rot_body_frame)
+        camera_rot_world_frame = (self.camera_rot_body_frame * drone_rot)
+
+        print("\nDrone position:", drone_pos)
+        print("Camera position:", camera_pos_world_frame)
+        print("Test:", drone_rot.apply([1.0, 0.0, 0.3]) + drone_pos)
+
+        print("Drone rotation (Euler angles):", drone_rot.as_euler("xyz", degrees=True))
+        print("Camera rotation (Euler angles):", camera_rot_world_frame.as_euler("xyz", degrees=True))
+
+        # get the gaze vector in 2D in the correct format (range [0, 1], x=right, y=down)
+        gaze_2d = np.array([0.5, 0.5])
+
+        # get the gaze vector in 3D
+        gaze_2d = np.hstack((gaze_2d, [1.0]))
+        gaze_3d = (np.linalg.pinv(self.camera_matrix @ np.eye(3)) @ gaze_2d.T).T
+        gaze_3d = np.array([gaze_3d[2], -gaze_3d[0], -gaze_3d[1]])
+        gaze_3d = gaze_3d / np.linalg.norm(gaze_3d)
+        gaze_3d = camera_rot_world_frame.apply(gaze_3d)
+
+        print("Velocity vector 3D:", drone_vel / np.linalg.norm(drone_vel))
+        print("Gaze 2D:", gaze_2d)
+        print("Gaze 3D:", gaze_3d)
+
+        # compute the signed angle between the gaze and the velocity vector
+        drone_vel_2d = drone_vel[[0, 1]]
+        drone_vel_2d = drone_vel_2d / np.linalg.norm(drone_vel_2d)
+        gaze_2d = gaze_3d[[0, 1]]
+        gaze_2d = gaze_2d / np.linalg.norm(gaze_2d)
+        angle = np.arctan2(gaze_2d[1], drone_vel_2d[0]) - np.arctan2(drone_vel_2d[1], drone_vel_2d[0])
+        if np.abs(angle) > np.pi:
+            if angle < 0.0:
+                angle = 2 * np.pi - np.abs(angle)
+            else:
+                angle = -(2 * np.pi - np.abs(angle))
+
+            if np.abs(angle) > 0.0:
+                angle = -angle
+
+        print("Angle: {} (rad), {} (deg)\n".format(angle, angle * 180.0 / np.pi))
+
+        exit()
+
+        # TODO: also need GT/state estimate velocity vector as input
+        return 0
 
 
 class AllAttentionFeatures(AttentionFeatures):
