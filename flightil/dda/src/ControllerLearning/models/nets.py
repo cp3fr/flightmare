@@ -95,17 +95,18 @@ class AggressiveNet(Network):
                 Dense(int(64 * g))
             ]
 
-        self.states_conv = [
-            Conv1D(int(64 * g), kernel_size=2, strides=1, padding="same", dilation_rate=1),
-            LeakyReLU(alpha=1e-2),
-            Conv1D(int(32 * g), kernel_size=2, strides=1, padding="same", dilation_rate=1),
-            LeakyReLU(alpha=1e-2),
-            Conv1D(int(32 * g), kernel_size=2, strides=1, padding="same", dilation_rate=1),
-            LeakyReLU(alpha=1e-2),
-            Conv1D(int(32 * g), kernel_size=2, strides=1, padding="same", dilation_rate=1),
-            Flatten(),
-            Dense(int(64 * g))
-        ]
+        if self.config.use_imu or not self.config.no_ref:
+            self.states_conv = [
+                Conv1D(int(64 * g), kernel_size=2, strides=1, padding="same", dilation_rate=1),
+                LeakyReLU(alpha=1e-2),
+                Conv1D(int(32 * g), kernel_size=2, strides=1, padding="same", dilation_rate=1),
+                LeakyReLU(alpha=1e-2),
+                Conv1D(int(32 * g), kernel_size=2, strides=1, padding="same", dilation_rate=1),
+                LeakyReLU(alpha=1e-2),
+                Conv1D(int(32 * g), kernel_size=2, strides=1, padding="same", dilation_rate=1),
+                Flatten(),
+                Dense(int(64 * g))
+            ]
 
         # TODO: makes these lists of lists for "attention-induced" branching
         if self.config.attention_fts_type == "branching":
@@ -177,7 +178,9 @@ class AggressiveNet(Network):
             attention_fts_embeddings = self._attention_fts_branch(attention_fts)
 
         # get the state (reference and state estimate) embeddings
-        states_embeddings = self._states_branch(states)
+        states_embeddings = None
+        if self.config.use_imu or not self.config.no_ref:
+            states_embeddings = self._states_branch(states)
 
         # concatenate the embeddings
         if self.config.use_fts_tracks:

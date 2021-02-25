@@ -26,6 +26,7 @@ train:
   use_pos: False
   use_activation: False
   imu_no_rot: False
+  no_ref: False
   attention_fts_type: "none"  # choose from "none", "decoder_fts", "map_tracks", "gaze_tracks"
   attention_model_path: ["/home/simon/dda-inputs/attention_model_0/model/attention_model_0.pt",
                          "/home/simon/dda-inputs/attention_model_1/model/attention_model_1.pt"]

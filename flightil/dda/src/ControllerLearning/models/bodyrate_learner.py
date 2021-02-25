@@ -93,6 +93,10 @@ class BodyrateLearner(object):
             inputs = {
                 "state": features[0],
             }
+        if self.config.no_ref and not self.config.use_imu:
+            del inputs["state"]
+        if len(inputs) == 0:
+            raise KeyError("No inputs for network specified.")
         return inputs
 
     def write_train_summaries(self, features, gradients):

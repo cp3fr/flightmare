@@ -92,7 +92,7 @@ class ControllerLearning:
         elif self.config.attention_fts_type == "gaze_tracks":
             self.attention_fts_size = 4
             self.attention_fts_extractor = self.attention_fts_extractor or GazeTracks(self.config)
-        self.attention_high_level_label_extractor = AttentionHighLevelLabel()
+        # self.attention_high_level_label_extractor = AttentionHighLevelLabel()
 
         # preparing for data saving
         if self.mode == "iterative" or self.config.verbose:
@@ -241,7 +241,7 @@ class ControllerLearning:
             attention_fts = self.attention_fts_extractor.get_attention_features(
                 image, current_time=self.simulation_time)
             self.attention_fts_queue.append(attention_fts)
-        self.attention_high_level_label_extractor.get_attention_features(image, drone_state=self.state_estimate)
+        # self.attention_high_level_label_extractor.get_attention_features(image, drone_state=self.state_estimate)
 
     def update_info(self, info_dict):
         self.update_simulation_time(info_dict["time"])
@@ -359,11 +359,15 @@ class ControllerLearning:
                     n_init_states = 30
                 if self.config.imu_no_rot:
                     n_init_states -= 9
+                if self.config.no_ref:
+                    n_init_states -= 18 if self.config.use_pos else 15
             else:
                 if self.config.use_pos:
                     n_init_states = 18
                 else:
                     n_init_states = 15
+                if self.config.no_ref:
+                    n_init_states = 0
             inputs = {"fts": np.zeros((1, self.config.seq_len, self.config.min_number_fts, 5), dtype=np.float32),
                       "state": np.zeros((1, self.config.seq_len, n_init_states), dtype=np.float32)}
             if self.config.attention_fts_type != "none":
@@ -371,7 +375,7 @@ class ControllerLearning:
             return inputs
 
         # reference is always used, state estimate if specified in config
-        state_inputs = self.reference_rot + self.reference[7:].tolist()
+        state_inputs = [] if self.config.no_ref else (self.reference_rot + self.reference[7:].tolist())
         if self.config.use_pos:
             state_inputs += self.reference[:3].tolist()
         if self.config.use_imu:

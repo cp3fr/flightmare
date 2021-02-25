@@ -77,6 +77,7 @@ class TrainSetting(Settings):
             self.use_pos = train_conf["use_pos"]
             self.use_activation = train_conf["use_activation"]
             self.imu_no_rot = train_conf.get("imu_no_rot", False)
+            self.no_ref = train_conf.get("no_ref", False)
             self.attention_fts_type = train_conf.get("attention_fts_type", "none")
             self.attention_model_path = train_conf.get("attention_model_path", "")
             self.shallow_control_module = train_conf.get("shallow_control_module", False)
@@ -147,6 +148,7 @@ class DaggerSetting(Settings):
             self.use_pos = train_conf["use_pos"]
             self.use_activation = train_conf["use_activation"]
             self.imu_no_rot = train_conf.get("imu_no_rot", False)
+            self.no_ref = train_conf.get("no_ref", False)
             self.save_every_n_epochs = train_conf['save_every_n_epochs']
             self.verbose = settings['verbose']
             self.attention_fts_type = train_conf.get("attention_fts_type", "none")

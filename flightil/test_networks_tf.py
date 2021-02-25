@@ -104,6 +104,8 @@ def test():
         "/home/simon/gazesim-data/fpv_saliency_maps/data/dda/results/flat-med-full-bf2-cf25-refonly/20210223-205603/train/ckpt-45",
         "/home/simon/gazesim-data/fpv_saliency_maps/data/dda/results/flat-med-full-bf2-cf25-noimu/20210223-191236/train/ckpt-39",
         "/home/simon/gazesim-data/fpv_saliency_maps/data/dda/results/flat-med-full-bf2-cf25-nofts/20210223-213804/train/ckpt-51",
+        "/home/simon/gazesim-data/fpv_saliency_maps/data/dda/results/flat-med-full-bf2-cf25-imunorot/20210224-193941/train/ckpt-46",
+        "/home/simon/gazesim-data/fpv_saliency_maps/data/dda/results/flat-med-full-bf2-cf25-refonly-decfts/20210224-112317/train/ckpt-53",
     ]
     settings_paths = [
         "./dda/config/dagger_settings.yaml",
@@ -117,6 +119,8 @@ def test():
         "/home/simon/gazesim-data/fpv_saliency_maps/data/dda/results/flat-med-full-bf2-cf25-refonly/20210223-205603/snaga_flat_med_full_bf2_cf25_refonly.yaml",
         "/home/simon/gazesim-data/fpv_saliency_maps/data/dda/results/flat-med-full-bf2-cf25-noimu/20210223-191236/snaga_flat_med_full_bf2_cf25_noimu.yaml",
         "/home/simon/gazesim-data/fpv_saliency_maps/data/dda/results/flat-med-full-bf2-cf25-nofts/20210223-213804/snaga_flat_med_full_bf2_cf25_nofts.yaml",
+        "/home/simon/gazesim-data/fpv_saliency_maps/data/dda/results/flat-med-full-bf2-cf25-imunorot/20210224-193941/snaga_flat_med_full_bf2_cf25_imunorot.yaml",
+        "/home/simon/gazesim-data/fpv_saliency_maps/data/dda/results/flat-med-full-bf2-cf25-refonly-decfts/20210224-112317/snaga_flat_med_full_bf2_cf25_refonly_decfts.yaml",
     ]
 
     trajectory_path = trajectories[3]
@@ -137,6 +141,8 @@ def test():
     experiment_path = "/home/simon/Desktop/weekly_meeting/meeting20/test/dda_flat_med_full_bf2_cf25_refonly_ep100"
     experiment_path = "/home/simon/Desktop/weekly_meeting/meeting20/test/dda_flat_med_full_bf2_cf25_noimu_ep100"
     experiment_path = "/home/simon/Desktop/weekly_meeting/meeting20/test/dda_flat_med_full_bf2_cf25_nofts_ep100"
+    experiment_path = "/home/simon/Desktop/weekly_meeting/meeting20/test/dda_flat_med_full_bf2_cf25_imunorot_ep100"
+    experiment_path = "/home/simon/Desktop/weekly_meeting/meeting20/test/dda_flat_med_full_bf2_cf25_refonly_decfts_ep100"
 
     if not os.path.exists(experiment_path):
         os.makedirs(experiment_path)

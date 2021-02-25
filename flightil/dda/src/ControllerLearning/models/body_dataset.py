@@ -233,15 +233,23 @@ class SafeDataset(BodyDataset):
 
             odom_rot = R.from_quat(fts[1:5]).as_matrix().reshape((9,)).tolist()
             if self.config.use_pos:
-                processed_fts = [fts[0]] + ([] if self.config.imu_no_rot else odom_rot) + fts[5:14] + ref_rot + fts[18:]
+                processed_fts = [fts[0]] + ([] if self.config.imu_no_rot else odom_rot) + fts[5:14]
+                if not self.config.no_ref:
+                    processed_fts += ref_rot + fts[18:]
             else:
-                processed_fts = [fts[0]] + ([] if self.config.imu_no_rot else odom_rot) + fts[5:11] + ref_rot + fts[15:]
+                processed_fts = [fts[0]] + ([] if self.config.imu_no_rot else odom_rot) + fts[5:11]
+                if not self.config.no_ref:
+                    processed_fts += ref_rot + fts[15:]
         else:
             ref_rot = R.from_quat(fts[1:5]).as_matrix().reshape((9,)).tolist()
             if self.config.use_pos:
-                processed_fts = [fts[0]] + ref_rot + fts[5:14]
+                processed_fts = [fts[0]]
+                if not self.config.no_ref:
+                    processed_fts += ref_rot + fts[5:14]
             else:
-                processed_fts = [fts[0]] + ref_rot + fts[5:11]
+                processed_fts = [fts[0]]
+                if not self.config.no_ref:
+                    processed_fts += ref_rot + fts[5:11]
         return np.array(processed_fts)
 
     def add_missing_fts(self, features_dict):
@@ -307,6 +315,9 @@ class SafeDataset(BodyDataset):
             state_seq.append(state)
         state_seq = tf.stack(state_seq)
         inputs.append(state_seq)
+
+        # TODO: if config.no_ref and not config.use_imu, no state input should be returned
+        #  => maybe it's easier to just ignore this when learning instead...
 
         # TODO: if decision variable for branching specified, gather here
         #  => might be better not to leave it in self.features, since it becomes part of the state then
