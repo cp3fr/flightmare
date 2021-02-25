@@ -77,9 +77,12 @@ class TrainSetting(Settings):
             self.use_pos = train_conf["use_pos"]
             self.use_activation = train_conf["use_activation"]
             self.imu_no_rot = train_conf.get("imu_no_rot", False)
+            self.imu_no_vels = train_conf.get("imu_no_vels", False)
             self.no_ref = train_conf.get("no_ref", False)
             self.attention_fts_type = train_conf.get("attention_fts_type", "none")
             self.attention_model_path = train_conf.get("attention_model_path", "")
+            self.attention_branching = train_conf.get("attention_branching", False)
+            self.attention_branching_threshold = train_conf.get("attention_branching_threshold", False)
             self.shallow_control_module = train_conf.get("shallow_control_module", False)
             self.val_dir = os.path.join(os.getenv("GAZESIM_ROOT"), os.pardir, train_conf['val_dir'])
             self.min_number_fts = train_conf['min_number_fts']
@@ -148,12 +151,15 @@ class DaggerSetting(Settings):
             self.use_pos = train_conf["use_pos"]
             self.use_activation = train_conf["use_activation"]
             self.imu_no_rot = train_conf.get("imu_no_rot", False)
+            self.imu_no_vels = train_conf.get("imu_no_vels", False)
             self.no_ref = train_conf.get("no_ref", False)
             self.save_every_n_epochs = train_conf['save_every_n_epochs']
             self.verbose = settings['verbose']
             self.attention_fts_type = train_conf.get("attention_fts_type", "none")
             self.attention_model_path = train_conf.get("attention_model_path", "")
             self.attention_record_all_features = train_conf.get("attention_record_all_features", False)
+            self.attention_branching = train_conf.get("attention_branching", False)
+            self.attention_branching_threshold = train_conf.get("attention_branching_threshold", False)
             self.save_at_net_frequency = train_conf.get("save_at_net_frequency", False)
             self.shallow_control_module = train_conf.get("shallow_control_module", False)
             assert isinstance(self.verbose, bool)

@@ -108,23 +108,45 @@ class AggressiveNet(Network):
                 Dense(int(64 * g))
             ]
 
-        # TODO: makes these lists of lists for "attention-induced" branching
-        if self.config.attention_fts_type == "branching":
-            pass
         if self.config.shallow_control_module:
-            self.control_module = [
-                Dense(4)
-            ]
+            if self.config.attention_branching:
+                self.control_module = [[Dense(4)] for _ in range(3)]
+            else:
+                self.control_module = [Dense(4)]
         else:
+            if self.config.attention_branching:
+                self.control_module = []
+                for _ in range(3):
+                    self.control_module.append([
+                        Dense(64 * g),
+                        LeakyReLU(alpha=1e-2),
+                        Dense(32 * g),
+                        LeakyReLU(alpha=1e-2),
+                        Dense(16 * g),
+                        LeakyReLU(alpha=1e-2),
+                        Dense(4)
+                    ])
+            else:
+                self.control_module = [
+                    Dense(64 * g),
+                    LeakyReLU(alpha=1e-2),
+                    Dense(32 * g),
+                    LeakyReLU(alpha=1e-2),
+                    Dense(16 * g),
+                    LeakyReLU(alpha=1e-2),
+                    Dense(4)
+                ]
+
+        """
+        if self.config.attention_branching:
+            # self.control_module = [self.control_module] * 3
+            
             self.control_module = [
-                Dense(64 * g),
-                LeakyReLU(alpha=1e-2),
-                Dense(32 * g),
-                LeakyReLU(alpha=1e-2),
-                Dense(16 * g),
-                LeakyReLU(alpha=1e-2),
-                Dense(4)
+                tf.constant([[0.0, 0.0, 0.0, 0.0]]),
+                tf.constant([[1.0, 1.0, 1.0, 1.0]]),
+                tf.constant([[2.0, 2.0, 2.0, 2.0]]),
             ]
+        """
 
     def _pointnet_branch(self, single_t_features):
         x = tf.expand_dims(single_t_features, axis=1)
@@ -154,10 +176,48 @@ class AggressiveNet(Network):
             x = f(x)
         return x
 
+    @tf.function
     def _control_branch(self, embeddings, branch=None):
         x = embeddings
-        for f in self.control_module:
-            x = f(x)
+        if self.config.attention_branching and branch is not None:
+            # this is very hacky but I can't figure out how TensorFlow
+            # wants branching to be done, so I'm using what works
+            print("branch thingy:\n", branch)
+            if tf.equal(branch, 0):
+                # x = self.control_module[0]
+                for f in self.control_module[0]:
+                    x = f(x)
+            elif tf.equal(branch, 1):
+                # x = self.control_module[1]
+                for f in self.control_module[1]:
+                    x = f(x)
+            elif tf.equal(branch, 2):
+                # x = self.control_module[2]
+                for f in self.control_module[2]:
+                    x = f(x)
+
+            # control_module = self.control_module[0]
+            """
+            outputs = []
+            for cb_idx, cb in enumerate(self.control_module):
+                print("starting {} i guess".format(cb_idx))
+                print(branch)
+                if tf.equal(branch, cb_idx):
+                    # control_module = self.control_module[cb_idx]
+                    output = x
+                    for f in self.control_module[cb_idx]:
+                        print(cb_idx, output.shape)
+                        output = f(output)
+                        print(output)
+                    outputs.append(output)
+                    # x = self.control_module[cb_idx]
+            for f in control_module:
+                x = f(x)
+            x = outputs[0]
+            """
+        else:
+            for f in self.control_module:
+                x = f(x)
         return x
 
     def _internal_call(self, inputs):
@@ -191,9 +251,11 @@ class AggressiveNet(Network):
         if self.config.attention_fts_type != "none":
             total_embeddings = tf.concat((total_embeddings, attention_fts_embeddings), axis=1)
 
+        print("shape:", total_embeddings.shape)
+
         # get the output of the final "control" module
-        # TODO: probably add branching input
-        output = self._control_branch(total_embeddings, branch=inputs.get("branch", None))
+        output = self._control_branch(total_embeddings, branch=inputs.get("attention_label", None))
+        print("what the flippin frick")
 
         # apply different activation functions to the different components
         if self.config.use_activation:

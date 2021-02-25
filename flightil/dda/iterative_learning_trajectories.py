@@ -39,6 +39,7 @@ class Trainer:
         # defining some settings
         max_time = min(self.settings.max_time + 4.0, self.simulation.reference_sampler.get_final_time_stamp())
         switch_times = np.array(np.arange(0.0, max_time - 2.0, step=2.0).tolist() + [max_time + 1.0])
+        switch_times = np.array([0.0, max_time + 1.0])
         switch_times += self.settings.start_buffer
         repetitions = 1
         save_path = os.path.join(self.settings.log_dir, "online_eval_rollout-{:04d}".format(self.learner.rollout_idx))

@@ -65,6 +65,7 @@ class ControllerLearning:
         self.state_estimate = None
         self.state_estimate_rot = None
         self.feature_tracks = None
+        self.attention_label = 0
 
         # the current control command, computed either by the expert or the network
         self.control_command = None
@@ -92,7 +93,10 @@ class ControllerLearning:
         elif self.config.attention_fts_type == "gaze_tracks":
             self.attention_fts_size = 4
             self.attention_fts_extractor = self.attention_fts_extractor or GazeTracks(self.config)
-        # self.attention_high_level_label_extractor = AttentionHighLevelLabel()
+
+        self.attention_high_level_label_extractor = None
+        if self.config.attention_branching:
+            self.attention_high_level_label_extractor = AttentionHighLevelLabel(self.config)
 
         # preparing for data saving
         if self.mode == "iterative" or self.config.verbose:
@@ -115,6 +119,7 @@ class ControllerLearning:
         self.state = np.zeros((13,), dtype=np.float32)
         self.reference = np.zeros((13,), dtype=np.float32)
         self.state_estimate = np.zeros((13,), dtype=np.float32)
+        self.attention_label = 0
 
         if self.config.use_imu:
             if self.config.use_pos:
@@ -123,6 +128,8 @@ class ControllerLearning:
                 n_init_states = 30
             if self.config.imu_no_rot:
                 n_init_states -= 9
+            if self.config.imu_no_vels:
+                n_init_states -= 6
         else:
             if self.config.use_pos:
                 n_init_states = 18
@@ -241,7 +248,10 @@ class ControllerLearning:
             attention_fts = self.attention_fts_extractor.get_attention_features(
                 image, current_time=self.simulation_time)
             self.attention_fts_queue.append(attention_fts)
-        # self.attention_high_level_label_extractor.get_attention_features(image, drone_state=self.state_estimate)
+
+        if self.config.attention_branching:
+            self.attention_label = self.attention_high_level_label_extractor.get_attention_features(
+                image, drone_state=self.state_estimate)
 
     def update_info(self, info_dict):
         self.update_simulation_time(info_dict["time"])
@@ -262,13 +272,19 @@ class ControllerLearning:
 
         # "initialise" the network structure if it hasn't been done already
         if not self.network_initialised:
-            self.learner.inference(inputs)
+            results = self.learner.inference(inputs)
+            self.network_command = np.array([results[0][0], results[0][1], results[0][2], results[0][3]])
             print("[ControllerLearning] Network initialized")
             self.network_initialised = True
+            return
+
+        print("State input shape:", inputs["state"].shape)
 
         # apply network
         results = self.learner.inference(inputs)
         self.network_command = np.array([results[0][0], results[0][1], results[0][2], results[0][3]])
+
+        print("\nNEW NETWORK COMMAND:", self.network_command, "\n")
 
     def prepare_expert_command(self):
         # get the reference trajectory over the time horizon
@@ -359,6 +375,8 @@ class ControllerLearning:
                     n_init_states = 30
                 if self.config.imu_no_rot:
                     n_init_states -= 9
+                if self.config.imu_no_vels:
+                    n_init_states -= 6
                 if self.config.no_ref:
                     n_init_states -= 18 if self.config.use_pos else 15
             else:
@@ -372,6 +390,9 @@ class ControllerLearning:
                       "state": np.zeros((1, self.config.seq_len, n_init_states), dtype=np.float32)}
             if self.config.attention_fts_type != "none":
                 inputs["attention_fts"] = np.zeros((1, self.config.seq_len, self.attention_fts_size), dtype=np.float32)
+            if self.config.attention_branching:
+                inputs["attention_label"] = np.zeros((1, 1), dtype=np.float32)
+            print(inputs)
             return inputs
 
         # reference is always used, state estimate if specified in config
@@ -379,7 +400,8 @@ class ControllerLearning:
         if self.config.use_pos:
             state_inputs += self.reference[:3].tolist()
         if self.config.use_imu:
-            estimate = ([] if self.config.imu_no_rot else self.state_estimate_rot) + self.state_estimate[7:].tolist()
+            estimate = ([] if self.config.imu_no_rot else self.state_estimate_rot) + \
+                       ([] if self.config.imu_no_vels else self.state_estimate[7:].tolist())
             if self.config.use_pos:
                 estimate += self.state_estimate[:3].tolist()
             state_inputs = estimate + state_inputs
@@ -397,6 +419,8 @@ class ControllerLearning:
                 attention_fts = [att_f[self.config.attention_fts_type] for att_f in self.attention_fts_queue]
             attention_fts_inputs = np.stack(attention_fts)
             inputs["attention_fts"] = np.expand_dims(attention_fts_inputs, axis=0).astype(np.float32)
+        if self.config.attention_branching:
+            inputs["attention_label"] = np.array([[self.attention_label]], dtype=np.float32)
         return inputs
 
     def compute_trajectory_error(self):
@@ -463,8 +487,9 @@ class ControllerLearning:
             "Net_control_command_bodyrates_x",
             "Net_control_command_bodyrates_y",
             "Net_control_command_bodyrates_z",
-            "Maneuver_type"
-            # TODO: add high-level label from attention "switcher"
+            "Maneuver_type",
+            # High-level attention decision variable for branching
+            "Attention_label",
         ]
 
         current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -556,7 +581,8 @@ class ControllerLearning:
             self.network_command[3],  # yaw
             # Maneuver type
             0,
-            # TODO: add high-level label from attention "switcher"
+            # High-level attention decision variable for branching
+            self.attention_label,
         ]
 
         if self.record_data:

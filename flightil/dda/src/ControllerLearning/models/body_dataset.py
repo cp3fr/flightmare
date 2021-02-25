@@ -26,6 +26,7 @@ class BodyDataset:
         self.experiments = []
         self.features = []
         self.labels = []
+        self.attention_labels = []
         self.filenames = []
         self.stacked_filenames = []  # Will be used for passing stacked fnames
         self.att_fts_filenames = []
@@ -194,8 +195,14 @@ class SafeDataset(BodyDataset):
                   "Gt_control_command_bodyrates_y",
                   "Gt_control_command_bodyrates_z"]
 
+        attention_label = "Attention_label"
+
         features_v = df[features].values
         labels_v = df[labels].values
+
+        attention_label_v = None
+        if self.config.attention_branching:
+            attention_label_v = df[attention_label].values
 
         for frame_number in range(num_files):
             is_valid = False
@@ -214,6 +221,8 @@ class SafeDataset(BodyDataset):
                     self.filenames.append(img_fname)  # TODO is this necessary for attention fts?
                 if self.config.attention_fts_type != "none":
                     self.att_fts_filenames.append(att_fts_fname)
+                if self.config.attention_branching:
+                    self.attention_labels.append(attention_label_v[frame_number])
                 self.samples += 1
 
     def preprocess_fts(self, fts):
@@ -233,11 +242,13 @@ class SafeDataset(BodyDataset):
 
             odom_rot = R.from_quat(fts[1:5]).as_matrix().reshape((9,)).tolist()
             if self.config.use_pos:
-                processed_fts = [fts[0]] + ([] if self.config.imu_no_rot else odom_rot) + fts[5:14]
+                processed_fts = [fts[0]] + ([] if self.config.imu_no_rot else odom_rot) + \
+                                ([] if self.config.imu_no_vels else fts[5:14])
                 if not self.config.no_ref:
                     processed_fts += ref_rot + fts[18:]
             else:
-                processed_fts = [fts[0]] + ([] if self.config.imu_no_rot else odom_rot) + fts[5:11]
+                processed_fts = [fts[0]] + ([] if self.config.imu_no_rot else odom_rot) + \
+                                ([] if self.config.imu_no_vels else fts[5:11])
                 if not self.config.no_ref:
                     processed_fts += ref_rot + fts[15:]
         else:
@@ -331,6 +342,10 @@ class SafeDataset(BodyDataset):
         if self.config.attention_fts_type != "none":
             att_fts_seq = tf.py_function(func=self.load_att_fts_sequence, inp=[sample_num], Tout=tf.float32)
             inputs.append(att_fts_seq)
+
+        if self.config.attention_branching:
+            att_label = tf.gather(self.attention_labels, sample_num)
+            inputs.append(att_label)
 
         """
             return (state_seq, fts_seq), label

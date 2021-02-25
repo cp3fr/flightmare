@@ -26,11 +26,14 @@ train:
   use_pos: False
   use_activation: False
   imu_no_rot: False
+  imu_no_vels: False
   no_ref: False
   attention_fts_type: "none"  # choose from "none", "decoder_fts", "map_tracks", "gaze_tracks"
   attention_model_path: ["/home/simon/dda-inputs/attention_model_0/model/attention_model_0.pt",
                          "/home/simon/dda-inputs/attention_model_1/model/attention_model_1.pt"]
   attention_record_all_features: False
+  attention_branching: True
+  attention_branching_threshold: 20  # angle in degrees
   save_at_net_frequency: True
   shallow_control_module: False
 test_time:

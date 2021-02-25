@@ -93,6 +93,8 @@ class BodyrateLearner(object):
             inputs = {
                 "state": features[0],
             }
+        if self.config.attention_branching:
+            inputs["attention_label"] = features[-1]
         if self.config.no_ref and not self.config.use_imu:
             del inputs["state"]
         if len(inputs) == 0:
