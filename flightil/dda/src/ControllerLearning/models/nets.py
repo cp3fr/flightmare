@@ -180,41 +180,14 @@ class AggressiveNet(Network):
     def _control_branch(self, embeddings, branch=None):
         x = embeddings
         if self.config.attention_branching and branch is not None:
-            # this is very hacky but I can't figure out how TensorFlow
-            # wants branching to be done, so I'm using what works
-            print("branch thingy:\n", branch)
-            if tf.equal(branch, 0):
-                # x = self.control_module[0]
-                for f in self.control_module[0]:
-                    x = f(x)
-            elif tf.equal(branch, 1):
-                # x = self.control_module[1]
-                for f in self.control_module[1]:
-                    x = f(x)
-            elif tf.equal(branch, 2):
-                # x = self.control_module[2]
-                for f in self.control_module[2]:
-                    x = f(x)
-
-            # control_module = self.control_module[0]
-            """
-            outputs = []
+            tensor_to_fill = tf.zeros(shape=(tf.shape(branch)[0], 4), dtype=tf.float32)
             for cb_idx, cb in enumerate(self.control_module):
-                print("starting {} i guess".format(cb_idx))
-                print(branch)
-                if tf.equal(branch, cb_idx):
-                    # control_module = self.control_module[cb_idx]
-                    output = x
-                    for f in self.control_module[cb_idx]:
-                        print(cb_idx, output.shape)
-                        output = f(output)
-                        print(output)
-                    outputs.append(output)
-                    # x = self.control_module[cb_idx]
-            for f in control_module:
-                x = f(x)
-            x = outputs[0]
-            """
+                indices_cb = tf.where(branch == cb_idx)
+                x_cb = tf.gather_nd(x, indices_cb)
+                for f in cb:
+                    x_cb = f(x_cb)
+                tensor_to_fill = tf.tensor_scatter_nd_update(tensor_to_fill, indices_cb, x_cb)
+            x = tensor_to_fill
         else:
             for f in self.control_module:
                 x = f(x)
@@ -251,11 +224,8 @@ class AggressiveNet(Network):
         if self.config.attention_fts_type != "none":
             total_embeddings = tf.concat((total_embeddings, attention_fts_embeddings), axis=1)
 
-        # print("shape:", total_embeddings.shape)
-
         # get the output of the final "control" module
         output = self._control_branch(total_embeddings, branch=inputs.get("attention_label", None))
-        # print("what the flippin frick")
 
         # apply different activation functions to the different components
         if self.config.use_activation:

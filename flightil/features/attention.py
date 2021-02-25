@@ -236,23 +236,23 @@ class AttentionHighLevelLabel(AttentionFeatures):
         # drone_vel = np.array([-1.0, -0.10, 0.0])
 
         # transform camera pos/rot from drone body frame to world frame
-        camera_pos_world_frame = drone_rot.apply(self.camera_pos_body_frame) + drone_pos
+        # camera_pos_world_frame = drone_rot.apply(self.camera_pos_body_frame) + drone_pos
         camera_rot_world_frame = (drone_rot * self.camera_rot_body_frame)
 
-        print("\nDrone position:", drone_pos)
-        print("Camera position:", camera_pos_world_frame)
-        print("Test:", drone_rot.apply([1.0, 0.0, 0.3]) + drone_pos)
-
-        print("Drone rotation (Euler angles):", drone_rot.as_euler("xyz", degrees=True))
-        print("Camera rotation (Euler angles):", camera_rot_world_frame.as_euler("xyz", degrees=True))
+        # print("\nDrone position:", drone_pos)
+        # print("Camera position:", camera_pos_world_frame)
+        # print("Test:", drone_rot.apply([1.0, 0.0, 0.3]) + drone_pos)
+        #
+        # print("Drone rotation (Euler angles):", drone_rot.as_euler("xyz", degrees=True))
+        # print("Camera rotation (Euler angles):", camera_rot_world_frame.as_euler("xyz", degrees=True))
 
         # get the gaze vector in 2D in the correct format (range [0, 1], x=right, y=down)
         gaze_2d = self.gaze_extractor.get_attention_features(image, **kwargs)
-        print("Predicted gaze 2D (1):", gaze_2d)
+        # print("Predicted gaze 2D (1):", gaze_2d)
         gaze_2d = gaze_2d[:2][::-1]  # need only position, but it's ordered in "OpenCV indexing" => y first, x second
-        print("Predicted gaze 2D (2):", gaze_2d)
+        # print("Predicted gaze 2D (2):", gaze_2d)
         gaze_2d = (gaze_2d + 1.0) / 2.0
-        print("Predicted gaze 2D (3):", gaze_2d)
+        # print("Predicted gaze 2D (3):", gaze_2d)
         # gaze_2d = np.array([0.5, 1.0])
 
         cv2_gaze_2d = tuple((gaze_2d * np.array([800, 600])).astype(int))
@@ -264,9 +264,9 @@ class AttentionHighLevelLabel(AttentionFeatures):
         gaze_3d = gaze_3d / np.linalg.norm(gaze_3d)
         gaze_3d = camera_rot_world_frame.apply(gaze_3d)
 
-        print("Velocity vector 3D:", drone_vel / np.linalg.norm(drone_vel))
-        print("Gaze 2D:", gaze_2d)
-        print("Gaze 3D:", gaze_3d)
+        # print("Velocity vector 3D:", drone_vel / np.linalg.norm(drone_vel))
+        # print("Gaze 2D:", gaze_2d)
+        # print("Gaze 3D:", gaze_3d)
 
         # compute the signed angle between the gaze and the velocity vector
         drone_vel_2d = drone_vel[[0, 1]]
@@ -274,16 +274,16 @@ class AttentionHighLevelLabel(AttentionFeatures):
         gaze_2d = gaze_3d[[0, 1]]
         gaze_2d = gaze_2d / np.linalg.norm(gaze_2d)
         angle = np.arctan2(drone_vel_2d[1], drone_vel_2d[0]) - np.arctan2(gaze_2d[1], gaze_2d[0])
-        print("Angle (1): {} (rad), {} (deg)".format(angle, angle * 180.0 / np.pi))
+        # print("Angle (1): {} (rad), {} (deg)".format(angle, angle * 180.0 / np.pi))
         if np.abs(angle) > np.pi:
             if angle < 0.0:
                 # angle = 2 * np.pi - np.abs(angle)
                 angle = angle + 2 * np.pi
-                print("Angle (2): {} (rad), {} (deg)".format(angle, angle * 180.0 / np.pi))
+                # print("Angle (2): {} (rad), {} (deg)".format(angle, angle * 180.0 / np.pi))
             else:
                 # angle = -(2 * np.pi - np.abs(angle))
                 angle = angle - 2 * np.pi
-                print("Angle (3): {} (rad), {} (deg)".format(angle, angle * 180.0 / np.pi))
+                # print("Angle (3): {} (rad), {} (deg)".format(angle, angle * 180.0 / np.pi))
 
             """
             if np.abs(angle) > 0.0:
@@ -291,7 +291,7 @@ class AttentionHighLevelLabel(AttentionFeatures):
                 print("Angle (4): {} (rad), {} (deg)".format(angle, angle * 180.0 / np.pi))
             """
 
-        print("Angle: {} (rad), {} (deg)".format(angle, angle * 180.0 / np.pi))
+        # print("Angle: {} (rad), {} (deg)".format(angle, angle * 180.0 / np.pi))
         angle = angle * 180.0 / np.pi
 
         high_level_label = 0
@@ -300,7 +300,7 @@ class AttentionHighLevelLabel(AttentionFeatures):
         elif angle < -self.decision_threshold:
             high_level_label = 2
 
-        print("High-level label:", high_level_label, "\n")
+        # print("High-level label:", high_level_label, "\n")
 
         # img_to_show = cv2.cvtColor(cv2.cvtColor(image, cv2.COLOR_BGR2RGB), cv2.COLOR_RGB2BGR)
         # img_to_show = cv2.circle(img_to_show, cv2_gaze_2d, 5, (0, 0, 255, -1))

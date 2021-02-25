@@ -33,7 +33,7 @@ train:
                          "/home/simon/dda-inputs/attention_model_1/model/attention_model_1.pt"]
   attention_record_all_features: False
   attention_branching: False
-  attention_branching_threshold: 20  # angle in degrees
+  attention_branching_threshold: 25  # angle in degrees
   save_at_net_frequency: True
   shallow_control_module: False
 test_time:
