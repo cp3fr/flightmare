@@ -9,7 +9,7 @@ compared to some reference (human pilot or MPC).
 """
 
 # Settings
-to_collect = False
+to_collect = True
 to_summary = True
 to_plot = False
 
@@ -20,61 +20,101 @@ reference_filepath = (
         logfile_path +
         'resnet_test/trajectory_reference_original.csv')
 models = [
+    'dda_flat_med_full_bf2_cf25_noimuai_ep80',
+    'dda_flat_med_full_bf2_cf25_refonly_ep100',
+    'dda_flat_med_full_bf2_cf25_noimu_ep100',
     'dda_flat_med_full_bf2_cf25_decfts_ep45',
-    'dda_flat_med_full_bf2_cf25_decfts_ep100'
+    'dda_flat_med_full_bf2_cf25_decfts_ep100',
+    'dda_0',
+    'resnet_test',
         ]
 
 
 if to_collect:
 
-    # Make a list of input logfiles of network trajectories.
-    log_filepaths = []
-    for w in os.walk(logfile_path):
-        for f in w[2]:
-            if (f.find('.csv') > 0) and (reference_filepath.find(f) < 0):
-                log_filepaths.append(os.path.join(w[0], f))
+    for model in models:
+        # Make a list of input logfiles of network trajectories.
+        log_filepaths = []
+        for w in os.walk(os.path.join(logfile_path, model)):
+            for f in w[2]:
+                if (f.find('.csv') > 0) and (reference_filepath.find(f) < 0):
+                    log_filepaths.append(os.path.join(w[0], f))
 
-    # Process individual trajectories flown by the network.
-    for filepath in log_filepaths:
-        print('..processing {}'.format(filepath))
-        # Make output folder
-        data_path = (filepath
-                     .replace('.csv', '/')
-                     .replace('/logs/', '/process/')
-                     .replace('trajectory_', '')
-                     )
-        make_path(data_path)
-        # Copy trajectory, reference, and track files to output folder
-        if not os.path.isfile(data_path + 'trajectory.csv'):
-            copyfile(filepath,
-                     data_path + 'trajectory.csv')
-        if not os.path.isfile(data_path + 'reference.csv'):
-            copyfile(reference_filepath,
-                     data_path + 'reference.csv')
-        if not os.path.isfile(data_path + 'track.csv'):
-            copyfile(track_filepath,
-                     data_path + 'track.csv')
-        # Save gate pass and collision events to output folder
-        if not os.path.isfile(data_path + 'events.csv'):
-            E = get_pass_collision_events(
-                filepath_trajectory=filepath,
-                filepath_track=track_filepath)
-            E.to_csv(data_path + 'events.csv', index=False)
-        # Save performance features to output folder
-        if not os.path.isfile(data_path + 'features.csv'):
-            P = extract_performance_features(
-                filepath_trajectory=data_path + 'trajectory.csv',
-                filepath_reference=data_path + 'reference.csv',
-                filepath_events=data_path + 'events.csv')
-            P.to_csv(data_path + 'features.csv', index=False)
+        # Process individual trajectories flown by the network.
+        for filepath in log_filepaths:
+            print('..processing {}'.format(filepath))
+            # Make output folder
+            data_path = (filepath
+                         .replace('.csv', '/')
+                         .replace('/logs/', '/process/')
+                         .replace('trajectory_', '')
+                         )
+            make_path(data_path)
+            # Copy trajectory, reference, and track files to output folder
+            if not os.path.isfile(data_path + 'trajectory.csv'):
+                trajectory = trajectory_from_logfile(filepath=filepath)
+                trajectory.to_csv(data_path + 'trajectory.csv',
+                                  index=False)
+            if not os.path.isfile(data_path + 'reference.csv'):
+                reference = trajectory_from_logfile(filepath=reference_filepath)
+                reference.to_csv(data_path + 'reference.csv',
+                                  index=False)
+            if not os.path.isfile(data_path + 'track.csv'):
+                track = track_from_logfile(filepath=track_filepath)
+                # Make some adjustments
+                track['pz'] += 0.35 # shift gates up in fligthmare
+                track['dx'] = 0.
+                track['dy'] = 3 # in the middle of inner diameter 2.5 and outer 3.0
+                track['dz'] = 3 # in the middle of inner diameter 2.5 and outer 3.0
+                track.to_csv(data_path + 'track.csv',
+                             index=False)
+            # Save gate pass and collision events to output folder
+            if not os.path.isfile(data_path + 'events.csv'):
+                E = get_pass_collision_events(
+                    filepath_trajectory=data_path+'trajectory.csv',
+                    filepath_track=data_path+'track.csv')
+                E.to_csv(data_path + 'events.csv', index=False)
+            # Save performance features to output folder
+            if not os.path.isfile(data_path + 'features.csv'):
+                P = extract_performance_features(
+                    filepath_trajectory=data_path + 'trajectory.csv',
+                    filepath_reference=data_path + 'reference.csv',
+                    filepath_events=data_path + 'events.csv')
+                P.to_csv(data_path + 'features.csv', index=False)
+            # Save trajectory plot to output folder
+            if not os.path.isfile(data_path + 'trajectory_with_gates.jpg'):
+                track = pd.read_csv(data_path + 'track.csv')
+                trajectory = pd.read_csv(data_path + 'trajectory.csv')
+                for view, xlims, ylims, zlims in [
+                             [(45, 270), (-15, 19), (-17, 17), (-8, 8)],
+                             [(0, 270), (-15, 19), (-17, 17), (-12, 12)],
+                             [(0, 180), (-15, 19), (-17, 17), (-12, 12)],
+                             [(90, 270), (-15, 19), (-15, 15), (-12, 12)],
+                        ]:
+                    ax = plot_trajectory_with_gates_3d(
+                        trajectory=trajectory,
+                        track=track,
+                        view=view,
+                        xlims=xlims,
+                        ylims=ylims,
+                        zlims=zlims,
+                    )
+                    outpath = (data_path + 'trajectory_with_gates_{}x{'
+                                           '}.jpg'.format('%03d'%view[0],
+                                                            '%03d'%view[1]))
+                    ax.set_title(outpath)
+                    plt.savefig(outpath)
+                    plt.close(plt.gcf())
+                    ax=None
 
-        # Todo: add comparison to MPC control commands
 
-        # Todo: Save plot of drone state comparison trajectory vs reference
+            # Todo: add comparison to MPC control commands
 
-        # Todo: Save plot trajectory with poses
+            # Todo: Save plot of drone state comparison trajectory vs reference
 
-        # Todo: Optional: Save Animation
+            # Todo: Save plot trajectory with poses
+
+            # Todo: Optional: Save Animation
 
 
 # Todo: Make performance summary table across muliple repetitions
@@ -123,12 +163,23 @@ if to_summary:
         }
 
         #todo: make the output drag and drop for latex
-        for name in names:
-            tdict[name+'_mean'] = np.nanmean(
-                summary[name].values)
-            tdict[name + '_sd'] = np.nanstd(
-                summary[name].values)
-        table = pd.DataFrame(tdict, index=[0])
+        precision = 2
+        for op in ['mean', 'sd']:
+            for name in names:
+                tdict.setdefault(name, [])
+                if op=='mean':
+                    tdict[name].append(
+                        ('{:.%df}'%precision)
+                            .format(
+                            np.nanmean(summary[name].values)))
+                elif op=='sd':
+                    tdict[name].append(
+                        ('({:.%df})' % precision)
+                            .format(
+                            np.nanstd(summary[name].values)))
+
+        table = pd.DataFrame(tdict, index=[v for v in range(len(tdict[names[
+            0]]))])
         outpath = './performance/'+model+'/table.csv'
         table.to_csv(outpath, index=False)
 

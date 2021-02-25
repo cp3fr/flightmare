@@ -21,19 +21,24 @@ class Checkpoint(object):
     and intersections with the plane.
     """
 
-    def __init__(self, df, dims=None, dtype='gazesim'):
+    def __init__(self, df, dims=None, dtype='default'):
         #set variable names according to the type of data
-        if dtype=='liftoff':
+        if dtype=='gazesim':
+            position_varnames = ['pos_x', 'pos_y', 'pos_z']
+            rotation_varnames = ['rot_x_quat', 'rot_y_quat', 'rot_z_quat', 'rot_w_quat']
+            dimension_varnames = ['dim_y', 'dim_z']
+            dimension_scaling_factor = 2.5
+        elif dtype=='liftoff':
             position_varnames = ['position_x [m]', 'position_y [m]', 'position_z [m]']
             rotation_varnames = [ 'rotation_x [quaternion]', 'rotation_y [quaternion]', 'rotation_z [quaternion]',
                                   'rotation_w [quaternion]']
             dimension_varnames = ['checkpoint-size_y [m]', 'checkpoint-size_z [m]']
             dimension_scaling_factor = 1.
-        else: #gazesim: default
-            position_varnames = ['pos_x', 'pos_y', 'pos_z']
-            rotation_varnames = ['rot_x_quat', 'rot_y_quat', 'rot_z_quat', 'rot_w_quat']
-            dimension_varnames = ['dim_y', 'dim_z']
-            dimension_scaling_factor = 2.5
+        else: #default
+            position_varnames = ['px', 'py', 'pz']
+            rotation_varnames = ['qx', 'qy', 'qz', 'qw']
+            dimension_varnames = ['dy', 'dz']
+            dimension_scaling_factor = 1.
         #current gate center position
         p = df[position_varnames].values.flatten()
         #current gate rotation quaterion
@@ -469,16 +474,12 @@ def get_pass_collision_events(
         gate_inner_dimensions: tuple=(2.5, 2.5),
         gate_outer_dimensions: tuple=(3.5, 3.5),
         wall_collider_dimensions: tuple=(66, 36, 9),
-        wall_collider_center: tuple=(0, 0, 4.85),
-        gate_offsets: tuple=(0, 0, 0.35)
+        wall_collider_center: tuple=(0, 0, 4.85)
         ) -> pd.DataFrame():
     """Returns an events dataframe of pass and collision events from given
     trajectory and track filepaths."""
     # Load race track information.
     T = pd.read_csv(filepath_track)
-    T['pos_x'] += gate_offsets[0]
-    T['pos_y'] += gate_offsets[1]
-    T['pos_z'] += gate_offsets[2]
     # Define checkpoints and colliders.
     gate_checkpoints = [
         Checkpoint(T.iloc[i], dims=gate_inner_dimensions) for i in range(T.shape[0])]
@@ -487,7 +488,7 @@ def get_pass_collision_events(
     wall_colliders = get_wall_colliders(dims=wall_collider_dimensions,
                                         center=wall_collider_center)
     # Load a trajectory
-    D = trajectory_from_logfile(filepath_trajectory)
+    D = pd.read_csv(filepath_trajectory)
     t = D['t'].values
     px = D['px'].values
     py = D['py'].values
@@ -537,7 +538,7 @@ def extract_performance_features(
     events.
     """
     # Load a trajectory
-    D = trajectory_from_logfile(filepath_trajectory)
+    D = pd.read_csv(filepath_trajectory)
     t = D['t'].values
     px = D['px'].values
     py = D['py'].values
@@ -545,7 +546,7 @@ def extract_performance_features(
     nw = D['network_used'].values
     # Load the reference trajectory
     if filepath_reference:
-        R = trajectory_from_logfile(filepath_reference)
+        R = pd.read_csv(filepath_reference)
         # Crop reference to the time window of the network trajectory.
         ind = (R['t'].values >= t[0]) & (R['t'].values < t[-1])
         R = R.loc[ind, :]
@@ -716,6 +717,84 @@ def plot_gates_3d(
                 checkpoint_center[2] + corners[:, 2],
                 color=color, linewidth=width)
     return ax
+
+def track_from_logfile(
+        filepath: str,
+        ) -> pd.DataFrame:
+    """
+    Load a track from logfile.
+    """
+    track = pd.read_csv(filepath)
+    ndict = {
+        'pos_x': 'px',
+        'pos_y': 'py',
+        'pos_z': 'pz',
+        'rot_x_quat': 'qx',
+        'rot_y_quat': 'qy',
+        'rot_z_quat': 'qz',
+        'rot_w_quat': 'qw',
+        'dim_x': 'dx',
+        'dim_y': 'dy',
+        'dim_z': 'dz',
+    }
+    track = track.rename(columns=ndict)
+    track = track[list(ndict.values())]
+    return track
+
+def plot_trajectory_with_gates_3d(
+        trajectory: pd.DataFrame,
+        track: pd.DataFrame=None,
+        sampling_rate: float=20.,
+        xlims: tuple=(-15, 19),
+        ylims: tuple=(-17, 17),
+        zlims: tuple=(-8, 8),
+        view: tuple=(45, 270),
+        fig_size: tuple=(20, 10),
+        ) -> plt.axis:
+    """
+    Make a 3D trajectory plot with gates
+    """
+
+    trajectory_sampling_rate = 1 / np.nanmedian(np.diff(trajectory.t.values))
+    step_size = int(trajectory_sampling_rate / sampling_rate)
+    indices = np.arange(0, trajectory.shape[0]+1, step_size)
+    trajectory = trajectory.iloc[indices, :]
+    # Plot reference, track, and format figure.
+    ax = plot_trajectory(
+        trajectory.px.values,
+        trajectory.py.values,
+        trajectory.pz.values,
+        trajectory.qx.values,
+        trajectory.qy.values,
+        trajectory.qz.values,
+        trajectory.qw.values,
+        axis_length=2,
+        c='k',
+    )
+    ax = plot_gates_3d(
+        track=track,
+        ax=ax,
+        color='k',
+        width=4,
+    )
+    ax = format_trajectory_figure(
+        ax=ax,
+        xlims=xlims,
+        ylims=ylims,
+        zlims=zlims,
+        xlabel='px [m]',
+        ylabel='py [m]',
+        zlabel='pz [m]',
+        title='',
+    )
+    plt.axis('off')
+    plt.grid(b=None)
+    ax.view_init(elev=view[0],
+                 azim=view[1])
+    plt.gcf().set_size_inches(fig_size[0],
+                              fig_size[1])
+    return ax
+
 
 # Todo: save an animation
     # save the animation

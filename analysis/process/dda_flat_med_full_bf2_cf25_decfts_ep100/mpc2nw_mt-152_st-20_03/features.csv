@@ -1,2 +1,0 @@
-t_start,t_end,flight_time,travel_distance,median_path_deviation,iqr_path_deviation,num_gates_passed,num_collisions,filepath
-0.3600000000000001,15.169999999999721,14.809999999999722,155.19156910183693,18.848502761412277,4.726364453275693,11,0,./process/dda_flat_med_full_bf2_cf25_decfts_ep100/mpc2nw_mt-152_st-20_03/trajectory.csv
