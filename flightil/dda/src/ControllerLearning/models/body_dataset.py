@@ -186,6 +186,9 @@ class SafeDataset(BodyDataset):
         else:
             features = ["Rollout_idx"] + features
 
+        # TODO: high-level label (from gaze/velocity vector comparison) should probably just be added to the
+        #  features here and in the map function, it should just take the last "column" of the features?
+
         labels = ["Gt_control_command_collective_thrust",
                   "Gt_control_command_bodyrates_x",
                   "Gt_control_command_bodyrates_y",
@@ -304,6 +307,9 @@ class SafeDataset(BodyDataset):
             state_seq.append(state)
         state_seq = tf.stack(state_seq)
         inputs.append(state_seq)
+
+        # TODO: if decision variable for branching specified, gather here
+        #  => might be better not to leave it in self.features, since it becomes part of the state then
 
         # for images, take care they do not overlap
         if self.config.use_fts_tracks:

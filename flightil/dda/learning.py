@@ -241,7 +241,7 @@ class ControllerLearning:
             attention_fts = self.attention_fts_extractor.get_attention_features(
                 image, current_time=self.simulation_time)
             self.attention_fts_queue.append(attention_fts)
-        # self.attention_high_level_label_extractor.get_attention_features(image, drone_state=self.state_estimate)
+        self.attention_high_level_label_extractor.get_attention_features(image, drone_state=self.state_estimate)
 
     def update_info(self, info_dict):
         self.update_simulation_time(info_dict["time"])
@@ -460,6 +460,7 @@ class ControllerLearning:
             "Net_control_command_bodyrates_y",
             "Net_control_command_bodyrates_z",
             "Maneuver_type"
+            # TODO: add high-level label from attention "switcher"
         ]
 
         current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -551,6 +552,7 @@ class ControllerLearning:
             self.network_command[3],  # yaw
             # Maneuver type
             0,
+            # TODO: add high-level label from attention "switcher"
         ]
 
         if self.record_data:

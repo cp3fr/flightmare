@@ -199,7 +199,7 @@ class GazeTracks(AttentionFeatures):
 
 class AttentionHighLevelLabel(AttentionFeatures):
 
-    def __init__(self):
+    def __init__(self, config):
         # TODO: probably use one of the two gaze models to do stuff...
         #  => would be good to do offline evaluation of both of them in some way
         #     to e.g. see whether the map to gaze model actually works well/better
@@ -207,26 +207,30 @@ class AttentionHighLevelLabel(AttentionFeatures):
         self.camera_fov = 80
         self.camera_uptilt_angle = -(30.0 / 90.0) * (np.pi / 2)
         self.camera_pos_body_frame = np.array([0.2, 0.0, 0.1])
-        self.camera_rot_body_frame = Rotation.from_quat([0.0, np.sin(0.5 * self.camera_uptilt_angle),
-                                                         0.0, np.cos(0.5 * self.camera_uptilt_angle)])
-        self.camera_rot_body_frame *= Rotation.from_quat([0.0, 0.0, np.sin(-0.5 * (np.pi / 2)),
-                                                          np.cos(-0.5 * (np.pi / 2))])
+        self.camera_rot_body_frame = Rotation.from_quat([
+            0.0, np.sin(0.5 * self.camera_uptilt_angle),
+            0.0, np.cos(0.5 * self.camera_uptilt_angle)
+        ])
         self.camera_matrix = np.array([
             [0.5, 0.0, 0.5],
             [0.0, 0.5, 0.5],
             [0.0, 0.0, 1.0],
         ])
 
+        self.gaze_extractor = GazeTracks(config)
+
+        self.decision_threshold = 10.0
+
     def get_attention_features(self, image, **kwargs):
         drone_state = kwargs.get("drone_state", np.array([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]))
         drone_pos = drone_state[:3]
         drone_rot = Rotation.from_quat(drone_state[4:7].tolist() + drone_state[3:4].tolist())
         drone_vel = drone_state[7:10]
+        drone_vel = np.array([-1.0, -0.10, 0.0])
 
         # transform camera pos/rot from drone body frame to world frame
         camera_pos_world_frame = drone_rot.apply(self.camera_pos_body_frame) + drone_pos
-        # camera_rot_world_frame = (drone_rot * self.camera_rot_body_frame)
-        camera_rot_world_frame = (self.camera_rot_body_frame * drone_rot)
+        camera_rot_world_frame = (drone_rot * self.camera_rot_body_frame)
 
         print("\nDrone position:", drone_pos)
         print("Camera position:", camera_pos_world_frame)
@@ -236,7 +240,10 @@ class AttentionHighLevelLabel(AttentionFeatures):
         print("Camera rotation (Euler angles):", camera_rot_world_frame.as_euler("xyz", degrees=True))
 
         # get the gaze vector in 2D in the correct format (range [0, 1], x=right, y=down)
-        gaze_2d = np.array([0.5, 0.5])
+        gaze_2d = self.gaze_extractor.get_attention_features(image, **kwargs)
+        gaze_2d = gaze_2d[:2:-1]  # need only position, but it's ordered in "OpenCV indexing" => y first, x second
+        gaze_2d = (gaze_2d + 1.0) / 2.0
+        # gaze_2d = np.array([0.5, 1.0])
 
         # get the gaze vector in 3D
         gaze_2d = np.hstack((gaze_2d, [1.0]))
@@ -254,22 +261,34 @@ class AttentionHighLevelLabel(AttentionFeatures):
         drone_vel_2d = drone_vel_2d / np.linalg.norm(drone_vel_2d)
         gaze_2d = gaze_3d[[0, 1]]
         gaze_2d = gaze_2d / np.linalg.norm(gaze_2d)
-        angle = np.arctan2(gaze_2d[1], drone_vel_2d[0]) - np.arctan2(drone_vel_2d[1], drone_vel_2d[0])
+        angle = np.arctan2(drone_vel_2d[1], drone_vel_2d[0]) - np.arctan2(gaze_2d[1], gaze_2d[0])
+        print("Angle (1): {} (rad), {} (deg)".format(angle, angle * 180.0 / np.pi))
         if np.abs(angle) > np.pi:
             if angle < 0.0:
-                angle = 2 * np.pi - np.abs(angle)
+                # angle = 2 * np.pi - np.abs(angle)
+                angle = angle + 2 * np.pi
+                print("Angle (2): {} (rad), {} (deg)".format(angle, angle * 180.0 / np.pi))
             else:
-                angle = -(2 * np.pi - np.abs(angle))
+                # angle = -(2 * np.pi - np.abs(angle))
+                angle = angle - 2 * np.pi
+                print("Angle (3): {} (rad), {} (deg)".format(angle, angle * 180.0 / np.pi))
 
+            """
             if np.abs(angle) > 0.0:
                 angle = -angle
+                print("Angle (4): {} (rad), {} (deg)".format(angle, angle * 180.0 / np.pi))
+            """
 
         print("Angle: {} (rad), {} (deg)\n".format(angle, angle * 180.0 / np.pi))
+        angle = angle * 180.0 / np.pi
 
-        exit()
+        high_level_label = 0
+        if angle > self.decision_threshold:
+            high_level_label = 1
+        elif angle < -self.decision_threshold:
+            high_level_label = 2
 
-        # TODO: also need GT/state estimate velocity vector as input
-        return 0
+        return high_level_label
 
 
 class AllAttentionFeatures(AttentionFeatures):
@@ -286,3 +305,8 @@ class AllAttentionFeatures(AttentionFeatures):
             "gaze_tracks": self.gaze_tracks.get_attention_features(image, **kwargs),
         }
         return out
+
+
+if __name__ == "__main__":
+    extractor = AttentionHighLevelLabel()
+    test = extractor.get_attention_features(None)
