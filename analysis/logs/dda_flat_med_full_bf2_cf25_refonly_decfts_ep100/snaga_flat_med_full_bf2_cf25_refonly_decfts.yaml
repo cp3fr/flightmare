@@ -1,0 +1,50 @@
+log_dir: "dda/results/flat-med-full-bf2-cf25-refonly-decfts"
+quad_name: "hummingbird"
+verbose: False
+seq_len: 8 # History Length. When increasing to more than one, the model becomes machine dependent due to data saving latency.
+checkpoint:
+  # Put to true and add a path for loading a ckpt
+  resume_training: False
+  resume_file: ""
+data_generation:
+  max_rollouts: 150
+  train_every_n_rollouts: 30
+  double_th_every_n_rollouts: 30
+train:
+  gpu: 0
+  max_training_epochs: 20
+  max_allowed_error: 3.0 # Collision rollouts are eliminated from the training
+  min_number_fts: 40 # Number of feature tracks per image
+  batch_size: 32
+  learning_rate: 0.0003
+  summary_freq: 400
+  train_dir: "dda/data/flat-med-full-bf2-cf25-refonly-decfts/train" # Where data will be generated and where the network will train
+  val_dir: "dda/data/flat-med-full-bf2-cf25-refonly-decfts/test" # Validation Data, change to a new data folder!
+  save_every_n_epochs: 5
+  use_imu: False
+  use_fts_tracks: False
+  use_pos: False
+  use_activation: False
+  attention_fts_type: "decoder_fts"  # chose from "none", "decoder_fts", "map_tracks", "gaze_tracks"
+  attention_model_path: "/home/simon/dda-inputs/attention_model_0/model/attention_model_0.pt"
+  save_at_net_frequency: True
+test_time:
+  test_every_n_rollouts: 30
+  execute_nw_predictions: True
+  # Dagger constants and random controller constants for exploration
+  fallback_threshold_rates: 1.0
+  rand_thrust_mag: 6
+  rand_rate_mag: 3.5
+  rand_controller_prob: 0.05
+simulation:
+  flightmare_pub_port: 40453
+  flightmare_sub_port: 40454
+  disconnect_when_training: False
+  base_frequency: 100
+  image_frequency: 15
+  ref_frequency: 50
+  command_frequency: 25
+  expert_command_frequency: 20
+  start_buffer: 2.0
+  max_time: 15.2
+  trajectory_path: "/home/simon/dda-inputs/trajectory_s016_r05_flat_li01_buffer20.csv"
