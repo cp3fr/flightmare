@@ -251,11 +251,11 @@ class AggressiveNet(Network):
         if self.config.attention_fts_type != "none":
             total_embeddings = tf.concat((total_embeddings, attention_fts_embeddings), axis=1)
 
-        print("shape:", total_embeddings.shape)
+        # print("shape:", total_embeddings.shape)
 
         # get the output of the final "control" module
         output = self._control_branch(total_embeddings, branch=inputs.get("attention_label", None))
-        print("what the flippin frick")
+        # print("what the flippin frick")
 
         # apply different activation functions to the different components
         if self.config.use_activation:

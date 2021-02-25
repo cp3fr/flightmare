@@ -278,13 +278,13 @@ class ControllerLearning:
             self.network_initialised = True
             return
 
-        print("State input shape:", inputs["state"].shape)
+        # print("State input shape:", inputs["state"].shape)
 
         # apply network
         results = self.learner.inference(inputs)
         self.network_command = np.array([results[0][0], results[0][1], results[0][2], results[0][3]])
 
-        print("\nNEW NETWORK COMMAND:", self.network_command, "\n")
+        # print("\nNEW NETWORK COMMAND:", self.network_command, "\n")
 
     def prepare_expert_command(self):
         # get the reference trajectory over the time horizon
@@ -392,7 +392,6 @@ class ControllerLearning:
                 inputs["attention_fts"] = np.zeros((1, self.config.seq_len, self.attention_fts_size), dtype=np.float32)
             if self.config.attention_branching:
                 inputs["attention_label"] = np.zeros((1, 1), dtype=np.float32)
-            print(inputs)
             return inputs
 
         # reference is always used, state estimate if specified in config

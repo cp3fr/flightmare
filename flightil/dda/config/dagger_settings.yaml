@@ -32,7 +32,7 @@ train:
   attention_model_path: ["/home/simon/dda-inputs/attention_model_0/model/attention_model_0.pt",
                          "/home/simon/dda-inputs/attention_model_1/model/attention_model_1.pt"]
   attention_record_all_features: False
-  attention_branching: True
+  attention_branching: False
   attention_branching_threshold: 20  # angle in degrees
   save_at_net_frequency: True
   shallow_control_module: False
@@ -53,6 +53,6 @@ simulation:
   ref_frequency: 50
   command_frequency: 25
   expert_command_frequency: 20
-  start_buffer: 0.0
+  start_buffer: 2.0
   max_time: 15.2  # flat medium: 15.2, wave medium: 16.9, flat fast: 12.4
   trajectory_path: "/home/simon/dda-inputs/trajectory_s016_r05_flat_li01_buffer20.csv"
