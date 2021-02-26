@@ -20,13 +20,19 @@ reference_filepath = (
         logfile_path +
         'resnet_test/trajectory_reference_original.csv')
 models = [
-    'dda_flat_med_full_bf2_cf25_noimuai_ep80',
-    'dda_flat_med_full_bf2_cf25_refonly_ep100',
-    'dda_flat_med_full_bf2_cf25_noimu_ep100',
-    'dda_flat_med_full_bf2_cf25_decfts_ep45',
-    'dda_flat_med_full_bf2_cf25_decfts_ep100',
-    'dda_0',
-    'resnet_test',
+    'dda_flat_med_full_bf2_cf25_imunovels_ep100',
+    # 'dda_flat_med_full_bf2_cf25_nofts_ep100',
+    # 'dda_flat_med_full_bf2_cf25_decfts_ep45',
+    # 'dda_flat_med_full_bf2_cf25_decfts_ep100',
+    # 'dda_flat_med_full_bf2_cf25_fts_decfts_ep80',
+    # 'dda_flat_med_full_bf2_cf25_imunorot_ep100',
+    # 'dda_flat_med_full_bf2_cf25_noimuai_ep80',
+    # 'dda_flat_med_full_bf2_cf25_noimu_ep100',
+    # 'dda_flat_med_full_bf2_cf25_refonly_decfts_ep100',
+    # 'dda_flat_med_full_bf2_cf25_refonly_ep100',
+    # 'dda_0',
+    # 'dda_offline_0',
+    # 'resnet_test',
         ]
 
 
@@ -41,7 +47,7 @@ if to_collect:
                     log_filepaths.append(os.path.join(w[0], f))
 
         # Process individual trajectories flown by the network.
-        for filepath in log_filepaths:
+        for filepath in sorted(log_filepaths):
             print('..processing {}'.format(filepath))
             # Make output folder
             data_path = (filepath
@@ -82,15 +88,19 @@ if to_collect:
                     filepath_events=data_path + 'events.csv')
                 P.to_csv(data_path + 'features.csv', index=False)
             # Save trajectory plot to output folder
-            if not os.path.isfile(data_path + 'trajectory_with_gates.jpg'):
-                track = pd.read_csv(data_path + 'track.csv')
-                trajectory = pd.read_csv(data_path + 'trajectory.csv')
-                for view, xlims, ylims, zlims in [
-                             [(45, 270), (-15, 19), (-17, 17), (-8, 8)],
-                             [(0, 270), (-15, 19), (-17, 17), (-12, 12)],
-                             [(0, 180), (-15, 19), (-17, 17), (-12, 12)],
-                             [(90, 270), (-15, 19), (-15, 15), (-12, 12)],
-                        ]:
+            track = pd.read_csv(data_path + 'track.csv')
+            trajectory = pd.read_csv(data_path + 'trajectory.csv')
+            for view, xlims, ylims, zlims in [
+                         [(45, 270), (-15, 19), (-17, 17), (-8, 8)],
+                         [(0, 270), (-15, 19), (-17, 17), (-12, 12)],
+                         [(0, 180), (-15, 19), (-17, 17), (-12, 12)],
+                         [(90, 270), (-15, 19), (-15, 15), (-12, 12)],
+                    ]:
+                outpath = (data_path + 'trajectory_with_gates_{}x{}.jpg'
+                           .format('%03d' % view[0],
+                                   '%03d' % view[1])
+                           )
+                if not os.path.isfile(outpath):
                     ax = plot_trajectory_with_gates_3d(
                         trajectory=trajectory,
                         track=track,
@@ -99,9 +109,7 @@ if to_collect:
                         ylims=ylims,
                         zlims=zlims,
                     )
-                    outpath = (data_path + 'trajectory_with_gates_{}x{'
-                                           '}.jpg'.format('%03d'%view[0],
-                                                            '%03d'%view[1]))
+
                     ax.set_title(outpath)
                     plt.savefig(outpath)
                     plt.close(plt.gcf())
@@ -119,6 +127,23 @@ if to_collect:
 
 # Todo: Make performance summary table across muliple repetitions
 if to_summary:
+
+    # Copy trajectory plots into the plot folder
+    for model in models:
+        outpath = './plots/trajectories/{}/'.format(model)
+        if not os.path.exists(outpath):
+            make_path(outpath)
+        for w in os.walk('./process/{}/'.format(model)):
+            for f in w[2]:
+                if f.find('trajectory_with_gates') > -1:
+                    infile_path = os.path.join(w[0], f)
+                    outfile_path = outpath + infile_path.replace(
+                        '/trajectory_with_gates_', '_').split('/')[-1]
+                    print('..copying trajectories {}'.format(outfile_path))
+                    copyfile(infile_path,
+                             outfile_path)
+
+
 
     # Collect summaries across runs
     for model in models:

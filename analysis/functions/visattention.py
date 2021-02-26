@@ -634,6 +634,7 @@ def extract_performance_features(
         }, index=[0])
     return P
 
+
 def compare_trajectories_3d(
         reference_filepath: str,
         data_path: str=None,
@@ -668,6 +669,7 @@ def compare_trajectories_3d(
         ax = format_trajectory_figure(
             ax, xlims=(-30, 30), ylims=(-30, 30), zlims=(-30, 30), xlabel='px [m]',
             ylabel='py [m]', zlabel='pz [m]', title=data_path)
+
 
 def plot_gates_3d(
         track: pd.DataFrame,
@@ -718,6 +720,7 @@ def plot_gates_3d(
                 color=color, linewidth=width)
     return ax
 
+
 def track_from_logfile(
         filepath: str,
         ) -> pd.DataFrame:
@@ -741,6 +744,7 @@ def track_from_logfile(
     track = track[list(ndict.values())]
     return track
 
+
 def plot_trajectory_with_gates_3d(
         trajectory: pd.DataFrame,
         track: pd.DataFrame=None,
@@ -754,10 +758,9 @@ def plot_trajectory_with_gates_3d(
     """
     Make a 3D trajectory plot with gates
     """
-
     trajectory_sampling_rate = 1 / np.nanmedian(np.diff(trajectory.t.values))
     step_size = int(trajectory_sampling_rate / sampling_rate)
-    indices = np.arange(0, trajectory.shape[0]+1, step_size)
+    indices = np.arange(0, trajectory.shape[0], step_size)
     trajectory = trajectory.iloc[indices, :]
     # Plot reference, track, and format figure.
     ax = plot_trajectory(
@@ -794,6 +797,38 @@ def plot_trajectory_with_gates_3d(
     plt.gcf().set_size_inches(fig_size[0],
                               fig_size[1])
     return ax
+
+
+def signed_horizontal_angle(
+        reference_vector: np.array,
+        target_vector: np.array,
+        ) -> np.array:
+    """
+    Returns the signed horizontal angle between a given reference vector (
+    v1) and another vector.
+    """
+    reference_vector = reference_vector[:, [0, 1]]
+    target_vector = target_vector[:, [0, 1]]
+    #normalize to unit vector length
+    norm_v1 = reference_vector / np.linalg.norm(reference_vector,
+                                                axis=1).reshape((-1, 1))
+    norm_v2 = target_vector / np.linalg.norm(target_vector,
+                                             axis=1).reshape((-1, 1))
+    #compute the angle between the two vectors
+    angle = np.array([np.arctan2(norm_v2[i, 1], norm_v2[i, 0]) - np.arctan2(norm_v1[i, 1], norm_v1[i, 0])
+                      for i in range(norm_v1.shape[0])])
+
+    for i in range(angle.shape[0]):
+        #fix the angles above 180 degress
+        if np.abs(angle[i]) > np.pi:
+            if angle[i] < 0.:
+                angle[i] = (2 * np.pi - np.abs(angle[i]))
+            else:
+                angle[i] = -(2 * np.pi - np.abs(angle[i]))
+        #flip the sign
+        if (np.abs(angle[i]) > 0.):
+            angle[i] = -angle[i]
+    return angle
 
 
 # Todo: save an animation
