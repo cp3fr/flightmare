@@ -5,6 +5,7 @@ import os
 import csv
 import datetime
 
+from pprint import pprint
 from collections import deque
 from scipy.spatial.transform import Rotation
 from dda.src.ControllerLearning.models.bodyrate_learner import BodyrateLearner
@@ -130,11 +131,15 @@ class ControllerLearning:
                 n_init_states -= 9
             if self.config.imu_no_vels:
                 n_init_states -= 6
+            if self.config.no_ref:
+                n_init_states -= 18 if self.config.use_pos else 15
         else:
             if self.config.use_pos:
                 n_init_states = 18
             else:
                 n_init_states = 15
+            if self.config.no_ref:
+                n_init_states = 0
 
         init_dict = {}
         for i in range(self.config.min_number_fts):
@@ -153,11 +158,11 @@ class ControllerLearning:
         # TODO: also reset attention feature extractor if necessary
 
     def start_data_recording(self):
-        print("[ControllerLearning] Collecting data")
+        print("\n[ControllerLearning] Collecting data\n")
         self.record_data = True
 
     def stop_data_recording(self):
-        print("[ControllerLearning] Stop data collection")
+        print("\n[ControllerLearning] Stop data collection\n")
         self.record_data = False
         total = self.n_times_net + self.n_times_expert + self.n_times_randomised
         usage = {
@@ -173,6 +178,15 @@ class ControllerLearning:
         self.learner.train()
         self.is_training = False
         self.use_network = False
+
+    def update_trajectory(self, trajectory_path, max_time=None):
+        if self.mode != "testing":
+            raise UserWarning("Trajectory changed/updated during mode '{}'. This functionality is mostly "
+                              "intended for testing, but can be used outside outside of that.".format(self.mode))
+
+        print("\n[ControllerLearning] Trajectory updated (should probably reset)\n")
+        previous_max_time = self.planner.get_final_time_stamp()
+        self.planner = TrajectoryPlanner(trajectory_path, 4.0, 0.2, max_time=(max_time or previous_max_time))
 
     def update_simulation_time(self, simulation_time):
         self.simulation_time = simulation_time
@@ -197,52 +211,47 @@ class ControllerLearning:
         self.state_estimate_rot = Rotation.from_quat(self.state_estimate_rot).as_matrix().reshape((9,)).tolist()
 
     def update_image(self, image):
-        if not self.config.use_fts_tracks and self.mode == "testing":
-            return
-
         # get the features for the current frame
-        feature_tracks = self.feature_tracker.process_image(image, current_time=self.simulation_time)
+        feature_tracks = None
+        if self.config.use_fts_tracks or self.mode != "testing":
+            feature_tracks = self.feature_tracker.process_image(image, current_time=self.simulation_time)
 
-        if feature_tracks is None:
-            return
+        if feature_tracks is not None:
+            # "format" the features like original DDA
+            features_dict = {}
+            for i in range(len(feature_tracks)):
+                ft_id = feature_tracks[i][0]
+                x = feature_tracks[i][2]
+                y = feature_tracks[i][3]
+                velocity_x = feature_tracks[i][4]
+                velocity_y = feature_tracks[i][5]
+                track_count = 2 * (feature_tracks[i][1] / TRACK_NUM_NORMALIZE) - 1  # TODO: probably revise
+                feat = np.array([x, y, velocity_x, velocity_y, track_count])
+                features_dict[ft_id] = feat
 
-        # "format" the features like original DDA
-        features_dict = {}
-        for i in range(len(feature_tracks)):
-            ft_id = feature_tracks[i][0]
-            x = feature_tracks[i][2]
-            y = feature_tracks[i][3]
-            velocity_x = feature_tracks[i][4]
-            velocity_y = feature_tracks[i][5]
-            track_count = 2 * (feature_tracks[i][1] / TRACK_NUM_NORMALIZE) - 1  # TODO: probably revise
-            feat = np.array([x, y, velocity_x, velocity_y, track_count])
-            features_dict[ft_id] = feat
+            if len(features_dict.keys()) != 0:
+                # remember the "unsampled" features for saving them for training
+                self.feature_tracks = copy.copy(features_dict)
 
-        if len(features_dict.keys()) == 0:
-            return
+                # sample features
+                processed_dict = copy.copy(features_dict)
+                missing_fts = self.config.min_number_fts - len(features_dict.keys())
+                if missing_fts > 0:
+                    # features are missing
+                    if missing_fts != self.config.min_number_fts:
+                        # there is something, we can sample
+                        new_features_keys = random.choices(list(features_dict.keys()), k=int(missing_fts))
+                        for j in range(missing_fts):
+                            processed_dict[-j - 1] = features_dict[new_features_keys[j]]
+                    else:
+                        raise IOError("There should not be zero features!")
+                elif missing_fts < 0:
+                    # there are more features than we need, so sample
+                    del_features_keys = random.sample(features_dict.keys(), int(-missing_fts))
+                    for k in del_features_keys:
+                        del processed_dict[k]
 
-        # remember the "unsampled" features for saving them for training
-        self.feature_tracks = copy.copy(features_dict)
-
-        # sample features
-        processed_dict = copy.copy(features_dict)
-        missing_fts = self.config.min_number_fts - len(features_dict.keys())
-        if missing_fts > 0:
-            # features are missing
-            if missing_fts != self.config.min_number_fts:
-                # there is something, we can sample
-                new_features_keys = random.choices(list(features_dict.keys()), k=int(missing_fts))
-                for j in range(missing_fts):
-                    processed_dict[-j - 1] = features_dict[new_features_keys[j]]
-            else:
-                raise IOError("There should not be zero features!")
-        elif missing_fts < 0:
-            # there are more features than we need, so sample
-            del_features_keys = random.sample(features_dict.keys(), int(-missing_fts))
-            for k in del_features_keys:
-                del processed_dict[k]
-
-        self.fts_queue.append(processed_dict)
+                self.fts_queue.append(processed_dict)
 
         if self.config.attention_fts_type != "none" or self.config.attention_record_all_features:
             attention_fts = self.attention_fts_extractor.get_attention_features(
@@ -277,6 +286,11 @@ class ControllerLearning:
             print("[ControllerLearning] Network initialized")
             self.network_initialised = True
             return
+
+        # print("\nNetwork inputs:")
+        # pprint(inputs)
+        # print()
+
         # apply network
         results = self.learner.inference(inputs)
         self.network_command = np.array([results[0][0], results[0][1], results[0][2], results[0][3]])

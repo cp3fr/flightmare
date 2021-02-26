@@ -5,14 +5,14 @@ import shutil
 import yaml
 
 
-def create_settings(settings_yaml, mode='test'):
+def create_settings(settings_yaml, mode='test', generate_log=True):
     setting_dict = {'train': TrainSetting,
                     'test': TestSetting,
                     'dagger': DaggerSetting}
     settings = setting_dict.get(mode, None)
     if settings is None:
         raise IOError("Unidentified Settings")
-    settings = settings(settings_yaml)
+    settings = settings(settings_yaml, generate_log)
     return settings
 
 
@@ -55,8 +55,8 @@ class Settings:
 
 class TrainSetting(Settings):
 
-    def __init__(self, settings_yaml):
-        super(TrainSetting, self).__init__(settings_yaml, generate_log=True)
+    def __init__(self, settings_yaml, generate_log=True):
+        super(TrainSetting, self).__init__(settings_yaml, generate_log=generate_log)
         self.settings_yaml = settings_yaml
         self.add_flags()
 
@@ -91,8 +91,8 @@ class TrainSetting(Settings):
 
 class TestSetting(Settings):
 
-    def __init__(self, settings_yaml):
-        super(TestSetting, self).__init__(settings_yaml, generate_log=True)
+    def __init__(self, settings_yaml, generate_log=True):
+        super(TestSetting, self).__init__(settings_yaml, generate_log=generate_log)
         self.settings_yaml = settings_yaml
         self.add_flags()
 
@@ -113,8 +113,8 @@ class TestSetting(Settings):
 
 class DaggerSetting(Settings):
 
-    def __init__(self, settings_yaml):
-        super(DaggerSetting, self).__init__(settings_yaml, generate_log=True)
+    def __init__(self, settings_yaml, generate_log=True):
+        super(DaggerSetting, self).__init__(settings_yaml, generate_log=generate_log)
         self.settings_yaml = settings_yaml
         self.add_flags()
 

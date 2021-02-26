@@ -107,7 +107,10 @@ def test():
         "/home/simon/gazesim-data/fpv_saliency_maps/data/dda/results/flat-med-full-bf2-cf25-imunorot/20210224-193941/train/ckpt-46",
         "/home/simon/gazesim-data/fpv_saliency_maps/data/dda/results/flat-med-full-bf2-cf25-refonly-decfts/20210224-112317/train/ckpt-53",
         "/home/simon/gazesim-data/fpv_saliency_maps/data/dda/results/flat-med-full-bf2-cf25-fts-decfts/20210224-230756/train/ckpt-29",
-        "/home/simon/gazesim-data/fpv_saliency_maps/data/dda/results/flat-med-full-bf2-cf25-nofts/20210223-213804/train/ckpt-51"
+        "/home/simon/gazesim-data/fpv_saliency_maps/data/dda/results/flat-med-full-bf2-cf25-nofts/20210223-213804/train/ckpt-51",
+        "/home/simon/gazesim-data/fpv_saliency_maps/data/dda/results/flat-med-full-bf2-cf25-imunovels/20210225-225833/train/ckpt-48",
+        "/home/simon/gazesim-data/fpv_saliency_maps/data/dda/results/flat-med-full-bf2-cf25-noref/20210225-135550/train/ckpt-49",
+        "/home/simon/gazesim-data/fpv_saliency_maps/data/dda/results/flat-med-full-bf2-cf25-noref-nofts/20210225-162719/train/ckpt-52",
     ]
     settings_paths = [
         "./dda/config/dagger_settings.yaml",
@@ -125,15 +128,18 @@ def test():
         "/home/simon/gazesim-data/fpv_saliency_maps/data/dda/results/flat-med-full-bf2-cf25-refonly-decfts/20210224-112317/snaga_flat_med_full_bf2_cf25_refonly_decfts.yaml",
         "/home/simon/gazesim-data/fpv_saliency_maps/data/dda/results/flat-med-full-bf2-cf25-fts-decfts/20210224-230756/snaga_flat_med_full_bf2_cf25_fts_decfts.yaml",
         "/home/simon/gazesim-data/fpv_saliency_maps/data/dda/results/flat-med-full-bf2-cf25-nofts/20210223-213804/snaga_flat_med_full_bf2_cf25_nofts.yaml",
+        "/home/simon/gazesim-data/fpv_saliency_maps/data/dda/results/flat-med-full-bf2-cf25-imunovels/20210225-225833/snaga_flat_med_full_bf2_cf25_imunovels.yaml",
+        "/home/simon/gazesim-data/fpv_saliency_maps/data/dda/results/flat-med-full-bf2-cf25-noref/20210225-135550/snaga_flat_med_full_bf2_cf25_noref.yaml",
+        "/home/simon/gazesim-data/fpv_saliency_maps/data/dda/results/flat-med-full-bf2-cf25-noref-nofts/20210225-162719/snaga_flat_med_full_bf2_cf25_noref_nofts.yaml",
     ]
 
     trajectory_path = trajectories[3]
-    model_load_path = model_load_paths[-1]
-    settings_path = settings_paths[-1]
+    model_load_path = model_load_paths[-6]
+    settings_path = settings_paths[-6]
 
     # defining some settings
-    show_plots = False
-    save_data = True
+    show_plots = True
+    save_data = False
     write_video = False
     max_time = 6.0
     switch_times = np.arange(0.0, 5.0, step=0.5).tolist() + [max_time + 1.0]
@@ -148,6 +154,9 @@ def test():
     experiment_path = "/home/simon/Desktop/weekly_meeting/meeting20/test/dda_flat_med_full_bf2_cf25_imunorot_ep100"
     experiment_path = "/home/simon/Desktop/weekly_meeting/meeting20/test/dda_flat_med_full_bf2_cf25_fts_decfts_ep80"
     experiment_path = "/home/simon/Desktop/weekly_meeting/meeting20/test/dda_flat_med_full_bf2_cf25_nofts_ep100"
+    experiment_path = "/home/simon/Desktop/weekly_meeting/meeting20/test/dda_flat_med_full_bf2_cf25_imunovels_ep100"
+    experiment_path = "/home/simon/Desktop/weekly_meeting/meeting20/test/dda_flat_med_full_bf2_cf25_noref_ep100"
+    experiment_path = "/home/simon/Desktop/weekly_meeting/meeting20/test/dda_flat_med_full_bf2_cf25_noref_nofts_ep100"
 
     if not os.path.exists(experiment_path):
         os.makedirs(experiment_path)

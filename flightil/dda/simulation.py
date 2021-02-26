@@ -313,7 +313,8 @@ class FlightmareSimulation(Simulation):
         self.action_dim = 4
 
         # Flightmare wrapper/bridge, in this class mostly to get images
-        self.flightmare_wrapper = RacingEnvWrapper(wave_track=("wave" in trajectory_path))
+        self.wave_track = "wave" in trajectory_path
+        self.flightmare_wrapper = RacingEnvWrapper(wave_track=self.wave_track)
         # self.flightmare_wrapper = RacingEnvWrapper(wave_track=False)
         self.current_image = np.zeros((self.flightmare_wrapper.image_width, self.flightmare_wrapper.image_height, 3),
                                       dtype=np.uint8)
@@ -329,9 +330,9 @@ class FlightmareSimulation(Simulation):
         self.flightmare_wrapper.set_reduced_state(self.current_state)
         self.flightmare_wrapper.set_sim_time_step(self.base_time_step)
 
-    ################
-    # RESET METHOD #
-    ################
+    ########################
+    # RESET(-LIKE) METHODS #
+    ########################
 
     def _reset(self):
         self.total_time = self.reference_sampler.get_final_time_stamp()
@@ -340,6 +341,14 @@ class FlightmareSimulation(Simulation):
         # self.current_state = self.reference_sampler.get_initial_state()
         self.current_state = self.reference_sampler.get_initial_state(columns=["pos", "rot", "vel", "omega"])
         self.flightmare_wrapper.set_reduced_state(self.current_state)
+
+    def update_trajectory(self, trajectory_path, max_time=None):
+        if (self.wave_track and "flat" in trajectory_path) or (not self.wave_track and "wave" in trajectory_path):
+            raise ValueError("Cannot update Flightmare simulation with a different track type ({}) than what was "
+                             "previously specified ({}).".format("flat" if self.wave_track else "wave",
+                                                                 "wave" if self.wave_track else "flat"))
+
+        self.reference_sampler = TrajectorySampler(trajectory_path, max_time=(max_time or self.total_time))
 
     #####################################
     # TAKING CARE OF FLIGHTMARE WRAPPER # (not sure if$ overkill, but it's kinda neat)
