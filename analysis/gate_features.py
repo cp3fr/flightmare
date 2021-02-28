@@ -1,7 +1,7 @@
 try:
-    from analysis.functions.visattention import *
+    from analysis.utils import *
 except:
-    from functions.visattention import *
+    from analysis.utils import *
 import seaborn as sns
 
 

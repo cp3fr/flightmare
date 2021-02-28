@@ -1,26 +1,32 @@
-try:
-    from analysis.functions.visattention import *
-except:
-    from functions.visattention import *
+import os
+import sys
 
-"""
-Processing pipeline for visualizing and quantifying network performance as 
-compared to some reference (human pilot or MPC).
-"""
+# Add base path
+base_path = os.getcwd().split('/flightmare/')[0]+'/flightmare/'
+sys.path.insert(0, base_path)
 
-# Settings
+from analysis.utils import *
+
+# What to do
 to_collect = True
 to_summary = True
 to_plot = False
 
 # Chose input files and folders for processing.
-track_filepath = './tracks/flat.csv'
+track_filepaths = {
+    'flat': './tracks/flat.csv',
+    'wave': './tracks/wave.csv',
+    }
 logfile_path = './logs/'
 reference_filepath = (
         logfile_path +
         'resnet_test/trajectory_reference_original.csv')
 models = [
-    'dda_flat_med_full_bf2_cf25_imunovels_ep100',
+    'dda_flat_med_full_bf2_cf25_default',
+    'dda_flat_med_full_bf2_cf25_decfts',
+    'dda_flat_med_full_bf2_cf25_nofts',
+
+    # 'dda_flat_med_full_bf2_cf25_imunovels_ep100',
     # 'dda_flat_med_full_bf2_cf25_nofts_ep100',
     # 'dda_flat_med_full_bf2_cf25_decfts_ep45',
     # 'dda_flat_med_full_bf2_cf25_decfts_ep100',
@@ -35,10 +41,13 @@ models = [
     # 'resnet_test',
         ]
 
+if len(models) == 0:
+    models = ['']
 
 if to_collect:
 
     for model in models:
+
         # Make a list of input logfiles of network trajectories.
         log_filepaths = []
         for w in os.walk(os.path.join(logfile_path, model)):
@@ -66,6 +75,12 @@ if to_collect:
                 reference.to_csv(data_path + 'reference.csv',
                                   index=False)
             if not os.path.isfile(data_path + 'track.csv'):
+                if filepath.find('flat') > -1:
+                    track_filepath = track_filepaths['flat']
+                elif filepath.find('wave') > -1:
+                    track_filepath = track_filepaths['wave']
+                else:
+                    track_filepath = ''
                 track = track_from_logfile(filepath=track_filepath)
                 # Make some adjustments
                 track['pz'] += 0.35 # shift gates up in fligthmare
@@ -88,62 +103,67 @@ if to_collect:
                     filepath_events=data_path + 'events.csv')
                 P.to_csv(data_path + 'features.csv', index=False)
             # Save trajectory plot to output folder
-            track = pd.read_csv(data_path + 'track.csv')
-            trajectory = pd.read_csv(data_path + 'trajectory.csv')
-            for view, xlims, ylims, zlims in [
-                         [(45, 270), (-15, 19), (-17, 17), (-8, 8)],
-                         [(0, 270), (-15, 19), (-17, 17), (-12, 12)],
-                         [(0, 180), (-15, 19), (-17, 17), (-12, 12)],
-                         [(90, 270), (-15, 19), (-15, 15), (-12, 12)],
-                    ]:
-                outpath = (data_path + 'trajectory_with_gates_{}x{}.jpg'
-                           .format('%03d' % view[0],
-                                   '%03d' % view[1])
-                           )
-                if not os.path.isfile(outpath):
-                    ax = plot_trajectory_with_gates_3d(
-                        trajectory=trajectory,
-                        track=track,
-                        view=view,
-                        xlims=xlims,
-                        ylims=ylims,
-                        zlims=zlims,
-                    )
+            if to_plot:
+                track = pd.read_csv(data_path + 'track.csv')
+                trajectory = pd.read_csv(data_path + 'trajectory.csv')
+                features = pd.read_csv(data_path + 'features.csv')
+                for label in ['', 'valid_']:
+                    for view, xlims, ylims, zlims in [
+                                 [(45, 270), (-15, 19), (-17, 17), (-8, 8)],
+                                 # [(0, 270), (-15, 19), (-17, 17), (-12, 12)],
+                                 # [(0, 180), (-15, 19), (-17, 17), (-12, 12)],
+                                 # [(90, 270), (-15, 19), (-15, 15), (-12, 12)],
+                            ]:
+                        outpath = (data_path + '{}trajectory_with_gates_'
+                                               '{}x{}.jpg'
+                                   .format(label,
+                                           '%03d' % view[0],
+                                           '%03d' % view[1])
+                                   )
+                        if not os.path.isfile(outpath):
+                            if label == 'valid_':
+                                ind = ((trajectory['t'].values >=
+                                       features['t_start'].iloc[0]) &
+                                       (trajectory['t'].values <=
+                                        features['t_end'].iloc[0]))
+                            else:
+                                ind = np.array([True for i in range(
+                                    trajectory.shape[0])])
+                            ax = plot_trajectory_with_gates_3d(
+                                trajectory=trajectory.iloc[ind, :],
+                                track=track,
+                                view=view,
+                                xlims=xlims,
+                                ylims=ylims,
+                                zlims=zlims,
+                            )
 
-                    ax.set_title(outpath)
-                    plt.savefig(outpath)
-                    plt.close(plt.gcf())
-                    ax=None
-
-
-            # Todo: add comparison to MPC control commands
+                            ax.set_title(outpath)
+                            plt.savefig(outpath)
+                            plt.close(plt.gcf())
+                            ax=None
 
             # Todo: Save plot of drone state comparison trajectory vs reference
-
-            # Todo: Save plot trajectory with poses
-
             # Todo: Optional: Save Animation
 
 
-# Todo: Make performance summary table across muliple repetitions
 if to_summary:
 
     # Copy trajectory plots into the plot folder
-    for model in models:
-        outpath = './plots/trajectories/{}/'.format(model)
-        if not os.path.exists(outpath):
-            make_path(outpath)
-        for w in os.walk('./process/{}/'.format(model)):
-            for f in w[2]:
-                if f.find('trajectory_with_gates') > -1:
-                    infile_path = os.path.join(w[0], f)
-                    outfile_path = outpath + infile_path.replace(
-                        '/trajectory_with_gates_', '_').split('/')[-1]
-                    print('..copying trajectories {}'.format(outfile_path))
-                    copyfile(infile_path,
-                             outfile_path)
-
-
+    if to_plot:
+        for model in models:
+            outpath = './plots/trajectories/{}/'.format(model)
+            if not os.path.exists(outpath):
+                make_path(outpath)
+            for w in os.walk('./process/{}/'.format(model)):
+                for f in w[2]:
+                    if f.find('trajectory_with_gates') > -1:
+                        infile_path = os.path.join(w[0], f)
+                        outfile_path = outpath + infile_path.replace(
+                            '/trajectory_with_gates_', '_').split('/')[-1]
+                        print('..copying trajectories {}'.format(outfile_path))
+                        copyfile(infile_path,
+                                 outfile_path)
 
     # Collect summaries across runs
     for model in models:
@@ -161,6 +181,33 @@ if to_summary:
                     filepath
                     ))
                 df = pd.read_csv(filepath)
+                curr_path = df['filepath'].iloc[0]
+                # add track information
+                if curr_path.find('wave') > -1:
+                    df['track'] = 'wave'
+                else:
+                    if curr_path.find('flat') > -1:
+                        df['track'] = 'flat'
+                    else:
+                        df['track'] = 'NONE'
+
+
+
+                #add subject number
+                curr_subj = int(
+                    curr_path.split('/s0')[-1].split('_')[0])
+                df['subject'] = curr_subj
+                # add run number
+                curr_run = int(
+                    curr_path.split('_r')[-1].split('_')[0])
+                df['run'] = curr_run
+                #add repetition number
+                curr_repetition = int(
+                    curr_path.split('/')[-2].split('_')[-1])
+                df['repetition'] = curr_repetition
+
+
+
                 summary = summary.append(df)
 
             if not os.path.exists(outpath):
@@ -175,38 +222,99 @@ if to_summary:
     for model in models:
         inpath = './performance/'+model+'/summary.csv'
         summary = pd.read_csv(inpath)
-        names = [
-            'flight_time',
-            'travel_distance',
-            'median_path_deviation',
-            'iqr_path_deviation',
-            'num_gates_passed',
-            'num_collisions'
-        ]
-        tdict = {
-            'model': model,
+
+        odict={
+            'Flight Time [s]': {
+                'varname': 'flight_time',
+                'track': '',
+                'first_line': 'mean',
+                'second_line': 'std',
+                'precision': 2
+                },
+            'Travel Distance [m]': {
+                'varname': 'travel_distance',
+                'track': '',
+                'first_line': 'mean',
+                'second_line': 'std',
+                'precision': 2
+            },
+            'Mean Error [m]': {
+                'varname': 'median_path_deviation',
+                'track': '',
+                'first_line': 'mean',
+                'second_line': 'std',
+                'precision': 2
+            },
+            'Num. Gates Passed': {
+                'varname': 'num_gates_passed',
+                'track': '',
+                'first_line': 'mean',
+                'second_line': 'std',
+                'precision': 2
+            },
+            '% Collision Free': {
+                'varname': 'num_collisions',
+                'track': '',
+                'first_line': 'percent',
+                'second_line': '',
+                'precision': 0
+            },
         }
 
-        #todo: make the output drag and drop for latex
-        precision = 2
-        for op in ['mean', 'sd']:
-            for name in names:
-                tdict.setdefault(name, [])
-                if op=='mean':
-                    tdict[name].append(
-                        ('{:.%df}'%precision)
-                            .format(
-                            np.nanmean(summary[name].values)))
-                elif op=='sd':
-                    tdict[name].append(
-                        ('({:.%df})' % precision)
-                            .format(
-                            np.nanstd(summary[name].values)))
+        ddict = {}
+        ddict['Model'] = [model, '']
+        for outvar in odict:
+            ddict.setdefault(outvar, [])
+            invar = odict[outvar]['varname']
+            curr_vals = summary[invar].values
+            #first line value
+            op1 = odict[outvar]['first_line']
+            if op1 == 'mean':
+                val1 = np.nanmean(curr_vals)
+            elif op1 == 'percent':
+                val1 = 100 * np.mean((curr_vals > 0).astype(int))
+            else:
+                val1 = None
+            if val1 is None:
+                ddict[outvar].append('')
+            else:
+                ddict[outvar].append(str(np.round(val1, odict[outvar][
+                    'precision'])))
+            # second line value
+            op2 = odict[outvar]['second_line']
+            if op2 == 'std':
+                val1 = np.nanstd(curr_vals)
+            else:
+                val1 = None
+            if val1 is None:
+                ddict[outvar].append('')
+            else:
+                ddict[outvar].append('('+str(np.round(val1, odict[outvar][
+                    'precision']))+')')
 
-        table = pd.DataFrame(tdict, index=[v for v in range(len(tdict[names[
-            0]]))])
+
+
+
+
+        # #todo: make the output drag and drop for latex
+        # precision = 2
+        # for op in ['mean', 'sd']:
+        #     for name in names:
+        #         tdict.setdefault(name, [])
+        #         if op=='mean':
+        #             tdict[name].append(
+        #                 ('{:.%df}'%precision)
+        #                     .format(
+        #                     np.nanmean(summary[name].values)))
+        #         elif op=='sd':
+        #             tdict[name].append(
+        #                 ('({:.%df})' % precision)
+        #                     .format(
+        #                     np.nanstd(summary[name].values)))
+
+        table = pd.DataFrame(ddict, index=list(range(len(ddict['Model']))))
         outpath = './performance/'+model+'/table.csv'
-        table.to_csv(outpath, index=False)
+        table.to_latex(outpath, index=False)
 
 
 

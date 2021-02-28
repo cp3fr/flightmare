@@ -530,7 +530,8 @@ def get_pass_collision_events(
 def extract_performance_features(
         filepath_trajectory: str,
         filepath_events: str,
-        filepath_reference: str=None
+        filepath_reference: str=None,
+        time_delta: float=2.,
         ) -> pd.DataFrame():
     """
     Compute performance features for a given network trajectory, considering
@@ -544,6 +545,13 @@ def extract_performance_features(
     py = D['py'].values
     pz = D['pz'].values
     nw = D['network_used'].values
+    ind = np.hstack((True, np.diff(t) > 0))
+    #fix duplicate timestamps
+    t=t[ind]
+    px=px[ind]
+    py=py[ind]
+    pz=pz[ind]
+    nw=nw[ind]
     # Load the reference trajectory
     if filepath_reference:
         R = pd.read_csv(filepath_reference)
@@ -559,9 +567,16 @@ def extract_performance_features(
         R = pd.DataFrame(ndict, index=list(range(len(ndict[n]))))
         # Get Reference state variables.
         t_ref = R['t'].values
+        t_ref += time_delta
         px_ref = R['px'].values
         py_ref = R['py'].values
         pz_ref = R['pz'].values
+        # fix repeated timestamp issue
+        ind = np.hstack((True, np.diff(t_ref) > 0))
+        t_ref = t_ref[ind]
+        px_ref = px_ref[ind]
+        py_ref = py_ref[ind]
+        pz_ref = pz_ref[ind]
     else:
         R = None
         t_ref = None
@@ -598,28 +613,77 @@ def extract_performance_features(
             t_end = t_network_end
         else:
             t_end = t_trajectory_end
+    if t_end<t_start:
+        t_end=t_start
     # Get performance metrics within the start and end time window
     # ..number of passed gates
-    ind = (E['t'].values >= t_start)  & (E['t'].values <= t_end)
+    ind = (E['t'].values >= t_start) & (E['t'].values <= t_end)
     num_gates_passed = np.sum(E.loc[ind, 'is-pass'].values)
     num_collisions = np.sum(E.loc[ind, 'is-collision'].values)
-    # ..flight distance
-    ind = (t >= t_start) & (t <= t_end)
-    position = np.hstack((px.reshape((-1, 1)),
-                          np.hstack((py.reshape((-1, 1)),
-                                     pz.reshape((-1, 1))))))
-    position = position[ind, :]
-    total_distance = np.sum(np.linalg.norm(np.diff(position, axis=0), axis=1))
-    total_duration = t_end - t_start
-    #..median and iqr path deviation from reference
-    ind = (t_ref >= t_start) & (t_ref <= t_end)
-    position_ref = np.hstack((px_ref.reshape((-1, 1)),
-                              np.hstack((py_ref.reshape((-1, 1)),
-                                         pz_ref.reshape((-1, 1))))))
-    position_ref = position_ref[ind, :]
-    deviation_from_reference = np.linalg.norm(position - position_ref, axis=1)
-    median_deviation = np.nanmedian(deviation_from_reference)
-    iqr_deviation = iqr(deviation_from_reference)
+    num_passes = {}
+    for i in range(int(np.max(E['object-id'].values) + 1)):
+        ind3 = E['object-id'].values == i
+        num_passes[i] = np.sum(E.loc[ind & ind3, 'is-pass'].values)
+    # get the minimum and max timestamps that are both in reference and
+    # trajectory
+    if ((t_start == t_end) |
+        (np.sum(t<=t_end) == 0) |
+        (np.sum(t_ref<=t_end) == 0) |
+        (np.sum(t>=t_start) == 0) |
+        (np.sum(t_ref>=t_start) == 0)
+        ):
+        total_distance = 0.
+        total_duration = t_end - t_start
+        deviation_from_reference = 0.
+        median_deviation = 0.
+        iqr_deviation = 0.
+    else:
+        t_min = np.max([np.min(t[t<=t_end]),
+                        np.min(t_ref[t_ref<=t_end])])
+        t_max = np.min([np.max(t[t >= t_start]),
+                        np.max(t_ref[t_ref >= t_start])])
+        # ..flight distance
+        ind = (t >= t_min) & (t <= t_max)
+        time = t[ind]
+        position = np.hstack((px.reshape((-1, 1)),
+                              np.hstack((py.reshape((-1, 1)),
+                                         pz.reshape((-1, 1))))))
+        position = position[ind, :]
+        #..median and iqr path deviation from reference
+        ind = (t_ref >= t_min) & (t_ref <= t_max)
+        t_ref = t_ref[ind]
+        position_ref = np.hstack((px_ref.reshape((-1, 1)),
+                                  np.hstack((py_ref.reshape((-1, 1)),
+                                             pz_ref.reshape((-1, 1))))))
+        position_ref = position_ref[ind, :]
+
+        if position.shape[0] > position_ref.shape[0]:
+            position = position[:position_ref.shape[0], :]
+            time = time[:position_ref.shape[0]]
+        elif position.shape[0] < position_ref.shape[0]:
+            position_ref = position_ref[:position.shape[0], :]
+            t_ref = t_ref[:position.shape[0]]
+
+        if position.shape[0] != position_ref.shape[0]:
+            print('file length error:')
+            print(t_start, t_end)
+            print(t_min, t_max)
+            print('position:')
+            print(position.shape)
+            print(np.min(time), np.max(time), np.nanmedian(np.diff(time)))
+            print('position_ref:')
+            print(position_ref.shape)
+            print(np.min(t_ref), np.max(t_ref), np.nanmedian(np.diff(t_ref)))
+            plt.plot(np.diff(time))
+            plt.plot(np.diff(t_ref))
+            plt.show()
+        # compute features
+        total_distance = np.sum(np.linalg.norm(np.diff(position, axis=0), axis=1))
+        total_duration = t_end - t_start
+        deviation_from_reference = np.linalg.norm(position - position_ref, axis=1)
+        median_deviation = np.nanmedian(deviation_from_reference)
+        iqr_deviation = iqr(deviation_from_reference)
+
     # Save the features to pandas dataframe
     P = pd.DataFrame({
         't_start': t_start,
@@ -629,10 +693,61 @@ def extract_performance_features(
         'median_path_deviation' : median_deviation,
         'iqr_path_deviation' : iqr_deviation,
         'num_gates_passed': num_gates_passed,
+        'num_pass_gate0': num_passes[0],
+        'num_pass_gate1': num_passes[1],
+        'num_pass_gate2': num_passes[2],
+        'num_pass_gate3': num_passes[3],
+        'num_pass_gate4': num_passes[4],
+        'num_pass_gate5': num_passes[5],
+        'num_pass_gate6': num_passes[6],
+        'num_pass_gate7': num_passes[7],
+        'num_pass_gate8': num_passes[8],
+        'num_pass_gate9': num_passes[9],
         'num_collisions': num_collisions,
         'filepath': filepath_trajectory
         }, index=[0])
     return P
+
+
+def plot_state(
+        filepath_trajectory: str,
+        filepath_features: str,
+        filepath_reference: str=None,
+        time_delta: float=2.,
+        ax: plt.axis=None,
+        ) -> pd.DataFrame():
+    """
+    Plot drone state variables
+    """
+    trajectory = pd.read_csv(filepath_trajectory)
+    reference = pd.read_csv(filepath_reference)
+    reference['t'] += time_delta
+    features = pd.read_csv(filepath_features)
+    t_start = features.t_start.iloc[0]
+    t_end = features.t_end.iloc[0]
+    ind = (trajectory.t.values >= t_start) & (trajectory.t.values <= t_end)
+    trajectory = trajectory.iloc[ind, :]
+    ind = (reference.t.values >= t_start) & (reference.t.values <= t_end)
+    reference = reference.iloc[ind, :]
+
+    if ax == None:
+        _ , axs = plt.subplots(3, 1)
+    else:
+        axs = [ax]
+    iax = 0
+    axs[iax].plot(trajectory.t, trajectory.px, 'r-')
+    axs[iax].plot(trajectory.t, trajectory.py, 'g-')
+    axs[iax].plot(trajectory.t, trajectory.pz, 'b-')
+    axs[iax].plot(reference.t, reference.px, 'r--')
+    axs[iax].plot(reference.t, reference.py, 'g--')
+    axs[iax].plot(reference.t, reference.pz, 'b--')
+    axs[iax].set_xlabel('Time [sec]')
+    axs[iax].set_ylabel('Position [m]')
+    axs[iax].legend(['trajectory px', 'trajectory py', 'trajectory pz',
+                     'reference px', 'reference py', 'reference pz',],
+                    loc='east')
+    return axs
+
 
 
 def compare_trajectories_3d(
@@ -758,9 +873,12 @@ def plot_trajectory_with_gates_3d(
     """
     Make a 3D trajectory plot with gates
     """
-    trajectory_sampling_rate = 1 / np.nanmedian(np.diff(trajectory.t.values))
-    step_size = int(trajectory_sampling_rate / sampling_rate)
-    indices = np.arange(0, trajectory.shape[0], step_size)
+    if trajectory.shape[0] > 1:
+        trajectory_sampling_rate = 1 / np.nanmedian(np.diff(trajectory.t.values))
+        step_size = int(trajectory_sampling_rate / sampling_rate)
+        indices = np.arange(0, trajectory.shape[0], step_size)
+    else:
+        indices = np.array([0])
     trajectory = trajectory.iloc[indices, :]
     # Plot reference, track, and format figure.
     ax = plot_trajectory(
