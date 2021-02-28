@@ -8,10 +8,15 @@ sys.path.insert(0, base_path)
 from analysis.utils import *
 
 # What to do
-to_collect = True
-to_summary = False
-to_plot_traj_3d = True
-to_plot_state = True
+to_process = True
+to_performance = False
+
+to_plot_traj_3d = False
+to_plot_state = False
+to_plot_reference = False
+
+# Buffer time: time runs with  network were started earlier than the reference
+# trajectory
 buffer = 2.0
 
 # Chose input files and folders for processing.
@@ -24,31 +29,16 @@ reference_filepath = (
         logfile_path +
         'resnet_test/trajectory_reference_original.csv')
 models = [
-    # 'dda_flat_med_full_bf2_cf25_default',
-    'dda_flat_med_full_bf2_cf25_decfts',
-    # 'dda_flat_med_full_bf2_cf25_nofts',
-    # 'dda_flat_med_full_bf2_cf25_imunovels_ep100',
-    # 'dda_flat_med_full_bf2_cf25_nofts_ep100',
-    # 'dda_flat_med_full_bf2_cf25_decfts_ep45',
-    # 'dda_flat_med_full_bf2_cf25_decfts_ep100',
-    # 'dda_flat_med_full_bf2_cf25_fts_decfts_ep80',
-    # 'dda_flat_med_full_bf2_cf25_imunorot_ep100',
-    # 'dda_flat_med_full_bf2_cf25_noimuai_ep80',
-    # 'dda_flat_med_full_bf2_cf25_noimu_ep100',
-    # 'dda_flat_med_full_bf2_cf25_refonly_decfts_ep100',
-    # 'dda_flat_med_full_bf2_cf25_refonly_ep100',
-    # 'dda_0',
-    # 'dda_offline_0',
-    # 'resnet_test',
+    # 'dda_flat_med_full_bf2_cf25_decfts',
         ]
-
 if len(models) == 0:
     for w in os.walk(logfile_path):
         if w[0] == logfile_path:
             models = w[1]
 models = sorted(models)
 
-if to_collect:
+# Process individual runs
+if to_process:
 
     for model in models:
 
@@ -72,6 +62,8 @@ if to_collect:
             # Copy trajectory, reference, and track files to output folder
             if not os.path.isfile(data_path + 'trajectory.csv'):
                 trajectory = trajectory_from_logfile(filepath=filepath)
+                # Important: compensate for buffer time (i.e. earlier start
+                # of the network, before start of the reference trajectory)
                 trajectory['t'] -= buffer
                 trajectory.to_csv(data_path + 'trajectory.csv',
                                   index=False)
@@ -146,7 +138,6 @@ if to_collect:
                             plt.savefig(outpath)
                             plt.close(plt.gcf())
                             ax=None
-
             # Plot the drone state
             if to_plot_state:
                 if not os.path.isfile(data_path + 'state.jpg'):
@@ -159,13 +150,7 @@ if to_collect:
                     plt.close(plt.gcf())
 
 
-
-
-            # Todo: Save plot of drone state comparison trajectory vs reference
-            # Todo: Optional: Save Animation
-
-
-if to_summary:
+if to_performance:
 
     # Copy trajectory plots into the plot folder
     if to_plot_traj_3d:
@@ -183,162 +168,158 @@ if to_summary:
                         copyfile(infile_path,
                                  outfile_path)
 
-    # Collect summaries across runs
-    for model in models:
-        outpath = './performance/' + model + '/'
-        outfilepath = outpath + 'summary.csv'
-        if not os.path.isfile(outfilepath):
+    # Collect summaries across models and runs
+    outpath = './performance/'
+    outfilepath = outpath + 'performance.csv'
+    if not os.path.isfile(outfilepath):
+        if not os.path.exists(outpath):
+            make_path(outpath)
+        performance = pd.DataFrame([])
+        for model in models:
             filepaths = []
             for w in os.walk('./process/'+model+'/'):
                 for f in w[2]:
-                    if f == 'features.csv':
+                    if f=='features.csv':
                         filepaths.append(os.path.join(w[0], f))
-            summary = pd.DataFrame([])
-            for filepath in sorted(filepaths):
-                print('collecting performance summary: {}'.format(
-                    filepath
-                    ))
-                df = pd.read_csv(filepath)
-                curr_path = df['filepath'].iloc[0]
-                # add track information
-                if curr_path.find('wave') > -1:
-                    df['track'] = 'wave'
-                else:
-                    if curr_path.find('flat') > -1:
-                        df['track'] = 'flat'
-                    else:
-                        df['track'] = 'NONE'
-
-
-
-                #add subject number
-                curr_subj = int(
-                    curr_path.split('/s0')[-1].split('_')[0])
-                df['subject'] = curr_subj
-                # add run number
-                curr_run = int(
-                    curr_path.split('_r')[-1].split('_')[0])
-                df['run'] = curr_run
-                #add repetition number
-                curr_repetition = int(
-                    curr_path.split('/')[-2].split('_')[-1])
-                df['repetition'] = curr_repetition
-
-
-
-                summary = summary.append(df)
-
-            if not os.path.exists(outpath):
-                make_path(outpath)
-            summary.to_csv(
-                outfilepath,
-                index=False)
-
-    #todo: Plot path deviation across time.
-
-    # Make tables.
-    for model in models:
-        inpath = './performance/'+model+'/summary.csv'
-        summary = pd.read_csv(inpath)
-
-        odict={
-            'Flight Time [s]': {
-                'varname': 'flight_time',
-                'track': '',
-                'first_line': 'mean',
-                'second_line': 'std',
-                'precision': 2
-                },
-            'Travel Distance [m]': {
-                'varname': 'travel_distance',
-                'track': '',
-                'first_line': 'mean',
-                'second_line': 'std',
-                'precision': 2
-            },
-            'Mean Error [m]': {
-                'varname': 'median_path_deviation',
-                'track': '',
-                'first_line': 'mean',
-                'second_line': 'std',
-                'precision': 2
-            },
-            'Num. Gates Passed': {
-                'varname': 'num_gates_passed',
-                'track': '',
-                'first_line': 'mean',
-                'second_line': 'std',
-                'precision': 2
-            },
-            '% Collision Free': {
-                'varname': 'num_collisions',
-                'track': '',
-                'first_line': 'percent',
-                'second_line': '',
-                'precision': 0
-            },
-        }
-
-        ddict = {}
-        ddict['Model'] = [model, '']
-        for outvar in odict:
-            ddict.setdefault(outvar, [])
-            invar = odict[outvar]['varname']
-            curr_vals = summary[invar].values
-            #first line value
-            op1 = odict[outvar]['first_line']
-            if op1 == 'mean':
-                val1 = np.nanmean(curr_vals)
-            elif op1 == 'percent':
-                val1 = 100 * np.mean((curr_vals > 0).astype(int))
-            else:
-                val1 = None
-            if val1 is None:
-                ddict[outvar].append('')
-            else:
-                ddict[outvar].append(str(np.round(val1, odict[outvar][
-                    'precision'])))
-            # second line value
-            op2 = odict[outvar]['second_line']
-            if op2 == 'std':
-                val1 = np.nanstd(curr_vals)
-            else:
-                val1 = None
-            if val1 is None:
-                ddict[outvar].append('')
-            else:
-                ddict[outvar].append('('+str(np.round(val1, odict[outvar][
-                    'precision']))+')')
+            for filepath in filepaths:
+                print('..collecting performance: {}'.format(filepath), end='\r')
+                performance = performance.append(pd.read_csv(filepath))
+        performance.to_csv(outfilepath, index=False)
 
 
 
 
+    # Add some more information to performance table
+    # curr_path = df['filepath'].iloc[0]
+    # # add track information
+    # if curr_path.find('wave') > -1:
+    #     df['track'] = 'wave'
+    # else:
+    #     if curr_path.find('flat') > -1:
+    #         df['track'] = 'flat'
+    #     else:
+    #         df['track'] = 'NONE'
+    #
+    #
+    #
+    # #add subject number
+    # curr_subj = int(
+    #     curr_path.split('/s0')[-1].split('_')[0])
+    # df['subject'] = curr_subj
+    # # add run number
+    # curr_run = int(
+    #     curr_path.split('_r')[-1].split('_')[0])
+    # df['run'] = curr_run
+    # #add repetition number
+    # curr_repetition = int(
+    #     curr_path.split('/')[-2].split('_')[-1])
+    # df['repetition'] = curr_repetition
 
-        # #todo: make the output drag and drop for latex
-        # precision = 2
-        # for op in ['mean', 'sd']:
-        #     for name in names:
-        #         tdict.setdefault(name, [])
-        #         if op=='mean':
-        #             tdict[name].append(
-        #                 ('{:.%df}'%precision)
-        #                     .format(
-        #                     np.nanmean(summary[name].values)))
-        #         elif op=='sd':
-        #             tdict[name].append(
-        #                 ('({:.%df})' % precision)
-        #                     .format(
-        #                     np.nanstd(summary[name].values)))
-
-        table = pd.DataFrame(ddict, index=list(range(len(ddict['Model']))))
-        outpath = './performance/'+model+'/table.csv'
-        table.to_latex(outpath, index=False)
 
 
+    # # Make Performance summary tables for latex.
+    # for model in models:
+    #     inpath = './performance/'+model+'/summary.csv'
+    #     summary = pd.read_csv(inpath)
+    #
+    #     odict={
+    #         'Flight Time [s]': {
+    #             'varname': 'flight_time',
+    #             'track': '',
+    #             'first_line': 'mean',
+    #             'second_line': 'std',
+    #             'precision': 2
+    #             },
+    #         'Travel Distance [m]': {
+    #             'varname': 'travel_distance',
+    #             'track': '',
+    #             'first_line': 'mean',
+    #             'second_line': 'std',
+    #             'precision': 2
+    #         },
+    #         'Mean Error [m]': {
+    #             'varname': 'median_path_deviation',
+    #             'track': '',
+    #             'first_line': 'mean',
+    #             'second_line': 'std',
+    #             'precision': 2
+    #         },
+    #         'Num. Gates Passed': {
+    #             'varname': 'num_gates_passed',
+    #             'track': '',
+    #             'first_line': 'mean',
+    #             'second_line': 'std',
+    #             'precision': 2
+    #         },
+    #         '% Collision Free': {
+    #             'varname': 'num_collisions',
+    #             'track': '',
+    #             'first_line': 'percent',
+    #             'second_line': '',
+    #             'precision': 0
+    #         },
+    #     }
+    #
+    #     ddict = {}
+    #     ddict['Model'] = [model, '']
+    #     for outvar in odict:
+    #         ddict.setdefault(outvar, [])
+    #         invar = odict[outvar]['varname']
+    #         curr_vals = summary[invar].values
+    #         #first line value
+    #         op1 = odict[outvar]['first_line']
+    #         if op1 == 'mean':
+    #             val1 = np.nanmean(curr_vals)
+    #         elif op1 == 'percent':
+    #             val1 = 100 * np.mean((curr_vals > 0).astype(int))
+    #         else:
+    #             val1 = None
+    #         if val1 is None:
+    #             ddict[outvar].append('')
+    #         else:
+    #             ddict[outvar].append(str(np.round(val1, odict[outvar][
+    #                 'precision'])))
+    #         # second line value
+    #         op2 = odict[outvar]['second_line']
+    #         if op2 == 'std':
+    #             val1 = np.nanstd(curr_vals)
+    #         else:
+    #             val1 = None
+    #         if val1 is None:
+    #             ddict[outvar].append('')
+    #         else:
+    #             ddict[outvar].append('('+str(np.round(val1, odict[outvar][
+    #                 'precision']))+')')
+    #
+    #
+    #
+    #
+    #
+    #     # #todo: make the output drag and drop for latex
+    #     # precision = 2
+    #     # for op in ['mean', 'sd']:
+    #     #     for name in names:
+    #     #         tdict.setdefault(name, [])
+    #     #         if op=='mean':
+    #     #             tdict[name].append(
+    #     #                 ('{:.%df}'%precision)
+    #     #                     .format(
+    #     #                     np.nanmean(summary[name].values)))
+    #     #         elif op=='sd':
+    #     #             tdict[name].append(
+    #     #                 ('({:.%df})' % precision)
+    #     #                     .format(
+    #     #                     np.nanstd(summary[name].values)))
+    #
+    #     table = pd.DataFrame(ddict, index=list(range(len(ddict['Model']))))
+    #     outpath = './performance/'+model+'/table.csv'
+    #     table.to_latex(outpath, index=False)
+    #
 
 
 
-if to_plot:
+
+if to_plot_reference:
     # Load track.
     track = pd.read_csv(track_filepath)
     ndict = {

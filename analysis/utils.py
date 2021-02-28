@@ -617,6 +617,10 @@ def extract_performance_features(
         total_duration = 0.
     # Compute deviation from reference, but only after having passed the
     # center gate
+    # default values
+    deviation_from_reference = 0.
+    median_deviation = 0.
+    iqr_deviation = 0.
     t_min = np.max([t_start, D['t'].iloc[0], R['t'].iloc[0]])
     t_max = np.min([t_end, D['t'].iloc[-1], R['t'].iloc[-1]])
     if t_max>t_min:
@@ -634,10 +638,6 @@ def extract_performance_features(
             deviation_from_reference = np.linalg.norm(p-pref, axis=1)
             median_deviation = np.nanmedian(deviation_from_reference)
             iqr_deviation = iqr(deviation_from_reference)
-    else:
-        deviation_from_reference = 0.
-        median_deviation = 0.
-        iqr_deviation = 0.
     # Save the features to pandas dataframe
     P = pd.DataFrame({
         't_start': t_start,
@@ -851,21 +851,21 @@ def plot_trajectory_with_gates_3d(
         trajectory_sampling_rate = 1 / np.nanmedian(np.diff(trajectory.t.values))
         step_size = int(trajectory_sampling_rate / sampling_rate)
         indices = np.arange(0, trajectory.shape[0], step_size)
+        trajectory = trajectory.iloc[indices, :]
+        # Plot reference, track, and format figure.
+        ax = plot_trajectory(
+            trajectory.px.values,
+            trajectory.py.values,
+            trajectory.pz.values,
+            trajectory.qx.values,
+            trajectory.qy.values,
+            trajectory.qz.values,
+            trajectory.qw.values,
+            axis_length=2,
+            c='k',
+        )
     else:
-        indices = np.array([0])
-    trajectory = trajectory.iloc[indices, :]
-    # Plot reference, track, and format figure.
-    ax = plot_trajectory(
-        trajectory.px.values,
-        trajectory.py.values,
-        trajectory.pz.values,
-        trajectory.qx.values,
-        trajectory.qy.values,
-        trajectory.qz.values,
-        trajectory.qw.values,
-        axis_length=2,
-        c='k',
-    )
+        ax=None
     ax = plot_gates_3d(
         track=track,
         ax=ax,
