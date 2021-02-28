@@ -9,8 +9,10 @@ from analysis.utils import *
 
 # What to do
 to_collect = True
-to_summary = True
-to_plot = False
+to_summary = False
+to_plot_traj_3d = True
+to_plot_state = True
+buffer = 2.0
 
 # Chose input files and folders for processing.
 track_filepaths = {
@@ -22,10 +24,9 @@ reference_filepath = (
         logfile_path +
         'resnet_test/trajectory_reference_original.csv')
 models = [
-    'dda_flat_med_full_bf2_cf25_default',
+    # 'dda_flat_med_full_bf2_cf25_default',
     'dda_flat_med_full_bf2_cf25_decfts',
-    'dda_flat_med_full_bf2_cf25_nofts',
-
+    # 'dda_flat_med_full_bf2_cf25_nofts',
     # 'dda_flat_med_full_bf2_cf25_imunovels_ep100',
     # 'dda_flat_med_full_bf2_cf25_nofts_ep100',
     # 'dda_flat_med_full_bf2_cf25_decfts_ep45',
@@ -42,7 +43,10 @@ models = [
         ]
 
 if len(models) == 0:
-    models = ['']
+    for w in os.walk(logfile_path):
+        if w[0] == logfile_path:
+            models = w[1]
+models = sorted(models)
 
 if to_collect:
 
@@ -68,6 +72,7 @@ if to_collect:
             # Copy trajectory, reference, and track files to output folder
             if not os.path.isfile(data_path + 'trajectory.csv'):
                 trajectory = trajectory_from_logfile(filepath=filepath)
+                trajectory['t'] -= buffer
                 trajectory.to_csv(data_path + 'trajectory.csv',
                                   index=False)
             if not os.path.isfile(data_path + 'reference.csv'):
@@ -75,12 +80,11 @@ if to_collect:
                 reference.to_csv(data_path + 'reference.csv',
                                   index=False)
             if not os.path.isfile(data_path + 'track.csv'):
-                if filepath.find('flat') > -1:
-                    track_filepath = track_filepaths['flat']
-                elif filepath.find('wave') > -1:
+                if filepath.find('wave') > -1:
                     track_filepath = track_filepaths['wave']
                 else:
-                    track_filepath = ''
+                    track_filepath = track_filepaths['flat']
+
                 track = track_from_logfile(filepath=track_filepath)
                 # Make some adjustments
                 track['pz'] += 0.35 # shift gates up in fligthmare
@@ -103,7 +107,7 @@ if to_collect:
                     filepath_events=data_path + 'events.csv')
                 P.to_csv(data_path + 'features.csv', index=False)
             # Save trajectory plot to output folder
-            if to_plot:
+            if to_plot_traj_3d:
                 track = pd.read_csv(data_path + 'track.csv')
                 trajectory = pd.read_csv(data_path + 'trajectory.csv')
                 features = pd.read_csv(data_path + 'features.csv')
@@ -143,6 +147,20 @@ if to_collect:
                             plt.close(plt.gcf())
                             ax=None
 
+            # Plot the drone state
+            if to_plot_state:
+                if not os.path.isfile(data_path + 'state.jpg'):
+                    plot_state(
+                        filepath_trajectory=data_path + 'trajectory.csv',
+                        filepath_reference=data_path + 'reference.csv',
+                        filepath_features=data_path + 'features.csv',
+                        )
+                    plt.savefig(data_path + 'state.jpg')
+                    plt.close(plt.gcf())
+
+
+
+
             # Todo: Save plot of drone state comparison trajectory vs reference
             # Todo: Optional: Save Animation
 
@@ -150,7 +168,7 @@ if to_collect:
 if to_summary:
 
     # Copy trajectory plots into the plot folder
-    if to_plot:
+    if to_plot_traj_3d:
         for model in models:
             outpath = './plots/trajectories/{}/'.format(model)
             if not os.path.exists(outpath):
