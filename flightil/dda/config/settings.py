@@ -74,9 +74,10 @@ class TrainSetting(Settings):
             self.train_dir = os.path.join(os.getenv("GAZESIM_ROOT"), os.pardir, train_conf['train_dir'])
             self.use_fts_tracks = train_conf['use_fts_tracks']
             self.use_imu = train_conf['use_imu']
+            self.use_raw_imu_data = train_conf.get("use_raw_imu_data", False)
             self.use_pos = train_conf["use_pos"]
             self.use_activation = train_conf["use_activation"]
-            self.imu_no_rot = train_conf.get("imu_no_rot", False)
+            self.imu_no_rot = True if self.use_raw_imu_data else train_conf.get("imu_no_rot", False)
             self.imu_no_vels = train_conf.get("imu_no_vels", False)
             self.no_ref = train_conf.get("no_ref", False)
             self.attention_fts_type = train_conf.get("attention_fts_type", "none")
@@ -147,10 +148,12 @@ class DaggerSetting(Settings):
             self.train_dir = os.path.join(os.getenv("GAZESIM_ROOT"), os.pardir, train_conf['train_dir'])
             self.val_dir = os.path.join(os.getenv("GAZESIM_ROOT"), os.pardir, train_conf['val_dir'])
             self.use_imu = train_conf['use_imu']
+            self.use_raw_imu_data = train_conf.get("use_raw_imu_data", False)
             self.use_fts_tracks = train_conf['use_fts_tracks']
             self.use_pos = train_conf["use_pos"]
             self.use_activation = train_conf["use_activation"]
-            self.imu_no_rot = train_conf.get("imu_no_rot", False)
+            # TODO: this is very ugly and hacky, but to get things running quickly, I'll do it like this
+            self.imu_no_rot = True if self.use_raw_imu_data else train_conf.get("imu_no_rot", False)
             self.imu_no_vels = train_conf.get("imu_no_vels", False)
             self.no_ref = train_conf.get("no_ref", False)
             self.save_every_n_epochs = train_conf['save_every_n_epochs']

@@ -3,6 +3,7 @@ import numpy as np
 from collections import deque
 from mpc.simulation.planner import TrajectorySampler
 from mpc.simulation.mpc_test_wrapper import MPCTestWrapper, RacingEnvWrapper
+from features.imu import IMURawMeasurements
 
 # TODO: remove this stuff or put it somewhere else
 # state index
@@ -27,7 +28,8 @@ kWz = 3
 class Simulation:
 
     def __init__(self, config):
-        # TODO: change these to dummy values
+        self.config = config
+
         self.current_image = None
         self.current_state = None
         self.current_state_estimate = None
@@ -330,6 +332,11 @@ class FlightmareSimulation(Simulation):
         self.flightmare_wrapper.set_reduced_state(self.current_state)
         self.flightmare_wrapper.set_sim_time_step(self.base_time_step)
 
+        # raw IMU measurements
+        self.imu_measurements = None
+        if self.config.use_raw_imu_data:
+            self.imu_measurements = IMURawMeasurements(self.base_frequency)
+
     ########################
     # RESET(-LIKE) METHODS #
     ########################
@@ -373,6 +380,11 @@ class FlightmareSimulation(Simulation):
 
     def _get_state_estimate(self):
         self.current_state_estimate = self.current_state
+        if self.config.use_raw_imu_data:
+            # to keep things simple (in terms of implementation), just replace velocity with estimated acceleration
+            imu_measurements = self.imu_measurements.get_state_estimate(self.current_state, self.base_time)
+            imu_acceleration = imu_measurements[3:]
+            self.current_state_estimate[7:10] = imu_acceleration
         return self.current_state_estimate
 
     def _get_image(self):

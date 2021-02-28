@@ -94,16 +94,16 @@ def main(args):
     settings.gpu = args.gpu
     settings.flightmare_pub_port = args.pub_port
     settings.flightmare_sub_port = args.sub_port
-    settings.max_time = 30.0
+    settings.max_time = 1000.0
+
+    # using "learner" as controller
+    controller = ControllerLearning(settings, trajectory_paths[0], mode="testing", max_time=settings.max_time)
 
     # create simulation (do it here so we don't disconnect and mess things up on snaga)
     simulation = FlightmareSimulation(settings, trajectory_paths[0], max_time=settings.max_time)
 
     # connect to the simulation either at the start or after training has been run
     simulation.connect_unity(settings.flightmare_pub_port, settings.flightmare_sub_port)
-
-    # using "learner" as controller
-    controller = ControllerLearning(settings, trajectory_paths[0], mode="testing", max_time=settings.max_time)
 
     # wait until Unity rendering/image queue has calmed down
     for _ in range(50):

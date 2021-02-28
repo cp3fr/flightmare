@@ -22,6 +22,7 @@ train:
   val_dir: "dda/data/testing/test" # Validation Data, change to a new data folder!
   save_every_n_epochs: 5
   use_imu: True
+  use_raw_imu_data: False
   use_fts_tracks: True
   use_pos: False
   use_activation: False
