@@ -8,8 +8,8 @@ sys.path.insert(0, base_path)
 from analysis.utils import *
 
 # What to do
-to_process = False
-to_performance = False
+to_process = True
+to_performance = True
 to_table = True
 
 to_plot_traj_3d = False
@@ -26,7 +26,7 @@ track_filepaths = {
     'wave': './tracks/wave.csv',
     }
 logfile_path = './logs/'
-reference_filepath = logfile_path+'resnet_test/trajectory_reference_original.csv'
+reference_filepath = logfile_path+'reference/trajectory_reference_original.csv'
 models = [
     # 'dda_flat_med_full_bf2_cf25_decfts',
         ]
@@ -259,64 +259,21 @@ if to_performance:
 
             # If no yaml file was found
             else:
-
                 ddict['has_yaml'] = 0
-
-                # if strings[0].find('noref')>-1:
-                #     ddict['has_ref'] = 0
-                # else:
-                #     ddict['has_ref'] = 1
-                #
-                # if strings[0].find('imunorot')>-1:
-                #     ddict['has_state_q'] = 0
-                #     ddict['has_state_v'] = 1
-                #     ddict['has_state_w'] = 1
-                # elif strings[0].find('imunovels')>-1:
-                #     ddict['has_state_q'] = 1
-                #     ddict['has_state_v'] = 0
-                #     ddict['has_state_w'] = 0
-                # elif strings[0].find('refonly')>-1:
-                #     ddict['has_state_q'] = 0
-                #     ddict['has_state_v'] = 0
-                #     ddict['has_state_w'] = 0
-                # elif strings[0].find('noimu')>-1:
-                #     ddict['has_state_q'] = 0
-                #     ddict['has_state_v'] = 0
-                #     ddict['has_state_w'] = 0
-                # else:
-                #     ddict['has_state_q'] = 1
-                #     ddict['has_state_v'] = 1
-                #     ddict['has_state_w'] = 1
-                #
-                # if strings[0].find('nofts')>-1:
-                #     ddict['has_fts'] = 0
-                # elif strings[0].find('_fts')>-1:
-                #     ddict['has_fts'] = 1
-                # elif strings[0].find('default')>-1:
-                #     ddict['has_fts'] = 1
-                # else:
-                #     ddict['has_fts'] = 0
-                #
-                # if strings[0].find('decfts')>-1:
-                #     ddict['has_decfts'] = 1
-                # else:
-                #     ddict['has_decfts'] = 0
-                #
-                # if strings[0].find('gztr')>-1:
-                #     ddict['has_gztr'] = 1
-                # else:
-                #     ddict['has_gztr'] = 0
-                #
-                # if strings[0].find('attbr')>-1:
-                #     ddict['has_attbr'] = 1
-                # else:
-                #     ddict['has_attbr'] = 0
 
             ddict['buffer'] = float(strings[1].split('buffer')[-1]) / 10
             ddict['subject'] = int(strings[1].split('_')[0].split('s')[-1])
             ddict['run'] = int(strings[1].split('_')[1].split('r')[-1])
             ddict['track'] = strings[1].split('_')[2]
-            ddict['li'] = int(strings[1].split('_')[3].split('li')[-1])
+
+            li_string = strings[1].split('_')[3].split('li')[-1]
+            if li_string.find('-')>-1:
+                ddict['li'] = int(li_string.split('-')[0])
+                ddict['num_laps'] = (int(li_string.split('-')[-1]) -
+                                     int(li_string.split('-')[0]) + 1)
+            else:
+                ddict['li'] = int(li_string)
+                ddict['num_laps'] = 1
 
             if ddict['has_dda'] == 0:
                 if strings[2] == 'reference_mpc':
@@ -367,7 +324,8 @@ if to_table:
         'track': 'flat',
         'subject': 16,
         'run': 5,
-        'li': 1
+        'li': 1,
+        'num_laps': 1,
     }
 
     # Models to include into the table
@@ -420,45 +378,6 @@ if to_table:
                 'has_decfts': 0,
                 'has_fts': 0,
                 'has_state_q': 1,
-                'has_state_v': 1,
-                'has_state_w': 1,
-                'has_ref': 1,
-            },
-        },{
-            'name': 'Ref + VW + Fts + Att',
-            'specs': {
-                'has_dda': 1,
-                'has_attbr': 0,
-                'has_gztr': 0,
-                'has_decfts': 1,
-                'has_fts': 1,
-                'has_state_q': 0,
-                'has_state_v': 1,
-                'has_state_w': 1,
-                'has_ref': 1,
-            },
-        },{
-            'name': 'Ref + VW + Att',
-            'specs': {
-                'has_dda': 1,
-                'has_attbr': 0,
-                'has_gztr': 0,
-                'has_decfts': 1,
-                'has_fts': 0,
-                'has_state_q': 0,
-                'has_state_v': 1,
-                'has_state_w': 1,
-                'has_ref': 1,
-            },
-        },{
-            'name': 'Ref + VW + Fts',
-            'specs': {
-                'has_dda': 1,
-                'has_attbr': 0,
-                'has_gztr': 0,
-                'has_decfts': 0,
-                'has_fts': 1,
-                'has_state_q': 0,
                 'has_state_v': 1,
                 'has_state_w': 1,
                 'has_ref': 1,
