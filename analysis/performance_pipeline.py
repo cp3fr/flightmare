@@ -8,8 +8,8 @@ sys.path.insert(0, base_path)
 from analysis.utils import *
 
 # What to do
-to_process = True
-to_performance = True
+to_process = False
+to_performance = False
 to_table = True
 
 to_plot_traj_3d = False
@@ -254,9 +254,6 @@ if to_performance:
                 if 'start_buffer' in config['simulation']:
                     ddict['buffer'] = config['simulation']['start_buffer']
 
-
-
-
             # If no yaml file was found
             else:
                 ddict['has_yaml'] = 0
@@ -298,14 +295,6 @@ if to_performance:
                     ddict['st'] = int(strings[2].split('_')[2].split('st-')[-1])
                     ddict['repetition'] = int(strings[2].split('_')[-1])
 
-            # print(filepath)
-            # pprint(config['train'])
-            # pprint(ddict)
-            # print('--------------------')
-            #
-            # plt.plot(1,1)
-            # plt.show()
-
             for k in sorted(ddict):
                 df[k] = ddict[k]
 
@@ -318,293 +307,504 @@ if to_table:
 
     performance = pd.read_csv('./performance/performance.csv')
 
-    print('noyaml', np.sum(performance.has_yaml.values == 0))
+    for attention_name in ['decfts', 'attbr']:
+        for trajectory_name in ['reference', 'other-laps', 'other-track']:
 
-    sdict = {
-        'track': 'flat',
-        'subject': 16,
-        'run': 5,
-        'li': 1,
-        'num_laps': 1,
-    }
+            print('----------------')
+            print(trajectory_name, attention_name)
+            print('----------------')
+            # Subject dictionnairy
+            run_dict = None
+            exclude_run_dict = None
+            if trajectory_name == 'reference':
+                run_dict = {
+                'track': 'flat',
+                'subject': 16,
+                'run': 5,
+                'li': 1,
+                'num_laps': 1,
+                }
+            elif trajectory_name == 'other-laps':
+                run_dict = {
+                    'track': 'flat',
+                    'num_laps': 1,
+                }
+                exclude_run_dict = {
+                    'track': 'flat',
+                    'subject': 16,
+                    'run': 5,
+                    'li': 1,
+                    'num_laps': 1,
+                }
+            elif trajectory_name == 'other-track':
+                run_dict = {
+                    'track': 'wave',
+                    'num_laps': 1,
+                }
 
-    # Models to include into the table
-    mdicts = [
-        {
-            'name': 'Ref + QVW + Fts + Att',
-            'specs': {
-                'has_dda': 1,
-                'has_attbr': 0,
-                'has_gztr': 0,
-                'has_decfts': 1,
-                'has_fts': 1,
-                'has_state_q': 1,
-                'has_state_v': 1,
-                'has_state_w': 1,
-                'has_ref': 1,
-            },
-        },{
-            'name': 'Ref + QVW + Att',
-            'specs': {
-                'has_dda': 1,
-                'has_attbr': 0,
-                'has_gztr': 0,
-                'has_decfts': 1,
-                'has_fts': 0,
-                'has_state_q': 1,
-                'has_state_v': 1,
-                'has_state_w': 1,
-                'has_ref': 1,
-            },
-        },{
-            'name': 'Ref + QVW + Fts',
-            'specs': {
-                'has_dda': 1,
-                'has_attbr': 0,
-                'has_gztr': 0,
-                'has_decfts': 0,
-                'has_fts': 1,
-                'has_state_q': 1,
-                'has_state_v': 1,
-                'has_state_w': 1,
-                'has_ref': 1,
-            },
-        },{
-            'name': 'Ref + QVW',
-            'specs': {
-                'has_dda': 1,
-                'has_attbr': 0,
-                'has_gztr': 0,
-                'has_decfts': 0,
-                'has_fts': 0,
-                'has_state_q': 1,
-                'has_state_v': 1,
-                'has_state_w': 1,
-                'has_ref': 1,
-            },
-        },{
-            'name': 'Ref + VW',
-            'specs': {
-                'has_dda': 1,
-                'has_attbr': 0,
-                'has_gztr': 0,
-                'has_decfts': 0,
-                'has_fts': 0,
-                'has_state_q': 0,
-                'has_state_v': 1,
-                'has_state_w': 1,
-                'has_ref': 1,
-            },
-        },{
-            'name': 'Ref + Q + Fts + Att',
-            'specs': {
-                'has_dda': 1,
-                'has_attbr': 0,
-                'has_gztr': 0,
-                'has_decfts': 1,
-                'has_fts': 1,
-                'has_state_q': 1,
-                'has_state_v': 0,
-                'has_state_w': 0,
-                'has_ref': 1,
-            },
-        },{
-            'name': 'Ref + Q + Att',
-            'specs': {
-                'has_dda': 1,
-                'has_attbr': 0,
-                'has_gztr': 0,
-                'has_decfts': 1,
-                'has_fts': 0,
-                'has_state_q': 1,
-                'has_state_v': 0,
-                'has_state_w': 0,
-                'has_ref': 1,
-            },
-        },{
-            'name': 'Ref + Q + Fts',
-            'specs': {
-                'has_dda': 1,
-                'has_attbr': 0,
-                'has_gztr': 0,
-                'has_decfts': 0,
-                'has_fts': 1,
-                'has_state_q': 1,
-                'has_state_v': 0,
-                'has_state_w': 0,
-                'has_ref': 1,
-            },
-        },{
-            'name': 'Ref + Q',
-            'specs': {
-                'has_dda': 1,
-                'has_attbr': 0,
-                'has_gztr': 0,
-                'has_decfts': 0,
-                'has_fts': 0,
-                'has_state_q': 1,
-                'has_state_v': 0,
-                'has_state_w': 0,
-                'has_ref': 1,
-            },
-        },{
-            'name': 'Ref + Fts + Att',
-            'specs': {
-                'has_dda': 1,
-                'has_attbr': 0,
-                'has_gztr': 0,
-                'has_decfts': 1,
-                'has_fts': 1,
-                'has_state_q': 0,
-                'has_state_v': 0,
-                'has_state_w': 0,
-                'has_ref': 1,
-            },
-        },{
-            'name': 'Ref + Att',
-            'specs': {
-                'has_dda': 1,
-                'has_attbr': 0,
-                'has_gztr': 0,
-                'has_decfts': 1,
-                'has_fts': 0,
-                'has_state_q': 0,
-                'has_state_v': 0,
-                'has_state_w': 0,
-                'has_ref': 1,
-            },
-        },{
-            'name': 'Ref + Fts',
-            'specs': {
-                'has_dda': 1,
-                'has_attbr': 0,
-                'has_gztr': 0,
-                'has_decfts': 0,
-                'has_fts': 1,
-                'has_state_q': 0,
-                'has_state_v': 0,
-                'has_state_w': 0,
-                'has_ref': 1,
-            },
-        },{
-            'name': 'Ref',
-            'specs': {
-                'has_dda': 1,
-                'has_attbr': 0,
-                'has_gztr': 0,
-                'has_decfts': 0,
-                'has_fts': 0,
-                'has_state_q': 0,
-                'has_state_v': 0,
-                'has_state_w': 0,
-                'has_ref': 1,
+            # Model dictionnairy
+            model_dicts = None
+            if attention_name == 'decfts':
+                model_dicts = [
+                {
+                    'name': 'Ref + QVW + Fts + Att',
+                    'specs': {
+                        'has_dda': 1,
+                        'has_attbr': 0,
+                        'has_gztr': 0,
+                        'has_decfts': 1,
+                        'has_fts': 1,
+                        'has_state_q': 1,
+                        'has_state_v': 1,
+                        'has_state_w': 1,
+                        'has_ref': 1,
+                    },
+                },{
+                    'name': 'Ref + QVW + Att',
+                    'specs': {
+                        'has_dda': 1,
+                        'has_attbr': 0,
+                        'has_gztr': 0,
+                        'has_decfts': 1,
+                        'has_fts': 0,
+                        'has_state_q': 1,
+                        'has_state_v': 1,
+                        'has_state_w': 1,
+                        'has_ref': 1,
+                    },
+                },{
+                    'name': 'Ref + QVW + Fts',
+                    'specs': {
+                        'has_dda': 1,
+                        'has_attbr': 0,
+                        'has_gztr': 0,
+                        'has_decfts': 0,
+                        'has_fts': 1,
+                        'has_state_q': 1,
+                        'has_state_v': 1,
+                        'has_state_w': 1,
+                        'has_ref': 1,
+                    },
+                },{
+                    'name': 'Ref + QVW',
+                    'specs': {
+                        'has_dda': 1,
+                        'has_attbr': 0,
+                        'has_gztr': 0,
+                        'has_decfts': 0,
+                        'has_fts': 0,
+                        'has_state_q': 1,
+                        'has_state_v': 1,
+                        'has_state_w': 1,
+                        'has_ref': 1,
+                    },
+                },{
+                    'name': 'Ref + VW',
+                    'specs': {
+                        'has_dda': 1,
+                        'has_attbr': 0,
+                        'has_gztr': 0,
+                        'has_decfts': 0,
+                        'has_fts': 0,
+                        'has_state_q': 0,
+                        'has_state_v': 1,
+                        'has_state_w': 1,
+                        'has_ref': 1,
+                    },
+                },{
+                    'name': 'Ref + Q + Fts + Att',
+                    'specs': {
+                        'has_dda': 1,
+                        'has_attbr': 0,
+                        'has_gztr': 0,
+                        'has_decfts': 1,
+                        'has_fts': 1,
+                        'has_state_q': 1,
+                        'has_state_v': 0,
+                        'has_state_w': 0,
+                        'has_ref': 1,
+                    },
+                },{
+                    'name': 'Ref + Q + Att',
+                    'specs': {
+                        'has_dda': 1,
+                        'has_attbr': 0,
+                        'has_gztr': 0,
+                        'has_decfts': 1,
+                        'has_fts': 0,
+                        'has_state_q': 1,
+                        'has_state_v': 0,
+                        'has_state_w': 0,
+                        'has_ref': 1,
+                    },
+                },{
+                    'name': 'Ref + Q + Fts',
+                    'specs': {
+                        'has_dda': 1,
+                        'has_attbr': 0,
+                        'has_gztr': 0,
+                        'has_decfts': 0,
+                        'has_fts': 1,
+                        'has_state_q': 1,
+                        'has_state_v': 0,
+                        'has_state_w': 0,
+                        'has_ref': 1,
+                    },
+                },{
+                    'name': 'Ref + Q',
+                    'specs': {
+                        'has_dda': 1,
+                        'has_attbr': 0,
+                        'has_gztr': 0,
+                        'has_decfts': 0,
+                        'has_fts': 0,
+                        'has_state_q': 1,
+                        'has_state_v': 0,
+                        'has_state_w': 0,
+                        'has_ref': 1,
+                    },
+                },{
+                    'name': 'Ref + Fts + Att',
+                    'specs': {
+                        'has_dda': 1,
+                        'has_attbr': 0,
+                        'has_gztr': 0,
+                        'has_decfts': 1,
+                        'has_fts': 1,
+                        'has_state_q': 0,
+                        'has_state_v': 0,
+                        'has_state_w': 0,
+                        'has_ref': 1,
+                    },
+                },{
+                    'name': 'Ref + Att',
+                    'specs': {
+                        'has_dda': 1,
+                        'has_attbr': 0,
+                        'has_gztr': 0,
+                        'has_decfts': 1,
+                        'has_fts': 0,
+                        'has_state_q': 0,
+                        'has_state_v': 0,
+                        'has_state_w': 0,
+                        'has_ref': 1,
+                    },
+                },{
+                    'name': 'Ref + Fts',
+                    'specs': {
+                        'has_dda': 1,
+                        'has_attbr': 0,
+                        'has_gztr': 0,
+                        'has_decfts': 0,
+                        'has_fts': 1,
+                        'has_state_q': 0,
+                        'has_state_v': 0,
+                        'has_state_w': 0,
+                        'has_ref': 1,
+                    },
+                },{
+                    'name': 'Ref',
+                    'specs': {
+                        'has_dda': 1,
+                        'has_attbr': 0,
+                        'has_gztr': 0,
+                        'has_decfts': 0,
+                        'has_fts': 0,
+                        'has_state_q': 0,
+                        'has_state_v': 0,
+                        'has_state_w': 0,
+                        'has_ref': 1,
+                    }
+                },
+            ]
+            elif attention_name == 'attbr':
+                model_dicts = [
+                {
+                    'name': 'Ref + QVW + Fts + Att',
+                    'specs': {
+                        'has_dda': 1,
+                        'has_attbr': 1,
+                        'has_gztr': 0,
+                        'has_decfts': 0,
+                        'has_fts': 1,
+                        'has_state_q': 1,
+                        'has_state_v': 1,
+                        'has_state_w': 1,
+                        'has_ref': 1,
+                    },
+                },{
+                    'name': 'Ref + QVW + Att',
+                    'specs': {
+                        'has_dda': 1,
+                        'has_attbr': 1,
+                        'has_gztr': 0,
+                        'has_decfts': 0,
+                        'has_fts': 0,
+                        'has_state_q': 1,
+                        'has_state_v': 1,
+                        'has_state_w': 1,
+                        'has_ref': 1,
+                    },
+                },{
+                    'name': 'Ref + QVW + Fts',
+                    'specs': {
+                        'has_dda': 1,
+                        'has_attbr': 0,
+                        'has_gztr': 0,
+                        'has_decfts': 0,
+                        'has_fts': 1,
+                        'has_state_q': 1,
+                        'has_state_v': 1,
+                        'has_state_w': 1,
+                        'has_ref': 1,
+                    },
+                },{
+                    'name': 'Ref + QVW',
+                    'specs': {
+                        'has_dda': 1,
+                        'has_attbr': 0,
+                        'has_gztr': 0,
+                        'has_decfts': 0,
+                        'has_fts': 0,
+                        'has_state_q': 1,
+                        'has_state_v': 1,
+                        'has_state_w': 1,
+                        'has_ref': 1,
+                    },
+                },{
+                    'name': 'Ref + VW',
+                    'specs': {
+                        'has_dda': 1,
+                        'has_attbr': 0,
+                        'has_gztr': 0,
+                        'has_decfts': 0,
+                        'has_fts': 0,
+                        'has_state_q': 0,
+                        'has_state_v': 1,
+                        'has_state_w': 1,
+                        'has_ref': 1,
+                    },
+                },{
+                    'name': 'Ref + Q + Fts + Att',
+                    'specs': {
+                        'has_dda': 1,
+                        'has_attbr': 1,
+                        'has_gztr': 0,
+                        'has_decfts': 0,
+                        'has_fts': 1,
+                        'has_state_q': 1,
+                        'has_state_v': 0,
+                        'has_state_w': 0,
+                        'has_ref': 1,
+                    },
+                },{
+                    'name': 'Ref + Q + Att',
+                    'specs': {
+                        'has_dda': 1,
+                        'has_attbr': 1,
+                        'has_gztr': 0,
+                        'has_decfts': 0,
+                        'has_fts': 0,
+                        'has_state_q': 1,
+                        'has_state_v': 0,
+                        'has_state_w': 0,
+                        'has_ref': 1,
+                    },
+                },{
+                    'name': 'Ref + Q + Fts',
+                    'specs': {
+                        'has_dda': 1,
+                        'has_attbr': 0,
+                        'has_gztr': 0,
+                        'has_decfts': 0,
+                        'has_fts': 1,
+                        'has_state_q': 1,
+                        'has_state_v': 0,
+                        'has_state_w': 0,
+                        'has_ref': 1,
+                    },
+                },{
+                    'name': 'Ref + Q',
+                    'specs': {
+                        'has_dda': 1,
+                        'has_attbr': 0,
+                        'has_gztr': 0,
+                        'has_decfts': 0,
+                        'has_fts': 0,
+                        'has_state_q': 1,
+                        'has_state_v': 0,
+                        'has_state_w': 0,
+                        'has_ref': 1,
+                    },
+                },{
+                    'name': 'Ref + Fts + Att',
+                    'specs': {
+                        'has_dda': 1,
+                        'has_attbr': 1,
+                        'has_gztr': 0,
+                        'has_decfts': 0,
+                        'has_fts': 1,
+                        'has_state_q': 0,
+                        'has_state_v': 0,
+                        'has_state_w': 0,
+                        'has_ref': 1,
+                    },
+                },{
+                    'name': 'Ref + Att',
+                    'specs': {
+                        'has_dda': 1,
+                        'has_attbr': 1,
+                        'has_gztr': 0,
+                        'has_decfts': 0,
+                        'has_fts': 0,
+                        'has_state_q': 0,
+                        'has_state_v': 0,
+                        'has_state_w': 0,
+                        'has_ref': 1,
+                    },
+                },{
+                    'name': 'Ref + Fts',
+                    'specs': {
+                        'has_dda': 1,
+                        'has_attbr': 0,
+                        'has_gztr': 0,
+                        'has_decfts': 0,
+                        'has_fts': 1,
+                        'has_state_q': 0,
+                        'has_state_v': 0,
+                        'has_state_w': 0,
+                        'has_ref': 1,
+                    },
+                },{
+                    'name': 'Ref',
+                    'specs': {
+                        'has_dda': 1,
+                        'has_attbr': 0,
+                        'has_gztr': 0,
+                        'has_decfts': 0,
+                        'has_fts': 0,
+                        'has_state_q': 0,
+                        'has_state_v': 0,
+                        'has_state_w': 0,
+                        'has_ref': 1,
+                    }
+                },
+            ]
+
+
+            # Feature dictionnairy
+            feature_dict={
+                'Flight Time [s]': {
+                    'varname': 'flight_time',
+                    'track': '',
+                    'first_line': 'mean',
+                    'second_line': 'std',
+                    'precision': 2
+                    },
+                'Travel Distance [m]': {
+                    'varname': 'travel_distance',
+                    'track': '',
+                    'first_line': 'mean',
+                    'second_line': 'std',
+                    'precision': 2
+                },
+                'Mean Error [m]': {
+                    'varname': 'median_path_deviation',
+                    'track': '',
+                    'first_line': 'mean',
+                    'second_line': 'std',
+                    'precision': 2
+                },
+                'Gates Passed': {
+                    'varname': 'num_gates_passed',
+                    'track': '',
+                    'first_line': 'mean',
+                    'second_line': 'std',
+                    'precision': 2
+                },
+                '% Collision': {
+                    'varname': 'num_collisions',
+                    'track': '',
+                    'first_line': 'percent',
+                    'second_line': '',
+                    'precision': 0
+                },
             }
-        },
-    ]
 
-    # Features to include into the table
-    odict={
-        'Flight Time [s]': {
-            'varname': 'flight_time',
-            'track': '',
-            'first_line': 'mean',
-            'second_line': 'std',
-            'precision': 2
-            },
-        'Travel Distance [m]': {
-            'varname': 'travel_distance',
-            'track': '',
-            'first_line': 'mean',
-            'second_line': 'std',
-            'precision': 2
-        },
-        'Mean Error [m]': {
-            'varname': 'median_path_deviation',
-            'track': '',
-            'first_line': 'mean',
-            'second_line': 'std',
-            'precision': 2
-        },
-        'Gates Passed': {
-            'varname': 'num_gates_passed',
-            'track': '',
-            'first_line': 'mean',
-            'second_line': 'std',
-            'precision': 2
-        },
-        '% Collision': {
-            'varname': 'num_collisions',
-            'track': '',
-            'first_line': 'percent',
-            'second_line': '',
-            'precision': 0
-        },
-    }
+            # Make a table
+            if (run_dict is not None) and (model_dicts is not None):
+                table = pd.DataFrame([])
+                for mdict in model_dicts:
 
-    table = pd.DataFrame([])
+                    #add subject dictionnairy to the model dictionnairy
+                    mdict['specs'] = {**mdict['specs'], **run_dict}
 
-    # Loop over the models
-    for mdict in mdicts:
+                    ddict = {}
+                    ddict['Model'] = [mdict['name'], '']
 
-        #add subject dictionnairy to the model dictionnairy
-        mdict['specs'] = {**mdict['specs'], **sdict}
+                    # Select performance data
+                    # Runs to include
+                    ind = np.array([True for i in range(performance.shape[0])])
+                    for k, v in mdict['specs'].items():
+                        ind = ind & (performance[k] == v)
+                    # Runs to exclude
+                    if exclude_run_dict is not None:
+                        ind_exclude = np.array([True for i in range(
+                            performance.shape[0])])
+                        for k, v in exclude_run_dict.items():
+                            ind_exclude = ind_exclude & (performance[k] == v)
+                        # Combine run selection
+                        ind = (ind == True) & (ind_exclude == False)
+                    # Select current runs
+                    curr_performance = performance.copy().loc[ind, :]
 
-        ddict = {}
-        ddict['Model'] = [mdict['name'], '']
+                    ddict['Num Runs'] = [str(curr_performance.shape[0]), '']
 
-        # Select performance data
-        ind = np.array([True for i in range(performance.shape[0])])
-        for k, v in mdict['specs'].items():
-            ind = ind & (performance[k] == v)
-        curr_performance = performance.copy().loc[ind, :]
+                    print(mdict['name'], ':', curr_performance.shape[0])
+                    # print(curr_performance)
 
-        ddict['Num Runs'] = [str(curr_performance.shape[0]), '']
+                    if curr_performance.shape[0] > 0:
+                        # Compute Average performances
+                        for outvar in feature_dict:
+                            ddict.setdefault(outvar, [])
+                            invar = feature_dict[outvar]['varname']
+                            curr_vals = curr_performance[invar].values
+                            #first line value
+                            op1 = feature_dict[outvar]['first_line']
+                            if op1 == 'mean':
+                                val1 = np.nanmean(curr_vals)
+                            elif op1 == 'percent':
+                                val1 = 100 * np.mean((curr_vals > 0).astype(int))
+                            else:
+                                val1 = None
+                            if val1 is None:
+                                ddict[outvar].append('')
+                            else:
+                                ddict[outvar].append(str(np.round(val1, feature_dict[outvar][
+                                    'precision'])))
+                            # second line value
+                            op2 = feature_dict[outvar]['second_line']
+                            if op2 == 'std':
+                                val1 = np.nanstd(curr_vals)
+                            else:
+                                val1 = None
+                            if val1 is None:
+                                ddict[outvar].append('')
+                            else:
+                                ddict[outvar].append('('+str(np.round(val1, feature_dict[outvar][
+                                    'precision']))+')')
 
-        print(mdict['name'], ':', curr_performance.shape[0])
-        # print(curr_performance)
+                    for k in ddict:
+                        ddict[k] = [' '.join(ddict[k])]
 
-        if curr_performance.shape[0] > 0:
-            # Compute Average performances
-            for outvar in odict:
-                ddict.setdefault(outvar, [])
-                invar = odict[outvar]['varname']
-                curr_vals = curr_performance[invar].values
-                #first line value
-                op1 = odict[outvar]['first_line']
-                if op1 == 'mean':
-                    val1 = np.nanmean(curr_vals)
-                elif op1 == 'percent':
-                    val1 = 100 * np.mean((curr_vals > 0).astype(int))
-                else:
-                    val1 = None
-                if val1 is None:
-                    ddict[outvar].append('')
-                else:
-                    ddict[outvar].append(str(np.round(val1, odict[outvar][
-                        'precision'])))
-                # second line value
-                op2 = odict[outvar]['second_line']
-                if op2 == 'std':
-                    val1 = np.nanstd(curr_vals)
-                else:
-                    val1 = None
-                if val1 is None:
-                    ddict[outvar].append('')
-                else:
-                    ddict[outvar].append('('+str(np.round(val1, odict[outvar][
-                        'precision']))+')')
-
-        for k in ddict:
-            ddict[k] = [' '.join(ddict[k])]
-
-        # Append two lines to the output table
-        table = table.append(
-            pd.DataFrame(ddict,
-                         index=list(range(len(ddict['Model']))))
-        )
-
-    outpath = './performance/latex_table.csv'
-    table.to_latex(outpath, index=False)
+                    # Append two lines to the output table
+                    table = table.append(
+                        pd.DataFrame(ddict,
+                                     index=list(range(len(ddict['Model']))))
+                    )
+                outpath = './performance/latex_table_{}_{}.csv'.format(
+                    trajectory_name, attention_name)
+                table.to_latex(outpath, index=False)
 
 
 
