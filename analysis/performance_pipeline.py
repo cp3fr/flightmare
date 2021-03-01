@@ -8,8 +8,9 @@ sys.path.insert(0, base_path)
 from analysis.utils import *
 
 # What to do
-to_process = True
+to_process = False
 to_performance = False
+to_table = True
 
 to_plot_traj_3d = False
 to_plot_state = False
@@ -25,9 +26,7 @@ track_filepaths = {
     'wave': './tracks/wave.csv',
     }
 logfile_path = './logs/'
-reference_filepath = (
-        logfile_path +
-        'resnet_test/trajectory_reference_original.csv')
+reference_filepath = logfile_path+'resnet_test/trajectory_reference_original.csv'
 models = [
     # 'dda_flat_med_full_bf2_cf25_decfts',
         ]
@@ -36,6 +35,7 @@ if len(models) == 0:
         if w[0] == logfile_path:
             models = w[1]
 models = sorted(models)
+
 
 # Process individual runs
 if to_process:
@@ -150,171 +150,400 @@ if to_process:
                     plt.close(plt.gcf())
 
 
+# Collect performance metrics across runs
 if to_performance:
-
-    # Copy trajectory plots into the plot folder
-    if to_plot_traj_3d:
-        for model in models:
-            outpath = './plots/trajectories/{}/'.format(model)
-            if not os.path.exists(outpath):
-                make_path(outpath)
-            for w in os.walk('./process/{}/'.format(model)):
-                for f in w[2]:
-                    if f.find('trajectory_with_gates') > -1:
-                        infile_path = os.path.join(w[0], f)
-                        outfile_path = outpath + infile_path.replace(
-                            '/trajectory_with_gates_', '_').split('/')[-1]
-                        print('..copying trajectories {}'.format(outfile_path))
-                        copyfile(infile_path,
-                                 outfile_path)
-
-    # Collect summaries across models and runs
     outpath = './performance/'
     outfilepath = outpath + 'performance.csv'
-    if not os.path.isfile(outfilepath):
-        if not os.path.exists(outpath):
-            make_path(outpath)
-        performance = pd.DataFrame([])
-        for model in models:
-            filepaths = []
-            for w in os.walk('./process/'+model+'/'):
-                for f in w[2]:
-                    if f=='features.csv':
-                        filepaths.append(os.path.join(w[0], f))
-            for filepath in filepaths:
-                print('..collecting performance: {}'.format(filepath), end='\r')
-                performance = performance.append(pd.read_csv(filepath))
-        performance.to_csv(outfilepath, index=False)
+    if not os.path.exists(outpath):
+        make_path(outpath)
+    performance = pd.DataFrame([])
+    for model in models:
+        filepaths = []
+        for w in os.walk('./process/'+model+'/'):
+            for f in w[2]:
+                if f=='features.csv':
+                    filepaths.append(os.path.join(w[0], f))
+        for filepath in filepaths:
+            print('..collecting performance: {}'.format(filepath), end='\r')
+
+            df =  pd.read_csv(filepath)
+            # Get model and run information from filepath
+            strings = (
+                df['filepath'].iloc[0]
+                .split('/process/')[-1]
+                .split('/trajectory.csv')[0]
+                .split('/')
+                      )
+            if len(strings)==2:
+                strings.insert(1, 's016_r05_flat_li00_buffer_20')
+
+            print(strings)
+
+            ddict = {}
+
+            ddict['model_name'] = strings[0]
+            ddict['has_dda'] = int(strings[0].find('dda')>-1)
+
+            if strings[0].find('noref')>-1:
+                ddict['has_ref'] = 0
+            else:
+                ddict['has_ref'] = 1
+
+            if strings[0].find('imunorot')>-1:
+                ddict['has_state_q'] = 0
+                ddict['has_state_v'] = 1
+                ddict['has_state_w'] = 1
+            elif strings[0].find('imunovels')>-1:
+                ddict['has_state_q'] = 1
+                ddict['has_state_v'] = 0
+                ddict['has_state_w'] = 0
+            elif strings[0].find('refonly')>-1:
+                ddict['has_state_q'] = 0
+                ddict['has_state_v'] = 0
+                ddict['has_state_w'] = 0
+            elif strings[0].find('noimu')>-1:
+                ddict['has_state_q'] = 0
+                ddict['has_state_v'] = 0
+                ddict['has_state_w'] = 0
+            else:
+                ddict['has_state_q'] = 1
+                ddict['has_state_v'] = 1
+                ddict['has_state_w'] = 1
+
+            if strings[0].find('nofts')>-1:
+                ddict['has_fts'] = 0
+            elif strings[0].find('_fts')>-1:
+                ddict['has_fts'] = 1
+            elif strings[0].find('default')>-1:
+                ddict['has_fts'] = 1
+            else:
+                ddict['has_fts'] = 0
+
+            if strings[0].find('decfts')>-1:
+                ddict['has_decfts'] = 1
+            else:
+                ddict['has_decfts'] = 0
+
+            if strings[0].find('gztr')>-1:
+                ddict['has_gztr'] = 1
+            else:
+                ddict['has_gztr'] = 0
+
+            if strings[0].find('attbr')>-1:
+                ddict['has_attbr'] = 1
+            else:
+                ddict['has_attbr'] = 0
+
+            ddict['subject'] = int(strings[1].split('_')[0].split('s')[-1])
+            ddict['run'] = int(strings[1].split('_')[1].split('r')[-1])
+            ddict['track'] = strings[1].split('_')[2]
+            ddict['li'] = int(strings[1].split('_')[3].split('li')[-1])
+
+            if strings[1].find('buffer_')>-1:
+                ddict['buffer'] = int(strings[1].split('_')[-1])
+            else:
+                ddict['buffer'] = int(strings[1].split('buffer')[-1])
+
+            if ddict['has_dda'] == 0:
+                if strings[2] == 'reference_mpc':
+                    ddict['mt'] = -1
+                    ddict['st'] = 0
+                    ddict['repetition'] = 0
+                else:
+                    ddict['mt'] = -1
+                    ddict['st'] = int(strings[2].split('_')[1].split('switch-')[-1])
+                    ddict['repetition'] = int(strings[2].split('_')[-1])
+            else:
+                if strings[0].find('dda_offline')>-1:
+                    ddict['mt'] = -1
+                    ddict['st'] = int(strings[2].split('_')[1].split('st-')[-1])
+                    ddict['repetition'] = int(strings[2].split('_')[-1])
+                elif strings[2].find('mpc_eval_nw')>-1:
+                    ddict['mt'] = -1
+                    ddict['st'] = -1
+                    ddict['repetition'] = 0
+                else:
+                    ddict['mt'] = int(strings[2].split('_')[1].split('mt-')[-1])
+                    ddict['st'] = int(strings[2].split('_')[2].split('st-')[-1])
+                    ddict['repetition'] = int(strings[2].split('_')[-1])
+
+            for k in sorted(ddict):
+                df[k] = ddict[k]
+
+            performance = performance.append(df)
+    performance.to_csv(outfilepath, index=False)
 
 
+# Make output table
+if to_table:
 
+    performance = pd.read_csv('./performance/performance.csv')
 
-    # Add some more information to performance table
-    # curr_path = df['filepath'].iloc[0]
-    # # add track information
-    # if curr_path.find('wave') > -1:
-    #     df['track'] = 'wave'
-    # else:
-    #     if curr_path.find('flat') > -1:
-    #         df['track'] = 'flat'
-    #     else:
-    #         df['track'] = 'NONE'
-    #
-    #
-    #
-    # #add subject number
-    # curr_subj = int(
-    #     curr_path.split('/s0')[-1].split('_')[0])
-    # df['subject'] = curr_subj
-    # # add run number
-    # curr_run = int(
-    #     curr_path.split('_r')[-1].split('_')[0])
-    # df['run'] = curr_run
-    # #add repetition number
-    # curr_repetition = int(
-    #     curr_path.split('/')[-2].split('_')[-1])
-    # df['repetition'] = curr_repetition
+    # Models to include into the table
 
+    mdicts = [
+        {
+            'name': 'Ref + QVW + Fts + Att',
+            'specs': {
+                'has_dda': 1,
+                'has_attbr': 0,
+                'has_gztr': 0,
+                'has_decfts': 1,
+                'has_fts': 1,
+                'has_state_q': 1,
+                'has_state_v': 1,
+                'has_state_w': 1,
+                'has_ref': 1,
+                'track': 'flat',
+                'subject': 16,
+                'run': 5,
+            },
+        },{
+            'name': 'Ref + QVW + Fts',
+            'specs': {
+                'has_dda': 1,
+                'has_attbr': 0,
+                'has_gztr': 0,
+                'has_decfts': 0,
+                'has_fts': 1,
+                'has_state_q': 1,
+                'has_state_v': 1,
+                'has_state_w': 1,
+                'has_ref': 1,
+                'track': 'flat',
+                'subject': 16,
+                'run': 5,
+            },
+        },{
+            'name': 'Ref + QVW + Att',
+            'specs': {
+                'has_dda': 1,
+                'has_attbr': 0,
+                'has_gztr': 0,
+                'has_decfts': 1,
+                'has_fts': 0,
+                'has_state_q': 1,
+                'has_state_v': 1,
+                'has_state_w': 1,
+                'has_ref': 1,
+                'track': 'flat',
+                'subject': 16,
+                'run': 5,
+            },
+        },{
+            'name': 'Ref + QVW',
+            'specs': {
+                'has_dda': 1,
+                'has_attbr': 0,
+                'has_gztr': 0,
+                'has_decfts': 0,
+                'has_fts': 0,
+                'has_state_q': 1,
+                'has_state_v': 1,
+                'has_state_w': 1,
+                'has_ref': 1,
+                'track': 'flat',
+                'subject': 16,
+                'run': 5,
+            },
+        },{
+            'name': 'Ref + VW + Att',
+            'specs': {
+                'has_dda': 1,
+                'has_attbr': 0,
+                'has_gztr': 0,
+                'has_decfts': 1,
+                'has_fts': 0,
+                'has_state_q': 0,
+                'has_state_v': 1,
+                'has_state_w': 1,
+                'has_ref': 1,
+                'track': 'flat',
+                'subject': 16,
+                'run': 5,
+            },
+        },{
+            'name': 'Ref + VW',
+            'specs': {
+                'has_dda': 1,
+                'has_attbr': 0,
+                'has_gztr': 0,
+                'has_decfts': 0,
+                'has_fts': 0,
+                'has_state_q': 0,
+                'has_state_v': 1,
+                'has_state_w': 1,
+                'has_ref': 1,
+                'track': 'flat',
+                'subject': 16,
+                'run': 5,
+            },
+        },{
+            'name': 'Ref + Q + Att',
+            'specs': {
+                'has_dda': 1,
+                'has_attbr': 0,
+                'has_gztr': 0,
+                'has_decfts': 1,
+                'has_fts': 0,
+                'has_state_q': 1,
+                'has_state_v': 0,
+                'has_state_w': 0,
+                'has_ref': 1,
+                'track': 'flat',
+                'subject': 16,
+                'run': 5,
+            },
+        },{
+            'name': 'Ref + Q',
+            'specs': {
+                'has_dda': 1,
+                'has_attbr': 0,
+                'has_gztr': 0,
+                'has_decfts': 0,
+                'has_fts': 0,
+                'has_state_q': 1,
+                'has_state_v': 0,
+                'has_state_w': 0,
+                'has_ref': 1,
+                'track': 'flat',
+                'subject': 16,
+                'run': 5,
+            },
+        },{
+            'name': 'Ref + Att',
+            'specs': {
+                'has_dda': 1,
+                'has_attbr': 0,
+                'has_gztr': 0,
+                'has_decfts': 1,
+                'has_fts': 0,
+                'has_state_q': 0,
+                'has_state_v': 0,
+                'has_state_w': 0,
+                'has_ref': 1,
+                'track': 'flat',
+                'subject': 16,
+                'run': 5,
+            },
+        },{
+            'name': 'Ref',
+            'specs': {
+                'has_dda': 1,
+                'has_attbr': 0,
+                'has_gztr': 0,
+                'has_decfts': 0,
+                'has_fts': 0,
+                'has_state_q': 0,
+                'has_state_v': 0,
+                'has_state_w': 0,
+                'has_ref': 1,
+                'track': 'flat',
+                'subject': 16,
+                'run': 5,
+            }
+        },
+    ]
 
+    # Features to include into the table
+    odict={
+        'Flight Time [s]': {
+            'varname': 'flight_time',
+            'track': '',
+            'first_line': 'mean',
+            'second_line': 'std',
+            'precision': 2
+            },
+        'Travel Distance [m]': {
+            'varname': 'travel_distance',
+            'track': '',
+            'first_line': 'mean',
+            'second_line': 'std',
+            'precision': 2
+        },
+        'Mean Error [m]': {
+            'varname': 'median_path_deviation',
+            'track': '',
+            'first_line': 'mean',
+            'second_line': 'std',
+            'precision': 2
+        },
+        'Gates Passed': {
+            'varname': 'num_gates_passed',
+            'track': '',
+            'first_line': 'mean',
+            'second_line': 'std',
+            'precision': 2
+        },
+        '% Collision': {
+            'varname': 'num_collisions',
+            'track': '',
+            'first_line': 'percent',
+            'second_line': '',
+            'precision': 0
+        },
+    }
 
-    # # Make Performance summary tables for latex.
-    # for model in models:
-    #     inpath = './performance/'+model+'/summary.csv'
-    #     summary = pd.read_csv(inpath)
-    #
-    #     odict={
-    #         'Flight Time [s]': {
-    #             'varname': 'flight_time',
-    #             'track': '',
-    #             'first_line': 'mean',
-    #             'second_line': 'std',
-    #             'precision': 2
-    #             },
-    #         'Travel Distance [m]': {
-    #             'varname': 'travel_distance',
-    #             'track': '',
-    #             'first_line': 'mean',
-    #             'second_line': 'std',
-    #             'precision': 2
-    #         },
-    #         'Mean Error [m]': {
-    #             'varname': 'median_path_deviation',
-    #             'track': '',
-    #             'first_line': 'mean',
-    #             'second_line': 'std',
-    #             'precision': 2
-    #         },
-    #         'Num. Gates Passed': {
-    #             'varname': 'num_gates_passed',
-    #             'track': '',
-    #             'first_line': 'mean',
-    #             'second_line': 'std',
-    #             'precision': 2
-    #         },
-    #         '% Collision Free': {
-    #             'varname': 'num_collisions',
-    #             'track': '',
-    #             'first_line': 'percent',
-    #             'second_line': '',
-    #             'precision': 0
-    #         },
-    #     }
-    #
-    #     ddict = {}
-    #     ddict['Model'] = [model, '']
-    #     for outvar in odict:
-    #         ddict.setdefault(outvar, [])
-    #         invar = odict[outvar]['varname']
-    #         curr_vals = summary[invar].values
-    #         #first line value
-    #         op1 = odict[outvar]['first_line']
-    #         if op1 == 'mean':
-    #             val1 = np.nanmean(curr_vals)
-    #         elif op1 == 'percent':
-    #             val1 = 100 * np.mean((curr_vals > 0).astype(int))
-    #         else:
-    #             val1 = None
-    #         if val1 is None:
-    #             ddict[outvar].append('')
-    #         else:
-    #             ddict[outvar].append(str(np.round(val1, odict[outvar][
-    #                 'precision'])))
-    #         # second line value
-    #         op2 = odict[outvar]['second_line']
-    #         if op2 == 'std':
-    #             val1 = np.nanstd(curr_vals)
-    #         else:
-    #             val1 = None
-    #         if val1 is None:
-    #             ddict[outvar].append('')
-    #         else:
-    #             ddict[outvar].append('('+str(np.round(val1, odict[outvar][
-    #                 'precision']))+')')
-    #
-    #
-    #
-    #
-    #
-    #     # #todo: make the output drag and drop for latex
-    #     # precision = 2
-    #     # for op in ['mean', 'sd']:
-    #     #     for name in names:
-    #     #         tdict.setdefault(name, [])
-    #     #         if op=='mean':
-    #     #             tdict[name].append(
-    #     #                 ('{:.%df}'%precision)
-    #     #                     .format(
-    #     #                     np.nanmean(summary[name].values)))
-    #     #         elif op=='sd':
-    #     #             tdict[name].append(
-    #     #                 ('({:.%df})' % precision)
-    #     #                     .format(
-    #     #                     np.nanstd(summary[name].values)))
-    #
-    #     table = pd.DataFrame(ddict, index=list(range(len(ddict['Model']))))
-    #     outpath = './performance/'+model+'/table.csv'
-    #     table.to_latex(outpath, index=False)
-    #
+    table = pd.DataFrame([])
+
+    # Loop over the models
+    for mdict in mdicts:
+        ddict = {}
+        ddict['Model'] = [mdict['name'], '']
+
+        # Select performance data
+        ind = np.array([True for i in range(performance.shape[0])])
+        for k, v in mdict['specs'].items():
+            ind = ind & (performance[k] == v)
+        curr_performance = performance.copy().loc[ind, :]
+
+        ddict['Num Runs'] = [str(curr_performance.shape[0]), '']
+
+        print(mdict['name'], curr_performance.shape)
+        # print(curr_performance)
+
+        if curr_performance.shape[0] > 0:
+            # Compute Average performances
+            for outvar in odict:
+                ddict.setdefault(outvar, [])
+                invar = odict[outvar]['varname']
+                curr_vals = curr_performance[invar].values
+                #first line value
+                op1 = odict[outvar]['first_line']
+                if op1 == 'mean':
+                    val1 = np.nanmean(curr_vals)
+                elif op1 == 'percent':
+                    val1 = 100 * np.mean((curr_vals > 0).astype(int))
+                else:
+                    val1 = None
+                if val1 is None:
+                    ddict[outvar].append('')
+                else:
+                    ddict[outvar].append(str(np.round(val1, odict[outvar][
+                        'precision'])))
+                # second line value
+                op2 = odict[outvar]['second_line']
+                if op2 == 'std':
+                    val1 = np.nanstd(curr_vals)
+                else:
+                    val1 = None
+                if val1 is None:
+                    ddict[outvar].append('')
+                else:
+                    ddict[outvar].append('('+str(np.round(val1, odict[outvar][
+                        'precision']))+')')
+
+        for k in ddict:
+            ddict[k] = [' '.join(ddict[k])]
+
+        # Append two lines to the output table
+        table = table.append(
+            pd.DataFrame(ddict,
+                         index=list(range(len(ddict['Model']))))
+        )
+
+    outpath = './performance/latex_table.csv'
+    table.to_latex(outpath, index=False)
 
 
 
