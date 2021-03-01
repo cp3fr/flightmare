@@ -164,85 +164,159 @@ if to_performance:
                 if f=='features.csv':
                     filepaths.append(os.path.join(w[0], f))
         for filepath in filepaths:
-            print('..collecting performance: {}'.format(filepath), end='\r')
+            print('..collecting performance: {}'.format(filepath))
 
             df =  pd.read_csv(filepath)
+
             # Get model and run information from filepath
             strings = (
                 df['filepath'].iloc[0]
-                .split('/process/')[-1]
-                .split('/trajectory.csv')[0]
-                .split('/')
-                      )
-            if len(strings)==2:
-                strings.insert(1, 's016_r05_flat_li00_buffer_20')
+                    .split('/process/')[-1]
+                    .split('/trajectory.csv')[0]
+                    .split('/')
+            )
+            if len(strings) == 2:
+                strings.insert(1, 's016_r05_flat_li01_buffer20')
 
-            print(strings)
+            # Load the yaml file
+            yamlpath = None
+            config = None
+            yamlcount = 0
+            for w in os.walk('./logs/'+model+'/'):
+                for f in w[2]:
+                    if f.find('.yaml')>-1:
+                        yamlpath = os.path.join(w[0], f)
+                        yamlcount += 1
+            if yamlpath is not None:
+                with open(yamlpath, 'r') as stream:
+                    try:
+                        config = yaml.safe_load(stream)
+                    except yaml.YAMLError as exc:
+                        print(exc)
+                        config = None
+
+            # print(yamlcount, yamlpath)
 
             ddict = {}
-
             ddict['model_name'] = strings[0]
-            ddict['has_dda'] = int(strings[0].find('dda')>-1)
+            ddict['has_dda'] = int(strings[0].find('dda') > -1)
 
-            if strings[0].find('noref')>-1:
-                ddict['has_ref'] = 0
-            else:
+            if config is not None:
+
+                ddict['has_yaml'] = 1
+
                 ddict['has_ref'] = 1
+                if 'no_ref' in config['train']:
+                    ddict['has_ref'] = int(config['train']['no_ref'] == False)
 
-            if strings[0].find('imunorot')>-1:
-                ddict['has_state_q'] = 0
-                ddict['has_state_v'] = 1
-                ddict['has_state_w'] = 1
-            elif strings[0].find('imunovels')>-1:
-                ddict['has_state_q'] = 1
-                ddict['has_state_v'] = 0
-                ddict['has_state_w'] = 0
-            elif strings[0].find('refonly')>-1:
-                ddict['has_state_q'] = 0
-                ddict['has_state_v'] = 0
-                ddict['has_state_w'] = 0
-            elif strings[0].find('noimu')>-1:
-                ddict['has_state_q'] = 0
-                ddict['has_state_v'] = 0
-                ddict['has_state_w'] = 0
-            else:
-                ddict['has_state_q'] = 1
-                ddict['has_state_v'] = 1
-                ddict['has_state_w'] = 1
 
-            if strings[0].find('nofts')>-1:
+                ddict['has_state_q'] = 0
+                ddict['has_state_v'] = 0
+                ddict['has_state_w'] = 0
+                if 'use_imu' in config['train']:
+                    if config['train']['use_imu'] == True:
+                        ddict['has_state_q'] = 1
+                        ddict['has_state_v'] = 1
+                        ddict['has_state_w'] = 1
+                        if 'imu_no_rot' in config['train']:
+                            if config['train']['imu_no_rot'] == True:
+                                ddict['has_state_q'] = 0
+                        if 'imu_no_vels' in config['train']:
+                            if config['train']['imu_no_vels'] == True:
+                                ddict['has_state_v'] = 0
+                                ddict['has_state_w'] = 0
+
                 ddict['has_fts'] = 0
-            elif strings[0].find('_fts')>-1:
-                ddict['has_fts'] = 1
-            elif strings[0].find('default')>-1:
-                ddict['has_fts'] = 1
-            else:
-                ddict['has_fts'] = 0
+                if 'use_fts_tracks' in config['train']:
+                    if config['train']['use_fts_tracks']:
+                        ddict['has_fts'] = 1
 
-            if strings[0].find('decfts')>-1:
-                ddict['has_decfts'] = 1
-            else:
+
+
                 ddict['has_decfts'] = 0
-
-            if strings[0].find('gztr')>-1:
-                ddict['has_gztr'] = 1
-            else:
                 ddict['has_gztr'] = 0
+                if 'attention_fts_type' in config['train']:
+                    if config['train']['attention_fts_type'] == 'decoder_fts':
+                        ddict['has_decfts'] = 1
+                        ddict['has_gztr'] = 0
+                    elif config['train']['attention_fts_type'] == 'gaze_tracks':
+                        ddict['has_decfts'] = 0
+                        ddict['has_gztr'] = 1
 
-            if strings[0].find('attbr')>-1:
-                ddict['has_attbr'] = 1
-            else:
+
                 ddict['has_attbr'] = 0
+                if 'attention_branching' in config['train']:
+                    if config['train']['attention_branching'] == True:
+                        ddict['has_attbr'] = 1
 
+
+                ddict['buffer'] = 0
+                if 'start_buffer' in config['simulation']:
+                    ddict['buffer'] = config['simulation']['start_buffer']
+
+
+
+
+            # If no yaml file was found
+            else:
+
+                ddict['has_yaml'] = 0
+
+                # if strings[0].find('noref')>-1:
+                #     ddict['has_ref'] = 0
+                # else:
+                #     ddict['has_ref'] = 1
+                #
+                # if strings[0].find('imunorot')>-1:
+                #     ddict['has_state_q'] = 0
+                #     ddict['has_state_v'] = 1
+                #     ddict['has_state_w'] = 1
+                # elif strings[0].find('imunovels')>-1:
+                #     ddict['has_state_q'] = 1
+                #     ddict['has_state_v'] = 0
+                #     ddict['has_state_w'] = 0
+                # elif strings[0].find('refonly')>-1:
+                #     ddict['has_state_q'] = 0
+                #     ddict['has_state_v'] = 0
+                #     ddict['has_state_w'] = 0
+                # elif strings[0].find('noimu')>-1:
+                #     ddict['has_state_q'] = 0
+                #     ddict['has_state_v'] = 0
+                #     ddict['has_state_w'] = 0
+                # else:
+                #     ddict['has_state_q'] = 1
+                #     ddict['has_state_v'] = 1
+                #     ddict['has_state_w'] = 1
+                #
+                # if strings[0].find('nofts')>-1:
+                #     ddict['has_fts'] = 0
+                # elif strings[0].find('_fts')>-1:
+                #     ddict['has_fts'] = 1
+                # elif strings[0].find('default')>-1:
+                #     ddict['has_fts'] = 1
+                # else:
+                #     ddict['has_fts'] = 0
+                #
+                # if strings[0].find('decfts')>-1:
+                #     ddict['has_decfts'] = 1
+                # else:
+                #     ddict['has_decfts'] = 0
+                #
+                # if strings[0].find('gztr')>-1:
+                #     ddict['has_gztr'] = 1
+                # else:
+                #     ddict['has_gztr'] = 0
+                #
+                # if strings[0].find('attbr')>-1:
+                #     ddict['has_attbr'] = 1
+                # else:
+                #     ddict['has_attbr'] = 0
+
+            ddict['buffer'] = float(strings[1].split('buffer')[-1]) / 10
             ddict['subject'] = int(strings[1].split('_')[0].split('s')[-1])
             ddict['run'] = int(strings[1].split('_')[1].split('r')[-1])
             ddict['track'] = strings[1].split('_')[2]
             ddict['li'] = int(strings[1].split('_')[3].split('li')[-1])
-
-            if strings[1].find('buffer_')>-1:
-                ddict['buffer'] = int(strings[1].split('_')[-1])
-            else:
-                ddict['buffer'] = int(strings[1].split('buffer')[-1])
 
             if ddict['has_dda'] == 0:
                 if strings[2] == 'reference_mpc':
@@ -267,6 +341,14 @@ if to_performance:
                     ddict['st'] = int(strings[2].split('_')[2].split('st-')[-1])
                     ddict['repetition'] = int(strings[2].split('_')[-1])
 
+            # print(filepath)
+            # pprint(config['train'])
+            # pprint(ddict)
+            # print('--------------------')
+            #
+            # plt.plot(1,1)
+            # plt.show()
+
             for k in sorted(ddict):
                 df[k] = ddict[k]
 
@@ -279,8 +361,16 @@ if to_table:
 
     performance = pd.read_csv('./performance/performance.csv')
 
-    # Models to include into the table
+    print('noyaml', np.sum(performance.has_yaml.values == 0))
 
+    sdict = {
+        'track': 'flat',
+        'subject': 16,
+        'run': 5,
+        'li': 1
+    }
+
+    # Models to include into the table
     mdicts = [
         {
             'name': 'Ref + QVW + Fts + Att',
@@ -294,25 +384,6 @@ if to_table:
                 'has_state_v': 1,
                 'has_state_w': 1,
                 'has_ref': 1,
-                'track': 'flat',
-                'subject': 16,
-                'run': 5,
-            },
-        },{
-            'name': 'Ref + QVW + Fts',
-            'specs': {
-                'has_dda': 1,
-                'has_attbr': 0,
-                'has_gztr': 0,
-                'has_decfts': 0,
-                'has_fts': 1,
-                'has_state_q': 1,
-                'has_state_v': 1,
-                'has_state_w': 1,
-                'has_ref': 1,
-                'track': 'flat',
-                'subject': 16,
-                'run': 5,
             },
         },{
             'name': 'Ref + QVW + Att',
@@ -326,9 +397,19 @@ if to_table:
                 'has_state_v': 1,
                 'has_state_w': 1,
                 'has_ref': 1,
-                'track': 'flat',
-                'subject': 16,
-                'run': 5,
+            },
+        },{
+            'name': 'Ref + QVW + Fts',
+            'specs': {
+                'has_dda': 1,
+                'has_attbr': 0,
+                'has_gztr': 0,
+                'has_decfts': 0,
+                'has_fts': 1,
+                'has_state_q': 1,
+                'has_state_v': 1,
+                'has_state_w': 1,
+                'has_ref': 1,
             },
         },{
             'name': 'Ref + QVW',
@@ -342,9 +423,19 @@ if to_table:
                 'has_state_v': 1,
                 'has_state_w': 1,
                 'has_ref': 1,
-                'track': 'flat',
-                'subject': 16,
-                'run': 5,
+            },
+        },{
+            'name': 'Ref + VW + Fts + Att',
+            'specs': {
+                'has_dda': 1,
+                'has_attbr': 0,
+                'has_gztr': 0,
+                'has_decfts': 1,
+                'has_fts': 1,
+                'has_state_q': 0,
+                'has_state_v': 1,
+                'has_state_w': 1,
+                'has_ref': 1,
             },
         },{
             'name': 'Ref + VW + Att',
@@ -358,9 +449,19 @@ if to_table:
                 'has_state_v': 1,
                 'has_state_w': 1,
                 'has_ref': 1,
-                'track': 'flat',
-                'subject': 16,
-                'run': 5,
+            },
+        },{
+            'name': 'Ref + VW + Fts',
+            'specs': {
+                'has_dda': 1,
+                'has_attbr': 0,
+                'has_gztr': 0,
+                'has_decfts': 0,
+                'has_fts': 1,
+                'has_state_q': 0,
+                'has_state_v': 1,
+                'has_state_w': 1,
+                'has_ref': 1,
             },
         },{
             'name': 'Ref + VW',
@@ -374,9 +475,19 @@ if to_table:
                 'has_state_v': 1,
                 'has_state_w': 1,
                 'has_ref': 1,
-                'track': 'flat',
-                'subject': 16,
-                'run': 5,
+            },
+        },{
+            'name': 'Ref + Q + Fts + Att',
+            'specs': {
+                'has_dda': 1,
+                'has_attbr': 0,
+                'has_gztr': 0,
+                'has_decfts': 1,
+                'has_fts': 1,
+                'has_state_q': 1,
+                'has_state_v': 0,
+                'has_state_w': 0,
+                'has_ref': 1,
             },
         },{
             'name': 'Ref + Q + Att',
@@ -390,9 +501,19 @@ if to_table:
                 'has_state_v': 0,
                 'has_state_w': 0,
                 'has_ref': 1,
-                'track': 'flat',
-                'subject': 16,
-                'run': 5,
+            },
+        },{
+            'name': 'Ref + Q + Fts',
+            'specs': {
+                'has_dda': 1,
+                'has_attbr': 0,
+                'has_gztr': 0,
+                'has_decfts': 0,
+                'has_fts': 1,
+                'has_state_q': 1,
+                'has_state_v': 0,
+                'has_state_w': 0,
+                'has_ref': 1,
             },
         },{
             'name': 'Ref + Q',
@@ -406,9 +527,19 @@ if to_table:
                 'has_state_v': 0,
                 'has_state_w': 0,
                 'has_ref': 1,
-                'track': 'flat',
-                'subject': 16,
-                'run': 5,
+            },
+        },{
+            'name': 'Ref + Fts + Att',
+            'specs': {
+                'has_dda': 1,
+                'has_attbr': 0,
+                'has_gztr': 0,
+                'has_decfts': 1,
+                'has_fts': 1,
+                'has_state_q': 0,
+                'has_state_v': 0,
+                'has_state_w': 0,
+                'has_ref': 1,
             },
         },{
             'name': 'Ref + Att',
@@ -422,9 +553,19 @@ if to_table:
                 'has_state_v': 0,
                 'has_state_w': 0,
                 'has_ref': 1,
-                'track': 'flat',
-                'subject': 16,
-                'run': 5,
+            },
+        },{
+            'name': 'Ref + Fts',
+            'specs': {
+                'has_dda': 1,
+                'has_attbr': 0,
+                'has_gztr': 0,
+                'has_decfts': 0,
+                'has_fts': 1,
+                'has_state_q': 0,
+                'has_state_v': 0,
+                'has_state_w': 0,
+                'has_ref': 1,
             },
         },{
             'name': 'Ref',
@@ -438,9 +579,6 @@ if to_table:
                 'has_state_v': 0,
                 'has_state_w': 0,
                 'has_ref': 1,
-                'track': 'flat',
-                'subject': 16,
-                'run': 5,
             }
         },
     ]
@@ -488,6 +626,10 @@ if to_table:
 
     # Loop over the models
     for mdict in mdicts:
+
+        #add subject dictionnairy to the model dictionnairy
+        mdict['specs'] = {**mdict['specs'], **sdict}
+
         ddict = {}
         ddict['Model'] = [mdict['name'], '']
 
@@ -499,7 +641,7 @@ if to_table:
 
         ddict['Num Runs'] = [str(curr_performance.shape[0]), '']
 
-        print(mdict['name'], curr_performance.shape)
+        print(mdict['name'], ':', curr_performance.shape[0])
         # print(curr_performance)
 
         if curr_performance.shape[0] > 0:
