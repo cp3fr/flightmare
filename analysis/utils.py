@@ -544,6 +544,7 @@ def resample_dataframe(
         rdict[n] = np.interp(xn, x, df[n].values)
     return pd.DataFrame(rdict, index=list(range(xn.shape[0])))
 
+
 def extract_performance_features(
         filepath_trajectory: str,
         filepath_events: str,
@@ -591,6 +592,10 @@ def extract_performance_features(
             t_end = t_network_end
         else:
             t_end = t_trajectory_end
+
+    # For consistency, start of the lap is at start/finish gate 9
+    if t_start < 0:
+        t_start = 0
     if t_end<t_start:
         t_end=t_start
     # Get performance metrics within the start and end time window

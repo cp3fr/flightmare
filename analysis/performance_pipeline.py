@@ -8,13 +8,14 @@ sys.path.insert(0, base_path)
 from analysis.utils import *
 
 # What to do
-to_process = False
+to_process = True
 to_performance = False
-to_table = True
+to_table = False
 
 to_plot_traj_3d = False
 to_plot_state = False
 to_plot_reference = False
+to_plot_reference_with_decision = False
 
 # Buffer time: time runs with  network were started earlier than the reference
 # trajectory
@@ -28,7 +29,7 @@ track_filepaths = {
 logfile_path = './logs/'
 reference_filepath = logfile_path+'reference/trajectory_reference_original.csv'
 models = [
-    # 'dda_flat_med_full_bf2_cf25_decfts',
+    # 'dda_flat_med_full_bf2_cf25_default_attbr'
         ]
 if len(models) == 0:
     for w in os.walk(logfile_path):
@@ -307,8 +308,9 @@ if to_table:
 
     performance = pd.read_csv('./performance/performance.csv')
 
-    for attention_name in ['decfts', 'attbr']:
-        for trajectory_name in ['reference', 'other-laps', 'other-track']:
+    for attention_name in ['decfts', 'attbr', 'gztr']:
+        for trajectory_name in ['reference', 'other-laps', 'other-track',
+                                'multi-laps']:
 
             print('----------------')
             print(trajectory_name, attention_name)
@@ -341,7 +343,13 @@ if to_table:
                     'track': 'wave',
                     'num_laps': 1,
                 }
-
+            elif trajectory_name == 'multi-laps':
+                run_dict = {
+                    'track': 'flat',
+                }
+                exclude_run_dict = {
+                    'num_laps': 1,
+                }
             # Model dictionnairy
             model_dicts = None
             if attention_name == 'decfts':
@@ -690,6 +698,179 @@ if to_table:
                     }
                 },
             ]
+            elif attention_name == 'gztr':
+                model_dicts = [
+                {
+                    'name': 'Ref + QVW + Fts + Att',
+                    'specs': {
+                        'has_dda': 1,
+                        'has_attbr': 0,
+                        'has_gztr': 1,
+                        'has_decfts': 0,
+                        'has_fts': 1,
+                        'has_state_q': 1,
+                        'has_state_v': 1,
+                        'has_state_w': 1,
+                        'has_ref': 1,
+                    },
+                },{
+                    'name': 'Ref + QVW + Att',
+                    'specs': {
+                        'has_dda': 1,
+                        'has_attbr': 0,
+                        'has_gztr': 1,
+                        'has_decfts': 0,
+                        'has_fts': 0,
+                        'has_state_q': 1,
+                        'has_state_v': 1,
+                        'has_state_w': 1,
+                        'has_ref': 1,
+                    },
+                },{
+                    'name': 'Ref + QVW + Fts',
+                    'specs': {
+                        'has_dda': 1,
+                        'has_attbr': 0,
+                        'has_gztr': 0,
+                        'has_decfts': 0,
+                        'has_fts': 1,
+                        'has_state_q': 1,
+                        'has_state_v': 1,
+                        'has_state_w': 1,
+                        'has_ref': 1,
+                    },
+                },{
+                    'name': 'Ref + QVW',
+                    'specs': {
+                        'has_dda': 1,
+                        'has_attbr': 0,
+                        'has_gztr': 0,
+                        'has_decfts': 0,
+                        'has_fts': 0,
+                        'has_state_q': 1,
+                        'has_state_v': 1,
+                        'has_state_w': 1,
+                        'has_ref': 1,
+                    },
+                },{
+                    'name': 'Ref + VW',
+                    'specs': {
+                        'has_dda': 1,
+                        'has_attbr': 0,
+                        'has_gztr': 0,
+                        'has_decfts': 0,
+                        'has_fts': 0,
+                        'has_state_q': 0,
+                        'has_state_v': 1,
+                        'has_state_w': 1,
+                        'has_ref': 1,
+                    },
+                },{
+                    'name': 'Ref + Q + Fts + Att',
+                    'specs': {
+                        'has_dda': 1,
+                        'has_attbr': 0,
+                        'has_gztr': 1,
+                        'has_decfts': 0,
+                        'has_fts': 1,
+                        'has_state_q': 1,
+                        'has_state_v': 0,
+                        'has_state_w': 0,
+                        'has_ref': 1,
+                    },
+                },{
+                    'name': 'Ref + Q + Att',
+                    'specs': {
+                        'has_dda': 1,
+                        'has_attbr': 0,
+                        'has_gztr': 1,
+                        'has_decfts': 0,
+                        'has_fts': 0,
+                        'has_state_q': 1,
+                        'has_state_v': 0,
+                        'has_state_w': 0,
+                        'has_ref': 1,
+                    },
+                },{
+                    'name': 'Ref + Q + Fts',
+                    'specs': {
+                        'has_dda': 1,
+                        'has_attbr': 0,
+                        'has_gztr': 0,
+                        'has_decfts': 0,
+                        'has_fts': 1,
+                        'has_state_q': 1,
+                        'has_state_v': 0,
+                        'has_state_w': 0,
+                        'has_ref': 1,
+                    },
+                },{
+                    'name': 'Ref + Q',
+                    'specs': {
+                        'has_dda': 1,
+                        'has_attbr': 0,
+                        'has_gztr': 0,
+                        'has_decfts': 0,
+                        'has_fts': 0,
+                        'has_state_q': 1,
+                        'has_state_v': 0,
+                        'has_state_w': 0,
+                        'has_ref': 1,
+                    },
+                },{
+                    'name': 'Ref + Fts + Att',
+                    'specs': {
+                        'has_dda': 1,
+                        'has_attbr': 0,
+                        'has_gztr': 1,
+                        'has_decfts': 0,
+                        'has_fts': 1,
+                        'has_state_q': 0,
+                        'has_state_v': 0,
+                        'has_state_w': 0,
+                        'has_ref': 1,
+                    },
+                },{
+                    'name': 'Ref + Att',
+                    'specs': {
+                        'has_dda': 1,
+                        'has_attbr': 0,
+                        'has_gztr': 1,
+                        'has_decfts': 0,
+                        'has_fts': 0,
+                        'has_state_q': 0,
+                        'has_state_v': 0,
+                        'has_state_w': 0,
+                        'has_ref': 1,
+                    },
+                },{
+                    'name': 'Ref + Fts',
+                    'specs': {
+                        'has_dda': 1,
+                        'has_attbr': 0,
+                        'has_gztr': 0,
+                        'has_decfts': 0,
+                        'has_fts': 1,
+                        'has_state_q': 0,
+                        'has_state_v': 0,
+                        'has_state_w': 0,
+                        'has_ref': 1,
+                    },
+                },{
+                    'name': 'Ref',
+                    'specs': {
+                        'has_dda': 1,
+                        'has_attbr': 0,
+                        'has_gztr': 0,
+                        'has_decfts': 0,
+                        'has_fts': 0,
+                        'has_state_q': 0,
+                        'has_state_v': 0,
+                        'has_state_w': 0,
+                        'has_ref': 1,
+                    }
+                },
+            ]
 
 
             # Feature dictionnairy
@@ -807,9 +988,87 @@ if to_table:
                 table.to_latex(outpath, index=False)
 
 
-
-
+# Plot reference trajectory with gates
 if to_plot_reference:
+    # Load track.
+    track = pd.read_csv(track_filepath)
+    ndict = {
+        'pos_x': 'px',
+        'pos_y': 'py',
+        'pos_z': 'pz',
+        'rot_x_quat': 'qx',
+        'rot_y_quat': 'qy',
+        'rot_z_quat': 'qz',
+        'rot_w_quat': 'qw',
+        'dim_x': 'dx',
+        'dim_y': 'dy',
+        'dim_z': 'dz',
+    }
+    track = track.rename(columns=ndict)
+    track = track[list(ndict.values())]
+    track['pz'] += 0.35
+    track['dx'] = 0.
+    track['dy'] = 3
+    track['dz'] = 3
+    # Load reference and downsample to 20 Hz
+    reference = trajectory_from_logfile(
+        filepath=reference_filepath)
+    sr = 1 / np.nanmedian(np.diff(reference.t.values))
+    reference = reference.iloc[np.arange(0, reference.shape[0], int(sr / 20)), :]
+    # Plot reference, track, and format figure.
+    ax = plot_trajectory(
+        reference.px.values,
+        reference.py.values,
+        reference.pz.values,
+        reference.qx.values,
+        reference.qy.values,
+        reference.qz.values,
+        reference.qw.values,
+        axis_length=2,
+        c='k',
+    )
+    ax = plot_gates_3d(
+        track=track,
+        ax=ax,
+        color='k',
+        width=4,
+        )
+    ax = format_trajectory_figure(
+        ax=ax,
+        xlims=(-15, 19),
+        ylims=(-17, 17),
+        zlims=(-8, 8),
+        xlabel='px [m]',
+        ylabel='py [m]',
+        zlabel='pz [m]',
+        title='',
+        )
+
+    plt.axis('off')
+    plt.grid(b=None)
+    ax.view_init(elev=45,
+                 azim=270)
+    plt.gcf().set_size_inches(20,10)
+
+    plot_path = './plots/'
+    if not os.path.exists(plot_path):
+        make_path(plot_path)
+
+    plt.savefig(plot_path + 'reference_3d.jpg')
+
+    # # Plot flight path overlay of individual runs
+    # for model in models:
+    #   data_path = './process/' + model + '/'
+    #   compare_trajectories_3d(
+    #       reference_filepath=reference_filepath,
+    #       data_path=data_path,
+    #       )
+
+    plt.show()
+
+
+# Plot reference trajecory with decision colored
+if to_plot_reference_with_decision:
     # Load track.
     track = pd.read_csv(track_filepath)
     ndict = {
