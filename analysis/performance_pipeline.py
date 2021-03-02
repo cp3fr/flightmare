@@ -9,8 +9,8 @@ from analysis.utils import *
 
 # What to do
 to_process = True
-to_performance = False
-to_table = False
+to_performance = True
+to_table = True
 
 to_plot_traj_3d = False
 to_plot_state = False
@@ -20,6 +20,11 @@ to_plot_reference_with_decision = False
 # Buffer time: time runs with  network were started earlier than the reference
 # trajectory
 buffer = 2.0
+collider_names = ['wall'] #['gate-wall', 'wall']
+collider_dict = {
+    'gate-wall': ['gate', 'wall'],
+    'wall': ['wall'],
+}
 
 # Chose input files and folders for processing.
 track_filepaths = {
@@ -29,8 +34,9 @@ track_filepaths = {
 logfile_path = './logs/'
 reference_filepath = logfile_path+'reference/trajectory_reference_original.csv'
 models = [
-    # 'dda_flat_med_full_bf2_cf25_default_attbr'
+    # 'dda_flat_med_full_bf2_cf25_noref_nofts_decfts'
         ]
+
 if len(models) == 0:
     for w in os.walk(logfile_path):
         if w[0] == logfile_path:
@@ -92,228 +98,245 @@ if to_process:
                     filepath_trajectory=data_path+'trajectory.csv',
                     filepath_track=data_path+'track.csv')
                 E.to_csv(data_path + 'events.csv', index=False)
-            # Save performance features to output folder
-            if not os.path.isfile(data_path + 'features.csv'):
-                P = extract_performance_features(
-                    filepath_trajectory=data_path + 'trajectory.csv',
-                    filepath_reference=data_path + 'reference.csv',
-                    filepath_events=data_path + 'events.csv')
-                P.to_csv(data_path + 'features.csv', index=False)
-            # Save trajectory plot to output folder
-            if to_plot_traj_3d:
-                track = pd.read_csv(data_path + 'track.csv')
-                trajectory = pd.read_csv(data_path + 'trajectory.csv')
-                features = pd.read_csv(data_path + 'features.csv')
-                for label in ['', 'valid_']:
-                    for view, xlims, ylims, zlims in [
-                                 [(45, 270), (-15, 19), (-17, 17), (-8, 8)],
-                                 # [(0, 270), (-15, 19), (-17, 17), (-12, 12)],
-                                 # [(0, 180), (-15, 19), (-17, 17), (-12, 12)],
-                                 # [(90, 270), (-15, 19), (-15, 15), (-12, 12)],
-                            ]:
-                        outpath = (data_path + '{}trajectory_with_gates_'
-                                               '{}x{}.jpg'
-                                   .format(label,
-                                           '%03d' % view[0],
-                                           '%03d' % view[1])
-                                   )
-                        if not os.path.isfile(outpath):
-                            if label == 'valid_':
-                                ind = ((trajectory['t'].values >=
-                                       features['t_start'].iloc[0]) &
-                                       (trajectory['t'].values <=
-                                        features['t_end'].iloc[0]))
-                            else:
-                                ind = np.array([True for i in range(
-                                    trajectory.shape[0])])
-                            ax = plot_trajectory_with_gates_3d(
-                                trajectory=trajectory.iloc[ind, :],
-                                track=track,
-                                view=view,
-                                xlims=xlims,
-                                ylims=ylims,
-                                zlims=zlims,
-                            )
 
-                            ax.set_title(outpath)
-                            plt.savefig(outpath)
-                            plt.close(plt.gcf())
-                            ax=None
-            # Plot the drone state
-            if to_plot_state:
-                if not os.path.isfile(data_path + 'state.jpg'):
-                    plot_state(
+            # Loop across collider conditions
+            for collider_name in collider_names:
+                curr_colliders = collider_dict[collider_name]
+                curr_feature_filename = 'features_{}.csv'.format(collider_name)
+
+                # Save performance features to output folder
+                if not os.path.isfile(data_path + curr_feature_filename):
+                    P = extract_performance_features(
                         filepath_trajectory=data_path + 'trajectory.csv',
                         filepath_reference=data_path + 'reference.csv',
-                        filepath_features=data_path + 'features.csv',
-                        )
-                    plt.savefig(data_path + 'state.jpg')
-                    plt.close(plt.gcf())
+                        filepath_events=data_path + 'events.csv',
+                        colliders=curr_colliders)
+                    P.to_csv(data_path + curr_feature_filename, index=False)
+
+                # Save trajectory plot to output folder
+                if to_plot_traj_3d:
+                    track = pd.read_csv(data_path + 'track.csv')
+                    trajectory = pd.read_csv(data_path + 'trajectory.csv')
+                    features = pd.read_csv(data_path + curr_feature_filename)
+                    for label in ['', 'valid_']:
+                        for view, xlims, ylims, zlims in [
+                                     [(45, 270), (-15, 19), (-17, 17), (-8, 8)],
+                                     # [(0, 270), (-15, 19), (-17, 17), (-12, 12)],
+                                     # [(0, 180), (-15, 19), (-17, 17), (-12, 12)],
+                                     # [(90, 270), (-15, 19), (-15, 15), (-12, 12)],
+                                ]:
+                            outpath = (data_path + '{}trajectory-with-gates_{}_'
+                                                   '{}x{}.jpg'
+                                       .format(label,
+                                               collider_name,
+                                               '%03d' % view[0],
+                                               '%03d' % view[1])
+                                       )
+                            if not os.path.isfile(outpath):
+                                if label == 'valid_':
+                                    ind = ((trajectory['t'].values >=
+                                           features['t_start'].iloc[0]) &
+                                           (trajectory['t'].values <=
+                                            features['t_end'].iloc[0]))
+                                else:
+                                    ind = np.array([True for i in range(
+                                        trajectory.shape[0])])
+                                ax = plot_trajectory_with_gates_3d(
+                                    trajectory=trajectory.iloc[ind, :],
+                                    track=track,
+                                    view=view,
+                                    xlims=xlims,
+                                    ylims=ylims,
+                                    zlims=zlims,
+                                )
+
+                                ax.set_title(outpath)
+                                plt.savefig(outpath)
+                                plt.close(plt.gcf())
+                                ax=None
+
+                # Plot the drone state
+                if to_plot_state:
+                    curr_state_filename = 'state_{}.jpg'.format(collider_name)
+                    if not os.path.isfile(data_path + curr_state_filename):
+                        plot_state(
+                            filepath_trajectory=data_path + 'trajectory.csv',
+                            filepath_reference=data_path + 'reference.csv',
+                            filepath_features=data_path + curr_feature_filename,
+                            )
+                        plt.savefig(data_path + curr_state_filename)
+                        plt.close(plt.gcf())
 
 
 # Collect performance metrics across runs
 if to_performance:
-    outpath = './performance/'
-    outfilepath = outpath + 'performance.csv'
-    if not os.path.exists(outpath):
-        make_path(outpath)
-    performance = pd.DataFrame([])
-    for model in models:
-        filepaths = []
-        for w in os.walk('./process/'+model+'/'):
-            for f in w[2]:
-                if f=='features.csv':
-                    filepaths.append(os.path.join(w[0], f))
-        for filepath in filepaths:
-            print('..collecting performance: {}'.format(filepath))
-
-            df =  pd.read_csv(filepath)
-
-            # Get model and run information from filepath
-            strings = (
-                df['filepath'].iloc[0]
-                    .split('/process/')[-1]
-                    .split('/trajectory.csv')[0]
-                    .split('/')
-            )
-            if len(strings) == 2:
-                strings.insert(1, 's016_r05_flat_li01_buffer20')
-
-            # Load the yaml file
-            yamlpath = None
-            config = None
-            yamlcount = 0
-            for w in os.walk('./logs/'+model+'/'):
+    # Loop across collider conditions
+    for collider_name in collider_names:
+        curr_feature_filename = 'features_{}.csv'.format(collider_name)
+        outpath = './performance/{}/'.format(collider_name)
+        outfilepath = outpath + 'performance.csv'
+        if not os.path.exists(outpath):
+            make_path(outpath)
+        performance = pd.DataFrame([])
+        for model in models:
+            filepaths = []
+            for w in os.walk('./process/'+model+'/'):
                 for f in w[2]:
-                    if f.find('.yaml')>-1:
-                        yamlpath = os.path.join(w[0], f)
-                        yamlcount += 1
-            if yamlpath is not None:
-                with open(yamlpath, 'r') as stream:
-                    try:
-                        config = yaml.safe_load(stream)
-                    except yaml.YAMLError as exc:
-                        print(exc)
-                        config = None
+                    if f==curr_feature_filename:
+                        filepaths.append(os.path.join(w[0], f))
+            for filepath in filepaths:
+                print('..collecting performance: {}'.format(filepath))
 
-            # print(yamlcount, yamlpath)
+                df =  pd.read_csv(filepath)
 
-            ddict = {}
-            ddict['model_name'] = strings[0]
-            ddict['has_dda'] = int(strings[0].find('dda') > -1)
+                # Get model and run information from filepath
+                strings = (
+                    df['filepath'].iloc[0]
+                        .split('/process/')[-1]
+                        .split('/trajectory.csv')[0]
+                        .split('/')
+                )
+                if len(strings) == 2:
+                    strings.insert(1, 's016_r05_flat_li01_buffer20')
 
-            if config is not None:
+                # Load the yaml file
+                yamlpath = None
+                config = None
+                yamlcount = 0
+                for w in os.walk('./logs/'+model+'/'):
+                    for f in w[2]:
+                        if f.find('.yaml')>-1:
+                            yamlpath = os.path.join(w[0], f)
+                            yamlcount += 1
+                if yamlpath is not None:
+                    with open(yamlpath, 'r') as stream:
+                        try:
+                            config = yaml.safe_load(stream)
+                        except yaml.YAMLError as exc:
+                            print(exc)
+                            config = None
 
-                ddict['has_yaml'] = 1
+                # print(yamlcount, yamlpath)
 
-                ddict['has_ref'] = 1
-                if 'no_ref' in config['train']:
-                    ddict['has_ref'] = int(config['train']['no_ref'] == False)
+                ddict = {}
+                ddict['model_name'] = strings[0]
+                ddict['has_dda'] = int(strings[0].find('dda') > -1)
 
+                if config is not None:
 
-                ddict['has_state_q'] = 0
-                ddict['has_state_v'] = 0
-                ddict['has_state_w'] = 0
-                if 'use_imu' in config['train']:
-                    if config['train']['use_imu'] == True:
-                        ddict['has_state_q'] = 1
-                        ddict['has_state_v'] = 1
-                        ddict['has_state_w'] = 1
-                        if 'imu_no_rot' in config['train']:
-                            if config['train']['imu_no_rot'] == True:
-                                ddict['has_state_q'] = 0
-                        if 'imu_no_vels' in config['train']:
-                            if config['train']['imu_no_vels'] == True:
-                                ddict['has_state_v'] = 0
-                                ddict['has_state_w'] = 0
+                    ddict['has_yaml'] = 1
 
-                ddict['has_fts'] = 0
-                if 'use_fts_tracks' in config['train']:
-                    if config['train']['use_fts_tracks']:
-                        ddict['has_fts'] = 1
-
-
-
-                ddict['has_decfts'] = 0
-                ddict['has_gztr'] = 0
-                if 'attention_fts_type' in config['train']:
-                    if config['train']['attention_fts_type'] == 'decoder_fts':
-                        ddict['has_decfts'] = 1
-                        ddict['has_gztr'] = 0
-                    elif config['train']['attention_fts_type'] == 'gaze_tracks':
-                        ddict['has_decfts'] = 0
-                        ddict['has_gztr'] = 1
+                    ddict['has_ref'] = 1
+                    if 'no_ref' in config['train']:
+                        ddict['has_ref'] = int(config['train']['no_ref'] == False)
 
 
-                ddict['has_attbr'] = 0
-                if 'attention_branching' in config['train']:
-                    if config['train']['attention_branching'] == True:
-                        ddict['has_attbr'] = 1
+                    ddict['has_state_q'] = 0
+                    ddict['has_state_v'] = 0
+                    ddict['has_state_w'] = 0
+                    if 'use_imu' in config['train']:
+                        if config['train']['use_imu'] == True:
+                            ddict['has_state_q'] = 1
+                            ddict['has_state_v'] = 1
+                            ddict['has_state_w'] = 1
+                            if 'imu_no_rot' in config['train']:
+                                if config['train']['imu_no_rot'] == True:
+                                    ddict['has_state_q'] = 0
+                            if 'imu_no_vels' in config['train']:
+                                if config['train']['imu_no_vels'] == True:
+                                    ddict['has_state_v'] = 0
+                                    ddict['has_state_w'] = 0
+
+                    ddict['has_fts'] = 0
+                    if 'use_fts_tracks' in config['train']:
+                        if config['train']['use_fts_tracks']:
+                            ddict['has_fts'] = 1
 
 
-                ddict['buffer'] = 0
-                if 'start_buffer' in config['simulation']:
-                    ddict['buffer'] = config['simulation']['start_buffer']
 
-            # If no yaml file was found
-            else:
-                ddict['has_yaml'] = 0
+                    ddict['has_decfts'] = 0
+                    ddict['has_gztr'] = 0
+                    if 'attention_fts_type' in config['train']:
+                        if config['train']['attention_fts_type'] == 'decoder_fts':
+                            ddict['has_decfts'] = 1
+                            ddict['has_gztr'] = 0
+                        elif config['train']['attention_fts_type'] == 'gaze_tracks':
+                            ddict['has_decfts'] = 0
+                            ddict['has_gztr'] = 1
 
-            ddict['buffer'] = float(strings[1].split('buffer')[-1]) / 10
-            ddict['subject'] = int(strings[1].split('_')[0].split('s')[-1])
-            ddict['run'] = int(strings[1].split('_')[1].split('r')[-1])
-            ddict['track'] = strings[1].split('_')[2]
 
-            li_string = strings[1].split('_')[3].split('li')[-1]
-            if li_string.find('-')>-1:
-                ddict['li'] = int(li_string.split('-')[0])
-                ddict['num_laps'] = (int(li_string.split('-')[-1]) -
-                                     int(li_string.split('-')[0]) + 1)
-            else:
-                ddict['li'] = int(li_string)
-                ddict['num_laps'] = 1
+                    ddict['has_attbr'] = 0
+                    if 'attention_branching' in config['train']:
+                        if config['train']['attention_branching'] == True:
+                            ddict['has_attbr'] = 1
 
-            if ddict['has_dda'] == 0:
-                if strings[2] == 'reference_mpc':
-                    ddict['mt'] = -1
-                    ddict['st'] = 0
-                    ddict['repetition'] = 0
+
+                    ddict['buffer'] = 0
+                    if 'start_buffer' in config['simulation']:
+                        ddict['buffer'] = config['simulation']['start_buffer']
+
+                # If no yaml file was found
                 else:
-                    ddict['mt'] = -1
-                    ddict['st'] = int(strings[2].split('_')[1].split('switch-')[-1])
-                    ddict['repetition'] = int(strings[2].split('_')[-1])
-            else:
-                if strings[0].find('dda_offline')>-1:
-                    ddict['mt'] = -1
-                    ddict['st'] = int(strings[2].split('_')[1].split('st-')[-1])
-                    ddict['repetition'] = int(strings[2].split('_')[-1])
-                elif strings[2].find('mpc_eval_nw')>-1:
-                    ddict['mt'] = -1
-                    ddict['st'] = -1
-                    ddict['repetition'] = 0
+                    ddict['has_yaml'] = 0
+
+                ddict['buffer'] = float(strings[1].split('buffer')[-1]) / 10
+                ddict['subject'] = int(strings[1].split('_')[0].split('s')[-1])
+                ddict['run'] = int(strings[1].split('_')[1].split('r')[-1])
+                ddict['track'] = strings[1].split('_')[2]
+
+                li_string = strings[1].split('_')[3].split('li')[-1]
+                if li_string.find('-')>-1:
+                    ddict['li'] = int(li_string.split('-')[0])
+                    ddict['num_laps'] = (int(li_string.split('-')[-1]) -
+                                         int(li_string.split('-')[0]) + 1)
                 else:
-                    ddict['mt'] = int(strings[2].split('_')[1].split('mt-')[-1])
-                    ddict['st'] = int(strings[2].split('_')[2].split('st-')[-1])
-                    ddict['repetition'] = int(strings[2].split('_')[-1])
+                    ddict['li'] = int(li_string)
+                    ddict['num_laps'] = 1
 
-            for k in sorted(ddict):
-                df[k] = ddict[k]
+                if ddict['has_dda'] == 0:
+                    if strings[2] == 'reference_mpc':
+                        ddict['mt'] = -1
+                        ddict['st'] = 0
+                        ddict['repetition'] = 0
+                    else:
+                        ddict['mt'] = -1
+                        ddict['st'] = int(strings[2].split('_')[1].split('switch-')[-1])
+                        ddict['repetition'] = int(strings[2].split('_')[-1])
+                else:
+                    if strings[0].find('dda_offline')>-1:
+                        ddict['mt'] = -1
+                        ddict['st'] = int(strings[2].split('_')[1].split('st-')[-1])
+                        ddict['repetition'] = int(strings[2].split('_')[-1])
+                    elif strings[2].find('mpc_eval_nw')>-1:
+                        ddict['mt'] = -1
+                        ddict['st'] = -1
+                        ddict['repetition'] = 0
+                    else:
+                        ddict['mt'] = int(strings[2].split('_')[1].split('mt-')[-1])
+                        ddict['st'] = int(strings[2].split('_')[2].split('st-')[-1])
+                        ddict['repetition'] = int(strings[2].split('_')[-1])
 
-            performance = performance.append(df)
-    performance.to_csv(outfilepath, index=False)
+                for k in sorted(ddict):
+                    df[k] = ddict[k]
+
+                performance = performance.append(df)
+        performance.to_csv(outfilepath, index=False)
 
 
 # Make output table
 if to_table:
 
-    performance = pd.read_csv('./performance/performance.csv')
+    for collider_name in collider_names:
+        curr_path = './performance/{}/'.format(collider_name)
 
-    for attention_name in ['decfts', 'attbr', 'gztr']:
+        performance = pd.read_csv(curr_path + 'performance.csv')
+
+
         for trajectory_name in ['reference', 'other-laps', 'other-track',
                                 'multi-laps']:
 
             print('----------------')
-            print(trajectory_name, attention_name)
+            print(trajectory_name)
             print('----------------')
             # Subject dictionnairy
             run_dict = None
@@ -351,526 +374,245 @@ if to_table:
                     'num_laps': 1,
                 }
             # Model dictionnairy
-            model_dicts = None
-            if attention_name == 'decfts':
-                model_dicts = [
+
+            model_dicts = [
                 {
-                    'name': 'Ref + QVW + Fts + Att',
+                    'name': 'Ref + RVW + Fts + AIn',
                     'specs': {
                         'has_dda': 1,
-                        'has_attbr': 0,
-                        'has_gztr': 0,
-                        'has_decfts': 1,
-                        'has_fts': 1,
+                        'has_ref': 1,
                         'has_state_q': 1,
                         'has_state_v': 1,
                         'has_state_w': 1,
-                        'has_ref': 1,
-                    },
-                },{
-                    'name': 'Ref + QVW + Att',
-                    'specs': {
-                        'has_dda': 1,
+                        'has_fts': 1,
+                        'has_decfts': 1,
                         'has_attbr': 0,
                         'has_gztr': 0,
-                        'has_decfts': 1,
-                        'has_fts': 0,
+                    },
+                },{
+                    'name': 'Ref + RVW + Fts + ABr',
+                    'specs': {
+                        'has_dda': 1,
+                        'has_ref': 1,
                         'has_state_q': 1,
                         'has_state_v': 1,
                         'has_state_w': 1,
-                        'has_ref': 1,
+                        'has_fts': 1,
+                        'has_decfts': 0,
+                        'has_attbr': 1,
+                        'has_gztr': 0,
                     },
                 },{
-                    'name': 'Ref + QVW + Fts',
+                    'name': 'Ref + RVW + Fts',
                     'specs': {
                         'has_dda': 1,
-                        'has_attbr': 0,
-                        'has_gztr': 0,
-                        'has_decfts': 0,
-                        'has_fts': 1,
+                        'has_ref': 1,
                         'has_state_q': 1,
                         'has_state_v': 1,
                         'has_state_w': 1,
-                        'has_ref': 1,
-                    },
-                },{
-                    'name': 'Ref + QVW',
-                    'specs': {
-                        'has_dda': 1,
+                        'has_fts': 1,
+                        'has_decfts': 0,
                         'has_attbr': 0,
                         'has_gztr': 0,
-                        'has_decfts': 0,
-                        'has_fts': 0,
+                    },
+                },{
+                    'name': 'Ref + RVW + AIn',
+                    'specs': {
+                        'has_dda': 1,
+                        'has_ref': 1,
                         'has_state_q': 1,
                         'has_state_v': 1,
                         'has_state_w': 1,
-                        'has_ref': 1,
-                    },
-                },{
-                    'name': 'Ref + VW',
-                    'specs': {
-                        'has_dda': 1,
+                        'has_fts': 0,
+                        'has_decfts': 1,
                         'has_attbr': 0,
                         'has_gztr': 0,
-                        'has_decfts': 0,
-                        'has_fts': 0,
-                        'has_state_q': 0,
+                    },
+                },{
+                    'name': 'Ref + RVW + Abr',
+                    'specs': {
+                        'has_dda': 1,
+                        'has_ref': 1,
+                        'has_state_q': 1,
                         'has_state_v': 1,
                         'has_state_w': 1,
-                        'has_ref': 1,
-                    },
-                },{
-                    'name': 'Ref + Q + Fts + Att',
-                    'specs': {
-                        'has_dda': 1,
-                        'has_attbr': 0,
-                        'has_gztr': 0,
-                        'has_decfts': 1,
-                        'has_fts': 1,
-                        'has_state_q': 1,
-                        'has_state_v': 0,
-                        'has_state_w': 0,
-                        'has_ref': 1,
-                    },
-                },{
-                    'name': 'Ref + Q + Att',
-                    'specs': {
-                        'has_dda': 1,
-                        'has_attbr': 0,
-                        'has_gztr': 0,
-                        'has_decfts': 1,
                         'has_fts': 0,
-                        'has_state_q': 1,
-                        'has_state_v': 0,
-                        'has_state_w': 0,
-                        'has_ref': 1,
+                        'has_decfts': 0,
+                        'has_attbr': 1,
+                        'has_gztr': 0,
                     },
                 },{
-                    'name': 'Ref + Q + Fts',
+                    'name': 'Ref + RVW',
                     'specs': {
                         'has_dda': 1,
-                        'has_attbr': 0,
-                        'has_gztr': 0,
-                        'has_decfts': 0,
-                        'has_fts': 1,
-                        'has_state_q': 1,
-                        'has_state_v': 0,
-                        'has_state_w': 0,
                         'has_ref': 1,
-                    },
-                },{
-                    'name': 'Ref + Q',
-                    'specs': {
-                        'has_dda': 1,
-                        'has_attbr': 0,
-                        'has_gztr': 0,
-                        'has_decfts': 0,
+                        'has_state_q': 1,
+                        'has_state_v': 1,
+                        'has_state_w': 1,
                         'has_fts': 0,
-                        'has_state_q': 1,
-                        'has_state_v': 0,
-                        'has_state_w': 0,
-                        'has_ref': 1,
-                    },
-                },{
-                    'name': 'Ref + Fts + Att',
-                    'specs': {
-                        'has_dda': 1,
+                        'has_decfts': 0,
                         'has_attbr': 0,
                         'has_gztr': 0,
-                        'has_decfts': 1,
-                        'has_fts': 1,
+                    },
+                },{
+                    'name': 'Ref + Fts + AIn',
+                    'specs': {
+                        'has_dda': 1,
+                        'has_ref': 1,
                         'has_state_q': 0,
                         'has_state_v': 0,
                         'has_state_w': 0,
-                        'has_ref': 1,
-                    },
-                },{
-                    'name': 'Ref + Att',
-                    'specs': {
-                        'has_dda': 1,
+                        'has_fts': 1,
+                        'has_decfts': 1,
                         'has_attbr': 0,
                         'has_gztr': 0,
-                        'has_decfts': 1,
-                        'has_fts': 0,
+                    },
+                },{
+                    'name': 'Ref + Fts + Abr',
+                    'specs': {
+                        'has_dda': 1,
+                        'has_ref': 1,
                         'has_state_q': 0,
                         'has_state_v': 0,
                         'has_state_w': 0,
-                        'has_ref': 1,
+                        'has_fts': 1,
+                        'has_decfts': 0,
+                        'has_attbr': 1,
+                        'has_gztr': 0,
                     },
                 },{
                     'name': 'Ref + Fts',
                     'specs': {
                         'has_dda': 1,
-                        'has_attbr': 0,
-                        'has_gztr': 0,
-                        'has_decfts': 0,
-                        'has_fts': 1,
+                        'has_ref': 1,
                         'has_state_q': 0,
                         'has_state_v': 0,
                         'has_state_w': 0,
+                        'has_fts': 1,
+                        'has_decfts': 0,
+                        'has_attbr': 0,
+                        'has_gztr': 0,
+                    },
+                },{
+                    'name': 'Ref + AIn',
+                    'specs': {
+                        'has_dda': 1,
                         'has_ref': 1,
+                        'has_state_q': 0,
+                        'has_state_v': 0,
+                        'has_state_w': 0,
+                        'has_fts': 0,
+                        'has_decfts': 1,
+                        'has_attbr': 0,
+                        'has_gztr': 0,
+                    },
+                },{
+                    'name': 'Ref + ABr',
+                    'specs': {
+                        'has_dda': 1,
+                        'has_ref': 1,
+                        'has_state_q': 0,
+                        'has_state_v': 0,
+                        'has_state_w': 0,
+                        'has_fts': 0,
+                        'has_decfts': 0,
+                        'has_attbr': 1,
+                        'has_gztr': 0,
                     },
                 },{
                     'name': 'Ref',
                     'specs': {
                         'has_dda': 1,
-                        'has_attbr': 0,
-                        'has_gztr': 0,
-                        'has_decfts': 0,
-                        'has_fts': 0,
+                        'has_ref': 1,
                         'has_state_q': 0,
                         'has_state_v': 0,
                         'has_state_w': 0,
-                        'has_ref': 1,
-                    }
+                        'has_fts': 0,
+                        'has_decfts': 0,
+                        'has_attbr': 0,
+                        'has_gztr': 0,
+                    },
+                },{
+                    'name': 'RVW + Fts + AIn',
+                    'specs': {
+                        'has_dda': 1,
+                        'has_ref': 0,
+                        'has_state_q': 1,
+                        'has_state_v': 1,
+                        'has_state_w': 1,
+                        'has_fts': 1,
+                        'has_decfts': 1,
+                        'has_attbr': 0,
+                        'has_gztr': 0,
+                    },
+                },{
+                    'name': 'RVW + Fts + ABr',
+                    'specs': {
+                        'has_dda': 1,
+                        'has_ref': 0,
+                        'has_state_q': 1,
+                        'has_state_v': 1,
+                        'has_state_w': 1,
+                        'has_fts': 1,
+                        'has_decfts': 0,
+                        'has_attbr': 1,
+                        'has_gztr': 0,
+                    },
+                },{
+                    'name': 'RVW + Fts',
+                    'specs': {
+                        'has_dda': 1,
+                        'has_ref': 0,
+                        'has_state_q': 1,
+                        'has_state_v': 1,
+                        'has_state_w': 1,
+                        'has_fts': 1,
+                        'has_decfts': 0,
+                        'has_attbr': 0,
+                        'has_gztr': 0,
+                    },
+                },{
+                    'name': 'RVW + AIn',
+                    'specs': {
+                        'has_dda': 1,
+                        'has_ref': 0,
+                        'has_state_q': 1,
+                        'has_state_v': 1,
+                        'has_state_w': 1,
+                        'has_fts': 0,
+                        'has_decfts': 1,
+                        'has_attbr': 0,
+                        'has_gztr': 0,
+                    },
+                },{
+                    'name': 'RVW + ABr',
+                    'specs': {
+                        'has_dda': 1,
+                        'has_ref': 0,
+                        'has_state_q': 1,
+                        'has_state_v': 1,
+                        'has_state_w': 1,
+                        'has_fts': 0,
+                        'has_decfts': 0,
+                        'has_attbr': 1,
+                        'has_gztr': 0,
+                    },
+                },{
+                    'name': 'RVW',
+                    'specs': {
+                        'has_dda': 1,
+                        'has_ref': 0,
+                        'has_state_q': 1,
+                        'has_state_v': 1,
+                        'has_state_w': 1,
+                        'has_fts': 0,
+                        'has_decfts': 0,
+                        'has_attbr': 0,
+                        'has_gztr': 0,
+                    },
                 },
             ]
-            elif attention_name == 'attbr':
-                model_dicts = [
-                {
-                    'name': 'Ref + QVW + Fts + Att',
-                    'specs': {
-                        'has_dda': 1,
-                        'has_attbr': 1,
-                        'has_gztr': 0,
-                        'has_decfts': 0,
-                        'has_fts': 1,
-                        'has_state_q': 1,
-                        'has_state_v': 1,
-                        'has_state_w': 1,
-                        'has_ref': 1,
-                    },
-                },{
-                    'name': 'Ref + QVW + Att',
-                    'specs': {
-                        'has_dda': 1,
-                        'has_attbr': 1,
-                        'has_gztr': 0,
-                        'has_decfts': 0,
-                        'has_fts': 0,
-                        'has_state_q': 1,
-                        'has_state_v': 1,
-                        'has_state_w': 1,
-                        'has_ref': 1,
-                    },
-                },{
-                    'name': 'Ref + QVW + Fts',
-                    'specs': {
-                        'has_dda': 1,
-                        'has_attbr': 0,
-                        'has_gztr': 0,
-                        'has_decfts': 0,
-                        'has_fts': 1,
-                        'has_state_q': 1,
-                        'has_state_v': 1,
-                        'has_state_w': 1,
-                        'has_ref': 1,
-                    },
-                },{
-                    'name': 'Ref + QVW',
-                    'specs': {
-                        'has_dda': 1,
-                        'has_attbr': 0,
-                        'has_gztr': 0,
-                        'has_decfts': 0,
-                        'has_fts': 0,
-                        'has_state_q': 1,
-                        'has_state_v': 1,
-                        'has_state_w': 1,
-                        'has_ref': 1,
-                    },
-                },{
-                    'name': 'Ref + VW',
-                    'specs': {
-                        'has_dda': 1,
-                        'has_attbr': 0,
-                        'has_gztr': 0,
-                        'has_decfts': 0,
-                        'has_fts': 0,
-                        'has_state_q': 0,
-                        'has_state_v': 1,
-                        'has_state_w': 1,
-                        'has_ref': 1,
-                    },
-                },{
-                    'name': 'Ref + Q + Fts + Att',
-                    'specs': {
-                        'has_dda': 1,
-                        'has_attbr': 1,
-                        'has_gztr': 0,
-                        'has_decfts': 0,
-                        'has_fts': 1,
-                        'has_state_q': 1,
-                        'has_state_v': 0,
-                        'has_state_w': 0,
-                        'has_ref': 1,
-                    },
-                },{
-                    'name': 'Ref + Q + Att',
-                    'specs': {
-                        'has_dda': 1,
-                        'has_attbr': 1,
-                        'has_gztr': 0,
-                        'has_decfts': 0,
-                        'has_fts': 0,
-                        'has_state_q': 1,
-                        'has_state_v': 0,
-                        'has_state_w': 0,
-                        'has_ref': 1,
-                    },
-                },{
-                    'name': 'Ref + Q + Fts',
-                    'specs': {
-                        'has_dda': 1,
-                        'has_attbr': 0,
-                        'has_gztr': 0,
-                        'has_decfts': 0,
-                        'has_fts': 1,
-                        'has_state_q': 1,
-                        'has_state_v': 0,
-                        'has_state_w': 0,
-                        'has_ref': 1,
-                    },
-                },{
-                    'name': 'Ref + Q',
-                    'specs': {
-                        'has_dda': 1,
-                        'has_attbr': 0,
-                        'has_gztr': 0,
-                        'has_decfts': 0,
-                        'has_fts': 0,
-                        'has_state_q': 1,
-                        'has_state_v': 0,
-                        'has_state_w': 0,
-                        'has_ref': 1,
-                    },
-                },{
-                    'name': 'Ref + Fts + Att',
-                    'specs': {
-                        'has_dda': 1,
-                        'has_attbr': 1,
-                        'has_gztr': 0,
-                        'has_decfts': 0,
-                        'has_fts': 1,
-                        'has_state_q': 0,
-                        'has_state_v': 0,
-                        'has_state_w': 0,
-                        'has_ref': 1,
-                    },
-                },{
-                    'name': 'Ref + Att',
-                    'specs': {
-                        'has_dda': 1,
-                        'has_attbr': 1,
-                        'has_gztr': 0,
-                        'has_decfts': 0,
-                        'has_fts': 0,
-                        'has_state_q': 0,
-                        'has_state_v': 0,
-                        'has_state_w': 0,
-                        'has_ref': 1,
-                    },
-                },{
-                    'name': 'Ref + Fts',
-                    'specs': {
-                        'has_dda': 1,
-                        'has_attbr': 0,
-                        'has_gztr': 0,
-                        'has_decfts': 0,
-                        'has_fts': 1,
-                        'has_state_q': 0,
-                        'has_state_v': 0,
-                        'has_state_w': 0,
-                        'has_ref': 1,
-                    },
-                },{
-                    'name': 'Ref',
-                    'specs': {
-                        'has_dda': 1,
-                        'has_attbr': 0,
-                        'has_gztr': 0,
-                        'has_decfts': 0,
-                        'has_fts': 0,
-                        'has_state_q': 0,
-                        'has_state_v': 0,
-                        'has_state_w': 0,
-                        'has_ref': 1,
-                    }
-                },
-            ]
-            elif attention_name == 'gztr':
-                model_dicts = [
-                {
-                    'name': 'Ref + QVW + Fts + Att',
-                    'specs': {
-                        'has_dda': 1,
-                        'has_attbr': 0,
-                        'has_gztr': 1,
-                        'has_decfts': 0,
-                        'has_fts': 1,
-                        'has_state_q': 1,
-                        'has_state_v': 1,
-                        'has_state_w': 1,
-                        'has_ref': 1,
-                    },
-                },{
-                    'name': 'Ref + QVW + Att',
-                    'specs': {
-                        'has_dda': 1,
-                        'has_attbr': 0,
-                        'has_gztr': 1,
-                        'has_decfts': 0,
-                        'has_fts': 0,
-                        'has_state_q': 1,
-                        'has_state_v': 1,
-                        'has_state_w': 1,
-                        'has_ref': 1,
-                    },
-                },{
-                    'name': 'Ref + QVW + Fts',
-                    'specs': {
-                        'has_dda': 1,
-                        'has_attbr': 0,
-                        'has_gztr': 0,
-                        'has_decfts': 0,
-                        'has_fts': 1,
-                        'has_state_q': 1,
-                        'has_state_v': 1,
-                        'has_state_w': 1,
-                        'has_ref': 1,
-                    },
-                },{
-                    'name': 'Ref + QVW',
-                    'specs': {
-                        'has_dda': 1,
-                        'has_attbr': 0,
-                        'has_gztr': 0,
-                        'has_decfts': 0,
-                        'has_fts': 0,
-                        'has_state_q': 1,
-                        'has_state_v': 1,
-                        'has_state_w': 1,
-                        'has_ref': 1,
-                    },
-                },{
-                    'name': 'Ref + VW',
-                    'specs': {
-                        'has_dda': 1,
-                        'has_attbr': 0,
-                        'has_gztr': 0,
-                        'has_decfts': 0,
-                        'has_fts': 0,
-                        'has_state_q': 0,
-                        'has_state_v': 1,
-                        'has_state_w': 1,
-                        'has_ref': 1,
-                    },
-                },{
-                    'name': 'Ref + Q + Fts + Att',
-                    'specs': {
-                        'has_dda': 1,
-                        'has_attbr': 0,
-                        'has_gztr': 1,
-                        'has_decfts': 0,
-                        'has_fts': 1,
-                        'has_state_q': 1,
-                        'has_state_v': 0,
-                        'has_state_w': 0,
-                        'has_ref': 1,
-                    },
-                },{
-                    'name': 'Ref + Q + Att',
-                    'specs': {
-                        'has_dda': 1,
-                        'has_attbr': 0,
-                        'has_gztr': 1,
-                        'has_decfts': 0,
-                        'has_fts': 0,
-                        'has_state_q': 1,
-                        'has_state_v': 0,
-                        'has_state_w': 0,
-                        'has_ref': 1,
-                    },
-                },{
-                    'name': 'Ref + Q + Fts',
-                    'specs': {
-                        'has_dda': 1,
-                        'has_attbr': 0,
-                        'has_gztr': 0,
-                        'has_decfts': 0,
-                        'has_fts': 1,
-                        'has_state_q': 1,
-                        'has_state_v': 0,
-                        'has_state_w': 0,
-                        'has_ref': 1,
-                    },
-                },{
-                    'name': 'Ref + Q',
-                    'specs': {
-                        'has_dda': 1,
-                        'has_attbr': 0,
-                        'has_gztr': 0,
-                        'has_decfts': 0,
-                        'has_fts': 0,
-                        'has_state_q': 1,
-                        'has_state_v': 0,
-                        'has_state_w': 0,
-                        'has_ref': 1,
-                    },
-                },{
-                    'name': 'Ref + Fts + Att',
-                    'specs': {
-                        'has_dda': 1,
-                        'has_attbr': 0,
-                        'has_gztr': 1,
-                        'has_decfts': 0,
-                        'has_fts': 1,
-                        'has_state_q': 0,
-                        'has_state_v': 0,
-                        'has_state_w': 0,
-                        'has_ref': 1,
-                    },
-                },{
-                    'name': 'Ref + Att',
-                    'specs': {
-                        'has_dda': 1,
-                        'has_attbr': 0,
-                        'has_gztr': 1,
-                        'has_decfts': 0,
-                        'has_fts': 0,
-                        'has_state_q': 0,
-                        'has_state_v': 0,
-                        'has_state_w': 0,
-                        'has_ref': 1,
-                    },
-                },{
-                    'name': 'Ref + Fts',
-                    'specs': {
-                        'has_dda': 1,
-                        'has_attbr': 0,
-                        'has_gztr': 0,
-                        'has_decfts': 0,
-                        'has_fts': 1,
-                        'has_state_q': 0,
-                        'has_state_v': 0,
-                        'has_state_w': 0,
-                        'has_ref': 1,
-                    },
-                },{
-                    'name': 'Ref',
-                    'specs': {
-                        'has_dda': 1,
-                        'has_attbr': 0,
-                        'has_gztr': 0,
-                        'has_decfts': 0,
-                        'has_fts': 0,
-                        'has_state_q': 0,
-                        'has_state_v': 0,
-                        'has_state_w': 0,
-                        'has_ref': 1,
-                    }
-                },
-            ]
+
 
 
             # Feature dictionnairy
@@ -983,15 +725,15 @@ if to_table:
                         pd.DataFrame(ddict,
                                      index=list(range(len(ddict['Model']))))
                     )
-                outpath = './performance/latex_table_{}_{}.csv'.format(
-                    trajectory_name, attention_name)
+                outpath = curr_path + 'latex_table_{}.csv'.format(
+                    trajectory_name)
                 table.to_latex(outpath, index=False)
 
 
 # Plot reference trajectory with gates
 if to_plot_reference:
     # Load track.
-    track = pd.read_csv(track_filepath)
+    track = pd.read_csv(track_filepaths['flat'])
     ndict = {
         'pos_x': 'px',
         'pos_y': 'py',
@@ -1055,22 +797,12 @@ if to_plot_reference:
         make_path(plot_path)
 
     plt.savefig(plot_path + 'reference_3d.jpg')
-
-    # # Plot flight path overlay of individual runs
-    # for model in models:
-    #   data_path = './process/' + model + '/'
-    #   compare_trajectories_3d(
-    #       reference_filepath=reference_filepath,
-    #       data_path=data_path,
-    #       )
-
-    plt.show()
 
 
 # Plot reference trajecory with decision colored
 if to_plot_reference_with_decision:
     # Load track.
-    track = pd.read_csv(track_filepath)
+    track = pd.read_csv(track_filepaths['flat'])
     ndict = {
         'pos_x': 'px',
         'pos_y': 'py',
@@ -1093,7 +825,8 @@ if to_plot_reference_with_decision:
     reference = trajectory_from_logfile(
         filepath=reference_filepath)
     sr = 1 / np.nanmedian(np.diff(reference.t.values))
-    reference = reference.iloc[np.arange(0, reference.shape[0], int(sr / 20)), :]
+    reference = reference.iloc[np.arange(0, reference.shape[0], int(sr / 20)),
+                :]
     # Plot reference, track, and format figure.
     ax = plot_trajectory(
         reference.px.values,
@@ -1111,7 +844,7 @@ if to_plot_reference_with_decision:
         ax=ax,
         color='k',
         width=4,
-        )
+    )
     ax = format_trajectory_figure(
         ax=ax,
         xlims=(-15, 19),
@@ -1121,26 +854,16 @@ if to_plot_reference_with_decision:
         ylabel='py [m]',
         zlabel='pz [m]',
         title='',
-        )
+    )
 
     plt.axis('off')
     plt.grid(b=None)
     ax.view_init(elev=45,
                  azim=270)
-    plt.gcf().set_size_inches(20,10)
+    plt.gcf().set_size_inches(20, 10)
 
     plot_path = './plots/'
     if not os.path.exists(plot_path):
         make_path(plot_path)
 
     plt.savefig(plot_path + 'reference_3d.jpg')
-
-    # # Plot flight path overlay of individual runs
-    # for model in models:
-    #   data_path = './process/' + model + '/'
-    #   compare_trajectories_3d(
-    #       reference_filepath=reference_filepath,
-    #       data_path=data_path,
-    #       )
-
-    plt.show()

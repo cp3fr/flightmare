@@ -549,6 +549,7 @@ def extract_performance_features(
         filepath_trajectory: str,
         filepath_events: str,
         filepath_reference: str=None,
+        colliders: list=['gate', 'wall'],
         ) -> pd.DataFrame():
     """
     Compute performance features for a given network trajectory, considering
@@ -564,6 +565,12 @@ def extract_performance_features(
     R = resample_dataframe(df=R, sr=sr, varname='t')
     # Load events
     E = pd.read_csv(filepath_events)
+    # Remove some collision events, depending on which colliders shall be used.
+    ind = E['is-collision'].values == 0
+    for n in  colliders:
+        ind[(E['is-collision'].values == 1) &
+            (E['object-name'].values == n)] = True
+    E = E.loc[ind, :]
     # Determine start and end time
     t_trajectory_start = D['t'].iloc[0]
     t_trajectory_end = D['t'].iloc[-1]
@@ -576,8 +583,8 @@ def extract_performance_features(
         t_network_start = None
         t_network_end = None
         network_in_control = False
-    if np.sum(E['is-collision'].values) > 0:
-        ind = E['is-collision'].values == 1
+    ind = E['is-collision'].values == 1
+    if np.sum(ind) > 0:
         t_first_collision = E.loc[ind, 't'].values[0]
     else:
         t_first_collision = None
@@ -602,7 +609,12 @@ def extract_performance_features(
     # ..number of passed gates
     ind = (E['t'].values >= t_start) & (E['t'].values <= t_end)
     num_gates_passed = np.sum(E.loc[ind, 'is-pass'].values)
-    num_collisions = np.sum(E.loc[ind, 'is-collision'].values)
+
+    ind = ((E['is-collision'].values == 1) &
+           (E['t']>=t_start) &
+           (E['t']<=t_end))
+    num_collisions = np.sum(ind)
+
     num_passes = {}
     for i in range(10):
         ind3 = E['object-id'].values == i
@@ -929,18 +941,3 @@ def signed_horizontal_angle(
             angle[i] = -angle[i]
     return angle
 
-
-# Todo: save an animation
-    # save the animation
-    # if toSaveAnimation or toShowAnimation:
-    #     print('..saving animation')
-    #     gate_objects = objGatePass + objGateCollider + objWallCollider
-    #     d['simulation-time-since-start [s]'] = d[
-    #         'time-since-start [s]'].values
-    #     anim = Animation3D(d, Gate_objects=gate_objects,
-    #                        equal_lims=(-30, 30))
-    #     if toSaveAnimation:
-    #         if os.path.isfile(outpath + 'anim.mp4') == False:
-    #             anim.save(outpath + 'anim.mp4', writer='ffmpeg', fps=25)
-    #     if toShowAnimation:
-    #         anim.show()
