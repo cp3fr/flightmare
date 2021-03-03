@@ -395,10 +395,15 @@ def plot_trajectory(
         c: str=None,
         ax: plt.axis()=None,
         axis_length: float=1.,
+        axis_colors: list=['r', 'g', 'b'],
         ) -> plt.axis():
     """Returns an axis handle for a 2D or 3D trajectory based on position and
     rotation data."""
     # Check if the plot is 2D or 3D.
+    if isinstance(axis_colors, str):
+        axis_colors = list(axis_colors)
+    while len(axis_colors) < 3:
+        axis_colors.append(axis_colors[-1])
     if pz.shape[0] == 0:
         is_two_d = True
     else:
@@ -425,9 +430,9 @@ def plot_trajectory(
     if not is_two_d:
         if ((qx.shape[0] > 0) and (qy.shape[0] > 0) and (qz.shape[0] > 0)
                 and (qw.shape[0] > 0)):
-            for primitive, color in [((1, 0, 0), 'r'),
-                                     ((0, 1, 0), 'g'),
-                                     ((0, 0, 1), 'b')]:
+            for primitive, color in [((1, 0, 0), axis_colors[0]),
+                                     ((0, 1, 0), axis_colors[1]),
+                                     ((0, 0, 1), axis_colors[2])]:
                 p0 = np.hstack((px.reshape(-1, 1), np.hstack((py.reshape(-1, 1),
                                                               pz.reshape(-1, 1)))))
                 q = np.hstack((qx.reshape(-1, 1),
@@ -571,6 +576,34 @@ def extract_performance_features(
         ind[(E['is-collision'].values == 1) &
             (E['object-name'].values == n)] = True
     E = E.loc[ind, :]
+    # Compute offline features
+    ind = (D['t'].values >= 0) & (D['network_used'].values == 0)
+    if np.sum(ind)>0:
+        network_used = 0
+        mpc_nw_dict = {}
+        for n in ['throttle', 'roll', 'pitch', 'yaw']:
+            if ('{}_mpc'.format(n) not in D.columns) or ('{}_nw'.format(n)
+                    not in D.columns):
+                diff_values = np.nan
+            else:
+                diff_values = (D.loc[ind, '{}_mpc'.format(n)].values -
+                               D.loc[ind, '{}_nw'.format(n)].values)
+            mpc_nw_dict[n] = {
+                'l1': np.nanmean(np.abs(diff_values)),
+                'mse': np.nanmean(np.power(diff_values, 2)),
+                'l1-median': np.nanmedian(np.abs(diff_values)),
+                'mse-median': np.nanmedian(np.power(diff_values, 2)),
+            }
+    else:
+        network_used = 1
+        mpc_nw_dict = {}
+        for n in ['throttle', 'roll', 'pitch', 'yaw']:
+            mpc_nw_dict[n] = {
+                'l1': np.nan,
+                'mse': np.nan,
+                'l1-median': np.nan,
+                'mse-median': np.nan,
+            }
     # Determine start and end time
     t_trajectory_start = D['t'].iloc[0]
     t_trajectory_end = D['t'].iloc[-1]
@@ -658,7 +691,7 @@ def extract_performance_features(
             median_deviation = np.nanmedian(deviation_from_reference)
             iqr_deviation = iqr(deviation_from_reference)
     # Save the features to pandas dataframe
-    P = pd.DataFrame({
+    outdict = {
         't_start': t_start,
         't_end': t_end,
         'flight_time': total_duration,
@@ -677,8 +710,13 @@ def extract_performance_features(
         'num_pass_gate8': num_passes[8],
         'num_pass_gate9': num_passes[9],
         'num_collisions': num_collisions,
-        'filepath': filepath_trajectory
-        }, index=[0])
+        'network_used': network_used,
+        }
+    for k1 in sorted(mpc_nw_dict):
+        for k2 in sorted(mpc_nw_dict[k1]):
+            outdict['{}_error_{}'.format(k1, k2)] = mpc_nw_dict[k1][k2]
+    outdict['filepath'] = filepath_trajectory
+    P = pd.DataFrame(outdict, index=[0])
     return P
 
 

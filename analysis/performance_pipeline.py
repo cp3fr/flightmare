@@ -12,6 +12,8 @@ to_process = True
 to_performance = True
 to_table = True
 
+to_override = True
+
 to_plot_traj_3d = False
 to_plot_state = False
 to_plot_reference = False
@@ -20,7 +22,10 @@ to_plot_reference_with_decision = False
 # Buffer time: time runs with  network were started earlier than the reference
 # trajectory
 buffer = 2.0
-collider_names = ['wall'] #['gate-wall', 'wall']
+collider_names = ['gate-wall', 'wall']
+
+
+
 collider_dict = {
     'gate-wall': ['gate', 'wall'],
     'wall': ['wall'],
@@ -105,7 +110,8 @@ if to_process:
                 curr_feature_filename = 'features_{}.csv'.format(collider_name)
 
                 # Save performance features to output folder
-                if not os.path.isfile(data_path + curr_feature_filename):
+                if ((not os.path.isfile(data_path + curr_feature_filename))
+                        or (to_override == True)):
                     P = extract_performance_features(
                         filepath_trajectory=data_path + 'trajectory.csv',
                         filepath_reference=data_path + 'reference.csv',
@@ -170,7 +176,7 @@ if to_process:
 
 # Collect performance metrics across runs
 if to_performance:
-    # Loop across collider conditions
+
     for collider_name in collider_names:
         curr_feature_filename = 'features_{}.csv'.format(collider_name)
         outpath = './performance/{}/'.format(collider_name)
@@ -221,6 +227,10 @@ if to_performance:
                 ddict = {}
                 ddict['model_name'] = strings[0]
                 ddict['has_dda'] = int(strings[0].find('dda') > -1)
+                if strings[2].find('mpc_nw_act') > -1:
+                    ddict['has_network_used'] = 0
+                else:
+                    ddict['has_network_used'] = 1
 
                 if config is not None:
 
@@ -311,6 +321,10 @@ if to_performance:
                         ddict['mt'] = -1
                         ddict['st'] = -1
                         ddict['repetition'] = 0
+                    elif strings[2].find('mpc_nw_act')>-1:
+                        ddict['mt'] = -1
+                        ddict['st'] = -1
+                        ddict['repetition'] = 0
                     else:
                         ddict['mt'] = int(strings[2].split('_')[1].split('mt-')[-1])
                         ddict['st'] = int(strings[2].split('_')[2].split('st-')[-1])
@@ -331,403 +345,467 @@ if to_table:
 
         performance = pd.read_csv(curr_path + 'performance.csv')
 
+        for online_name in ['online', 'offline']:
+            for trajectory_name in ['reference', 'other-laps', 'other-track',
+                                    'multi-laps']:
 
-        for trajectory_name in ['reference', 'other-laps', 'other-track',
-                                'multi-laps']:
+                print('----------------')
+                print(online_name, trajectory_name)
+                print('----------------')
 
-            print('----------------')
-            print(trajectory_name)
-            print('----------------')
-            # Subject dictionnairy
-            run_dict = None
-            exclude_run_dict = None
-            if trajectory_name == 'reference':
-                run_dict = {
-                'track': 'flat',
-                'subject': 16,
-                'run': 5,
-                'li': 1,
-                'num_laps': 1,
-                }
-            elif trajectory_name == 'other-laps':
-                run_dict = {
-                    'track': 'flat',
-                    'num_laps': 1,
-                }
-                exclude_run_dict = {
+                # Subject dictionnairy
+                run_dict = None
+                exclude_run_dict = None
+                if trajectory_name == 'reference':
+                    run_dict = {
                     'track': 'flat',
                     'subject': 16,
                     'run': 5,
                     'li': 1,
                     'num_laps': 1,
-                }
-            elif trajectory_name == 'other-track':
-                run_dict = {
-                    'track': 'wave',
-                    'num_laps': 1,
-                }
-            elif trajectory_name == 'multi-laps':
-                run_dict = {
-                    'track': 'flat',
-                }
-                exclude_run_dict = {
-                    'num_laps': 1,
-                }
-            # Model dictionnairy
+                    }
+                elif trajectory_name == 'other-laps':
+                    run_dict = {
+                        'track': 'flat',
+                        'num_laps': 1,
+                    }
+                    exclude_run_dict = {
+                        'track': 'flat',
+                        'subject': 16,
+                        'run': 5,
+                        'li': 1,
+                        'num_laps': 1,
+                    }
+                elif trajectory_name == 'other-track':
+                    run_dict = {
+                        'track': 'wave',
+                        'num_laps': 1,
+                    }
+                elif trajectory_name == 'multi-laps':
+                    run_dict = {
+                        'track': 'flat',
+                    }
+                    exclude_run_dict = {
+                        'num_laps': 1,
+                    }
 
-            model_dicts = [
-                {
-                    'name': 'Ref + RVW + Fts + AIn',
-                    'specs': {
+                # Network general dictionnairy
+                if online_name=='online':
+                    network_dict = {
                         'has_dda': 1,
-                        'has_ref': 1,
-                        'has_state_q': 1,
-                        'has_state_v': 1,
-                        'has_state_w': 1,
-                        'has_fts': 1,
-                        'has_decfts': 1,
-                        'has_attbr': 0,
-                        'has_gztr': 0,
-                    },
-                },{
-                    'name': 'Ref + RVW + Fts + ABr',
-                    'specs': {
+                        'has_network_used': 1,
+                    }
+                elif online_name=='offline':
+                    network_dict = {
                         'has_dda': 1,
-                        'has_ref': 1,
-                        'has_state_q': 1,
-                        'has_state_v': 1,
-                        'has_state_w': 1,
-                        'has_fts': 1,
-                        'has_decfts': 0,
-                        'has_attbr': 1,
-                        'has_gztr': 0,
+                        'has_network_used': 0,
+                    }
+                else:
+                    network_dict = None
+
+                # Model dictionnairy
+                model_dicts = [
+                    {
+                        'name': 'Ref + RVW + Fts + AIn',
+                        'specs': {
+                            'has_ref': 1,
+                            'has_state_q': 1,
+                            'has_state_v': 1,
+                            'has_state_w': 1,
+                            'has_fts': 1,
+                            'has_decfts': 1,
+                            'has_attbr': 0,
+                            'has_gztr': 0,
+                        },
+                    },{
+                        'name': 'Ref + RVW + Fts + ABr',
+                        'specs': {
+                            'has_ref': 1,
+                            'has_state_q': 1,
+                            'has_state_v': 1,
+                            'has_state_w': 1,
+                            'has_fts': 1,
+                            'has_decfts': 0,
+                            'has_attbr': 1,
+                            'has_gztr': 0,
+                        },
+                    },{
+                        'name': 'Ref + RVW + Fts',
+                        'specs': {
+                            'has_ref': 1,
+                            'has_state_q': 1,
+                            'has_state_v': 1,
+                            'has_state_w': 1,
+                            'has_fts': 1,
+                            'has_decfts': 0,
+                            'has_attbr': 0,
+                            'has_gztr': 0,
+                        },
+                    },{
+                        'name': 'Ref + RVW + AIn',
+                        'specs': {
+                            'has_ref': 1,
+                            'has_state_q': 1,
+                            'has_state_v': 1,
+                            'has_state_w': 1,
+                            'has_fts': 0,
+                            'has_decfts': 1,
+                            'has_attbr': 0,
+                            'has_gztr': 0,
+                        },
+                    },{
+                        'name': 'Ref + RVW + Abr',
+                        'specs': {
+                            'has_ref': 1,
+                            'has_state_q': 1,
+                            'has_state_v': 1,
+                            'has_state_w': 1,
+                            'has_fts': 0,
+                            'has_decfts': 0,
+                            'has_attbr': 1,
+                            'has_gztr': 0,
+                        },
+                    },{
+                        'name': 'Ref + RVW',
+                        'specs': {
+                            'has_ref': 1,
+                            'has_state_q': 1,
+                            'has_state_v': 1,
+                            'has_state_w': 1,
+                            'has_fts': 0,
+                            'has_decfts': 0,
+                            'has_attbr': 0,
+                            'has_gztr': 0,
+                        },
+                    },{
+                        'name': 'Ref + Fts + AIn',
+                        'specs': {
+                            'has_ref': 1,
+                            'has_state_q': 0,
+                            'has_state_v': 0,
+                            'has_state_w': 0,
+                            'has_fts': 1,
+                            'has_decfts': 1,
+                            'has_attbr': 0,
+                            'has_gztr': 0,
+                        },
+                    },{
+                        'name': 'Ref + Fts + Abr',
+                        'specs': {
+                            'has_ref': 1,
+                            'has_state_q': 0,
+                            'has_state_v': 0,
+                            'has_state_w': 0,
+                            'has_fts': 1,
+                            'has_decfts': 0,
+                            'has_attbr': 1,
+                            'has_gztr': 0,
+                        },
+                    },{
+                        'name': 'Ref + Fts',
+                        'specs': {
+                            'has_ref': 1,
+                            'has_state_q': 0,
+                            'has_state_v': 0,
+                            'has_state_w': 0,
+                            'has_fts': 1,
+                            'has_decfts': 0,
+                            'has_attbr': 0,
+                            'has_gztr': 0,
+                        },
+                    },{
+                        'name': 'Ref + AIn',
+                        'specs': {
+                            'has_ref': 1,
+                            'has_state_q': 0,
+                            'has_state_v': 0,
+                            'has_state_w': 0,
+                            'has_fts': 0,
+                            'has_decfts': 1,
+                            'has_attbr': 0,
+                            'has_gztr': 0,
+                        },
+                    },{
+                        'name': 'Ref + ABr',
+                        'specs': {
+                            'has_ref': 1,
+                            'has_state_q': 0,
+                            'has_state_v': 0,
+                            'has_state_w': 0,
+                            'has_fts': 0,
+                            'has_decfts': 0,
+                            'has_attbr': 1,
+                            'has_gztr': 0,
+                        },
+                    },{
+                        'name': 'Ref',
+                        'specs': {
+                            'has_ref': 1,
+                            'has_state_q': 0,
+                            'has_state_v': 0,
+                            'has_state_w': 0,
+                            'has_fts': 0,
+                            'has_decfts': 0,
+                            'has_attbr': 0,
+                            'has_gztr': 0,
+                        },
+                    },{
+                        'name': 'RVW + Fts + AIn',
+                        'specs': {
+                            'has_ref': 0,
+                            'has_state_q': 1,
+                            'has_state_v': 1,
+                            'has_state_w': 1,
+                            'has_fts': 1,
+                            'has_decfts': 1,
+                            'has_attbr': 0,
+                            'has_gztr': 0,
+                        },
+                    },{
+                        'name': 'RVW + Fts + ABr',
+                        'specs': {
+                            'has_ref': 0,
+                            'has_state_q': 1,
+                            'has_state_v': 1,
+                            'has_state_w': 1,
+                            'has_fts': 1,
+                            'has_decfts': 0,
+                            'has_attbr': 1,
+                            'has_gztr': 0,
+                        },
+                    },{
+                        'name': 'RVW + Fts',
+                        'specs': {
+                            'has_ref': 0,
+                            'has_state_q': 1,
+                            'has_state_v': 1,
+                            'has_state_w': 1,
+                            'has_fts': 1,
+                            'has_decfts': 0,
+                            'has_attbr': 0,
+                            'has_gztr': 0,
+                        },
+                    },{
+                        'name': 'RVW + AIn',
+                        'specs': {
+                            'has_ref': 0,
+                            'has_state_q': 1,
+                            'has_state_v': 1,
+                            'has_state_w': 1,
+                            'has_fts': 0,
+                            'has_decfts': 1,
+                            'has_attbr': 0,
+                            'has_gztr': 0,
+                        },
+                    },{
+                        'name': 'RVW + ABr',
+                        'specs': {
+                            'has_ref': 0,
+                            'has_state_q': 1,
+                            'has_state_v': 1,
+                            'has_state_w': 1,
+                            'has_fts': 0,
+                            'has_decfts': 0,
+                            'has_attbr': 1,
+                            'has_gztr': 0,
+                        },
+                    },{
+                        'name': 'RVW',
+                        'specs': {
+                            'has_ref': 0,
+                            'has_state_q': 1,
+                            'has_state_v': 1,
+                            'has_state_w': 1,
+                            'has_fts': 0,
+                            'has_decfts': 0,
+                            'has_attbr': 0,
+                            'has_gztr': 0,
+                        },
                     },
-                },{
-                    'name': 'Ref + RVW + Fts',
-                    'specs': {
-                        'has_dda': 1,
-                        'has_ref': 1,
-                        'has_state_q': 1,
-                        'has_state_v': 1,
-                        'has_state_w': 1,
-                        'has_fts': 1,
-                        'has_decfts': 0,
-                        'has_attbr': 0,
-                        'has_gztr': 0,
-                    },
-                },{
-                    'name': 'Ref + RVW + AIn',
-                    'specs': {
-                        'has_dda': 1,
-                        'has_ref': 1,
-                        'has_state_q': 1,
-                        'has_state_v': 1,
-                        'has_state_w': 1,
-                        'has_fts': 0,
-                        'has_decfts': 1,
-                        'has_attbr': 0,
-                        'has_gztr': 0,
-                    },
-                },{
-                    'name': 'Ref + RVW + Abr',
-                    'specs': {
-                        'has_dda': 1,
-                        'has_ref': 1,
-                        'has_state_q': 1,
-                        'has_state_v': 1,
-                        'has_state_w': 1,
-                        'has_fts': 0,
-                        'has_decfts': 0,
-                        'has_attbr': 1,
-                        'has_gztr': 0,
-                    },
-                },{
-                    'name': 'Ref + RVW',
-                    'specs': {
-                        'has_dda': 1,
-                        'has_ref': 1,
-                        'has_state_q': 1,
-                        'has_state_v': 1,
-                        'has_state_w': 1,
-                        'has_fts': 0,
-                        'has_decfts': 0,
-                        'has_attbr': 0,
-                        'has_gztr': 0,
-                    },
-                },{
-                    'name': 'Ref + Fts + AIn',
-                    'specs': {
-                        'has_dda': 1,
-                        'has_ref': 1,
-                        'has_state_q': 0,
-                        'has_state_v': 0,
-                        'has_state_w': 0,
-                        'has_fts': 1,
-                        'has_decfts': 1,
-                        'has_attbr': 0,
-                        'has_gztr': 0,
-                    },
-                },{
-                    'name': 'Ref + Fts + Abr',
-                    'specs': {
-                        'has_dda': 1,
-                        'has_ref': 1,
-                        'has_state_q': 0,
-                        'has_state_v': 0,
-                        'has_state_w': 0,
-                        'has_fts': 1,
-                        'has_decfts': 0,
-                        'has_attbr': 1,
-                        'has_gztr': 0,
-                    },
-                },{
-                    'name': 'Ref + Fts',
-                    'specs': {
-                        'has_dda': 1,
-                        'has_ref': 1,
-                        'has_state_q': 0,
-                        'has_state_v': 0,
-                        'has_state_w': 0,
-                        'has_fts': 1,
-                        'has_decfts': 0,
-                        'has_attbr': 0,
-                        'has_gztr': 0,
-                    },
-                },{
-                    'name': 'Ref + AIn',
-                    'specs': {
-                        'has_dda': 1,
-                        'has_ref': 1,
-                        'has_state_q': 0,
-                        'has_state_v': 0,
-                        'has_state_w': 0,
-                        'has_fts': 0,
-                        'has_decfts': 1,
-                        'has_attbr': 0,
-                        'has_gztr': 0,
-                    },
-                },{
-                    'name': 'Ref + ABr',
-                    'specs': {
-                        'has_dda': 1,
-                        'has_ref': 1,
-                        'has_state_q': 0,
-                        'has_state_v': 0,
-                        'has_state_w': 0,
-                        'has_fts': 0,
-                        'has_decfts': 0,
-                        'has_attbr': 1,
-                        'has_gztr': 0,
-                    },
-                },{
-                    'name': 'Ref',
-                    'specs': {
-                        'has_dda': 1,
-                        'has_ref': 1,
-                        'has_state_q': 0,
-                        'has_state_v': 0,
-                        'has_state_w': 0,
-                        'has_fts': 0,
-                        'has_decfts': 0,
-                        'has_attbr': 0,
-                        'has_gztr': 0,
-                    },
-                },{
-                    'name': 'RVW + Fts + AIn',
-                    'specs': {
-                        'has_dda': 1,
-                        'has_ref': 0,
-                        'has_state_q': 1,
-                        'has_state_v': 1,
-                        'has_state_w': 1,
-                        'has_fts': 1,
-                        'has_decfts': 1,
-                        'has_attbr': 0,
-                        'has_gztr': 0,
-                    },
-                },{
-                    'name': 'RVW + Fts + ABr',
-                    'specs': {
-                        'has_dda': 1,
-                        'has_ref': 0,
-                        'has_state_q': 1,
-                        'has_state_v': 1,
-                        'has_state_w': 1,
-                        'has_fts': 1,
-                        'has_decfts': 0,
-                        'has_attbr': 1,
-                        'has_gztr': 0,
-                    },
-                },{
-                    'name': 'RVW + Fts',
-                    'specs': {
-                        'has_dda': 1,
-                        'has_ref': 0,
-                        'has_state_q': 1,
-                        'has_state_v': 1,
-                        'has_state_w': 1,
-                        'has_fts': 1,
-                        'has_decfts': 0,
-                        'has_attbr': 0,
-                        'has_gztr': 0,
-                    },
-                },{
-                    'name': 'RVW + AIn',
-                    'specs': {
-                        'has_dda': 1,
-                        'has_ref': 0,
-                        'has_state_q': 1,
-                        'has_state_v': 1,
-                        'has_state_w': 1,
-                        'has_fts': 0,
-                        'has_decfts': 1,
-                        'has_attbr': 0,
-                        'has_gztr': 0,
-                    },
-                },{
-                    'name': 'RVW + ABr',
-                    'specs': {
-                        'has_dda': 1,
-                        'has_ref': 0,
-                        'has_state_q': 1,
-                        'has_state_v': 1,
-                        'has_state_w': 1,
-                        'has_fts': 0,
-                        'has_decfts': 0,
-                        'has_attbr': 1,
-                        'has_gztr': 0,
-                    },
-                },{
-                    'name': 'RVW',
-                    'specs': {
-                        'has_dda': 1,
-                        'has_ref': 0,
-                        'has_state_q': 1,
-                        'has_state_v': 1,
-                        'has_state_w': 1,
-                        'has_fts': 0,
-                        'has_decfts': 0,
-                        'has_attbr': 0,
-                        'has_gztr': 0,
-                    },
-                },
-            ]
+                ]
 
 
 
-            # Feature dictionnairy
-            feature_dict={
-                'Flight Time [s]': {
-                    'varname': 'flight_time',
-                    'track': '',
-                    'first_line': 'mean',
-                    'second_line': 'std',
-                    'precision': 2
-                    },
-                'Travel Distance [m]': {
-                    'varname': 'travel_distance',
-                    'track': '',
-                    'first_line': 'mean',
-                    'second_line': 'std',
-                    'precision': 2
-                },
-                'Mean Error [m]': {
-                    'varname': 'median_path_deviation',
-                    'track': '',
-                    'first_line': 'mean',
-                    'second_line': 'std',
-                    'precision': 2
-                },
-                'Gates Passed': {
-                    'varname': 'num_gates_passed',
-                    'track': '',
-                    'first_line': 'mean',
-                    'second_line': 'std',
-                    'precision': 2
-                },
-                '% Collision': {
-                    'varname': 'num_collisions',
-                    'track': '',
-                    'first_line': 'percent',
-                    'second_line': '',
-                    'precision': 0
-                },
-            }
+                # Feature dictionnairy
+                if online_name=='online':
+                    feature_dict={
+                        'Flight Time [s]': {
+                            'varname': 'flight_time',
+                            'track': '',
+                            'first_line': 'mean',
+                            'second_line': 'std',
+                            'precision': 2
+                            },
+                        'Travel Distance [m]': {
+                            'varname': 'travel_distance',
+                            'track': '',
+                            'first_line': 'mean',
+                            'second_line': 'std',
+                            'precision': 2
+                        },
+                        'Mean Error [m]': {
+                            'varname': 'median_path_deviation',
+                            'track': '',
+                            'first_line': 'mean',
+                            'second_line': 'std',
+                            'precision': 2
+                        },
+                        'Gates Passed': {
+                            'varname': 'num_gates_passed',
+                            'track': '',
+                            'first_line': 'mean',
+                            'second_line': 'std',
+                            'precision': 2
+                        },
+                        '% Collision': {
+                            'varname': 'num_collisions',
+                            'track': '',
+                            'first_line': 'percent',
+                            'second_line': '',
+                            'precision': 0
+                        },
+                    }
+                else:
+                    feature_dict = {
+                        'Throttle MSE': {
+                            'varname': 'throttle_error_mse-median',
+                            'track': '',
+                            'first_line': 'mean',
+                            'second_line': '',
+                            'precision': 3
+                        },
+                        'Throttle L1': {
+                            'varname': 'throttle_error_l1-median',
+                            'track': '',
+                            'first_line': 'mean',
+                            'second_line': '',
+                            'precision': 3
+                        },
+                        'Roll MSE': {
+                            'varname': 'roll_error_mse-median',
+                            'track': '',
+                            'first_line': 'mean',
+                            'second_line': '',
+                            'precision': 3
+                        },
+                        'Roll L1': {
+                            'varname': 'roll_error_l1-median',
+                            'track': '',
+                            'first_line': 'mean',
+                            'second_line': '',
+                            'precision': 3
+                        },
+                        'Pitch MSE': {
+                            'varname': 'pitch_error_mse-median',
+                            'track': '',
+                            'first_line': 'mean',
+                            'second_line': '',
+                            'precision': 3
+                        },
+                        'Pitch L1': {
+                            'varname': 'pitch_error_l1-median',
+                            'track': '',
+                            'first_line': 'mean',
+                            'second_line': '',
+                            'precision': 3
+                        },
+                        'Yaw MSE': {
+                            'varname': 'yaw_error_mse-median',
+                            'track': '',
+                            'first_line': 'mean',
+                            'second_line': '',
+                            'precision': 3
+                        },
+                        'Yaw L1': {
+                            'varname': 'yaw_error_l1-median',
+                            'track': '',
+                            'first_line': 'mean',
+                            'second_line': '',
+                            'precision': 3
+                        },
+                    }
 
-            # Make a table
-            if (run_dict is not None) and (model_dicts is not None):
-                table = pd.DataFrame([])
-                for mdict in model_dicts:
+                # Make a table
+                if (run_dict is not None) and (model_dicts is not None):
+                    table = pd.DataFrame([])
+                    for mdict in model_dicts:
 
-                    #add subject dictionnairy to the model dictionnairy
-                    mdict['specs'] = {**mdict['specs'], **run_dict}
+                        #add subject dictionnairy to the model dictionnairy
+                        mdict['specs'] = {**mdict['specs'],
+                                          **network_dict,
+                                          **run_dict}
 
-                    ddict = {}
-                    ddict['Model'] = [mdict['name'], '']
+                        ddict = {}
+                        ddict['Model'] = [mdict['name'], '']
 
-                    # Select performance data
-                    # Runs to include
-                    ind = np.array([True for i in range(performance.shape[0])])
-                    for k, v in mdict['specs'].items():
-                        ind = ind & (performance[k] == v)
-                    # Runs to exclude
-                    if exclude_run_dict is not None:
-                        ind_exclude = np.array([True for i in range(
-                            performance.shape[0])])
-                        for k, v in exclude_run_dict.items():
-                            ind_exclude = ind_exclude & (performance[k] == v)
-                        # Combine run selection
-                        ind = (ind == True) & (ind_exclude == False)
-                    # Select current runs
-                    curr_performance = performance.copy().loc[ind, :]
+                        # Select performance data
+                        # Runs to include
+                        ind = np.array([True for i in range(performance.shape[0])])
+                        for k, v in mdict['specs'].items():
+                            ind = ind & (performance[k] == v)
+                        # Runs to exclude
+                        if exclude_run_dict is not None:
+                            ind_exclude = np.array([True for i in range(
+                                performance.shape[0])])
+                            for k, v in exclude_run_dict.items():
+                                ind_exclude = ind_exclude & (performance[k] == v)
+                            # Combine run selection
+                            ind = (ind == True) & (ind_exclude == False)
+                        # Select current runs
+                        curr_performance = performance.copy().loc[ind, :]
 
-                    ddict['Num Runs'] = [str(curr_performance.shape[0]), '']
+                        ddict['Num Runs'] = [str(curr_performance.shape[0]), '']
 
-                    print(mdict['name'], ':', curr_performance.shape[0])
-                    # print(curr_performance)
+                        print(mdict['name'], ':', curr_performance.shape[0])
+                        # print(curr_performance)
 
-                    if curr_performance.shape[0] > 0:
-                        # Compute Average performances
-                        for outvar in feature_dict:
-                            ddict.setdefault(outvar, [])
-                            invar = feature_dict[outvar]['varname']
-                            curr_vals = curr_performance[invar].values
-                            #first line value
-                            op1 = feature_dict[outvar]['first_line']
-                            if op1 == 'mean':
-                                val1 = np.nanmean(curr_vals)
-                            elif op1 == 'percent':
-                                val1 = 100 * np.mean((curr_vals > 0).astype(int))
-                            else:
-                                val1 = None
-                            if val1 is None:
-                                ddict[outvar].append('')
-                            else:
-                                ddict[outvar].append(str(np.round(val1, feature_dict[outvar][
-                                    'precision'])))
-                            # second line value
-                            op2 = feature_dict[outvar]['second_line']
-                            if op2 == 'std':
-                                val1 = np.nanstd(curr_vals)
-                            else:
-                                val1 = None
-                            if val1 is None:
-                                ddict[outvar].append('')
-                            else:
-                                ddict[outvar].append('('+str(np.round(val1, feature_dict[outvar][
-                                    'precision']))+')')
+                        if curr_performance.shape[0] > 0:
+                            # Compute Average performances
+                            for outvar in feature_dict:
+                                ddict.setdefault(outvar, [])
+                                invar = feature_dict[outvar]['varname']
+                                curr_vals = curr_performance[invar].values
+                                #first line value
+                                op1 = feature_dict[outvar]['first_line']
+                                if op1 == 'mean':
+                                    val1 = np.nanmean(curr_vals)
+                                elif op1 == 'percent':
+                                    val1 = 100 * np.mean((curr_vals > 0).astype(int))
+                                else:
+                                    val1 = None
+                                if val1 is None:
+                                    ddict[outvar].append('')
+                                else:
+                                    ddict[outvar].append(str(np.round(val1, feature_dict[outvar][
+                                        'precision'])))
+                                # second line value
+                                op2 = feature_dict[outvar]['second_line']
+                                if op2 == 'std':
+                                    val1 = np.nanstd(curr_vals)
+                                else:
+                                    val1 = None
+                                if val1 is None:
+                                    ddict[outvar].append('')
+                                else:
+                                    ddict[outvar].append('('+str(np.round(val1, feature_dict[outvar][
+                                        'precision']))+')')
 
-                    for k in ddict:
-                        ddict[k] = [' '.join(ddict[k])]
+                        for k in ddict:
+                            ddict[k] = [' '.join(ddict[k])]
 
-                    # Append two lines to the output table
-                    table = table.append(
-                        pd.DataFrame(ddict,
-                                     index=list(range(len(ddict['Model']))))
-                    )
-                outpath = curr_path + 'latex_table_{}.csv'.format(
-                    trajectory_name)
-                table.to_latex(outpath, index=False)
+                        # Append two lines to the output table
+                        table = table.append(
+                            pd.DataFrame(ddict,
+                                         index=list(range(len(ddict['Model']))))
+                        )
+
+                    outpath = curr_path + '/{}/'.format(online_name)
+                    if not os.path.exists(outpath):
+                        make_path(outpath)
+
+                    outfilepath = outpath + 'latex_table_{}.csv'.format(
+                        trajectory_name)
+                    table.to_latex(outfilepath, index=False)
 
 
 # Plot reference trajectory with gates
@@ -801,8 +879,9 @@ if to_plot_reference:
 
 # Plot reference trajecory with decision colored
 if to_plot_reference_with_decision:
+    data_path = './branching_demo/'
     # Load track.
-    track = pd.read_csv(track_filepaths['flat'])
+    track = pd.read_csv(data_path+'flat.csv')
     ndict = {
         'pos_x': 'px',
         'pos_y': 'py',
@@ -823,7 +902,7 @@ if to_plot_reference_with_decision:
     track['dz'] = 3
     # Load reference and downsample to 20 Hz
     reference = trajectory_from_logfile(
-        filepath=reference_filepath)
+        filepath=data_path+'trajectory_reference_original.csv')
     sr = 1 / np.nanmedian(np.diff(reference.t.values))
     reference = reference.iloc[np.arange(0, reference.shape[0], int(sr / 20)),
                 :]
@@ -837,7 +916,8 @@ if to_plot_reference_with_decision:
         reference.qz.values,
         reference.qw.values,
         axis_length=2,
-        c='k',
+        c='b',
+        axis_colors='b',
     )
     ax = plot_gates_3d(
         track=track,
@@ -866,4 +946,4 @@ if to_plot_reference_with_decision:
     if not os.path.exists(plot_path):
         make_path(plot_path)
 
-    plt.savefig(plot_path + 'reference_3d.jpg')
+    plt.savefig(plot_path + 'reference_flat_with_decision.jpg')
