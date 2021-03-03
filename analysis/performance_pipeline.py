@@ -12,7 +12,7 @@ to_process = True
 to_performance = True
 to_table = True
 
-to_override = False
+to_override = True
 
 to_plot_traj_3d = False
 to_plot_state = False
@@ -668,59 +668,59 @@ if to_table:
                 else:
                     feature_dict = {
                         'Throttle MSE': {
-                            'varname': 'throttle_error_mse',
+                            'varname': 'throttle_error_mse-median',
                             'track': '',
                             'first_line': 'mean',
-                            'second_line': 'std',
+                            'second_line': '',
                             'precision': 3
                         },
                         'Throttle L1': {
-                            'varname': 'throttle_error_l1',
+                            'varname': 'throttle_error_l1-median',
                             'track': '',
                             'first_line': 'mean',
-                            'second_line': 'std',
+                            'second_line': '',
                             'precision': 3
                         },
                         'Roll MSE': {
-                            'varname': 'roll_error_mse',
+                            'varname': 'roll_error_mse-median',
                             'track': '',
                             'first_line': 'mean',
-                            'second_line': 'std',
+                            'second_line': '',
                             'precision': 3
                         },
                         'Roll L1': {
-                            'varname': 'roll_error_l1',
+                            'varname': 'roll_error_l1-median',
                             'track': '',
                             'first_line': 'mean',
-                            'second_line': 'std',
+                            'second_line': '',
                             'precision': 3
                         },
                         'Pitch MSE': {
-                            'varname': 'pitch_error_mse',
+                            'varname': 'pitch_error_mse-median',
                             'track': '',
                             'first_line': 'mean',
-                            'second_line': 'std',
+                            'second_line': '',
                             'precision': 3
                         },
                         'Pitch L1': {
-                            'varname': 'pitch_error_l1',
+                            'varname': 'pitch_error_l1-median',
                             'track': '',
                             'first_line': 'mean',
-                            'second_line': 'std',
+                            'second_line': '',
                             'precision': 3
                         },
                         'Yaw MSE': {
-                            'varname': 'yaw_error_mse',
+                            'varname': 'yaw_error_mse-median',
                             'track': '',
                             'first_line': 'mean',
-                            'second_line': 'std',
+                            'second_line': '',
                             'precision': 3
                         },
                         'Yaw L1': {
-                            'varname': 'yaw_error_l1',
+                            'varname': 'yaw_error_l1-median',
                             'track': '',
                             'first_line': 'mean',
-                            'second_line': 'std',
+                            'second_line': '',
                             'precision': 3
                         },
                     }

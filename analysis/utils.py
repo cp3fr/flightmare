@@ -591,6 +591,8 @@ def extract_performance_features(
             mpc_nw_dict[n] = {
                 'l1': np.nanmean(np.abs(diff_values)),
                 'mse': np.nanmean(np.power(diff_values, 2)),
+                'l1-median': np.nanmedian(np.abs(diff_values)),
+                'mse-median': np.nanmedian(np.power(diff_values, 2)),
             }
     else:
         network_used = 1
@@ -599,6 +601,8 @@ def extract_performance_features(
             mpc_nw_dict[n] = {
                 'l1': np.nan,
                 'mse': np.nan,
+                'l1-median': np.nan,
+                'mse-median': np.nan,
             }
     # Determine start and end time
     t_trajectory_start = D['t'].iloc[0]
@@ -687,7 +691,7 @@ def extract_performance_features(
             median_deviation = np.nanmedian(deviation_from_reference)
             iqr_deviation = iqr(deviation_from_reference)
     # Save the features to pandas dataframe
-    P = pd.DataFrame({
+    outdict = {
         't_start': t_start,
         't_end': t_end,
         'flight_time': total_duration,
@@ -707,16 +711,12 @@ def extract_performance_features(
         'num_pass_gate9': num_passes[9],
         'num_collisions': num_collisions,
         'network_used': network_used,
-        'throttle_error_l1': mpc_nw_dict['throttle']['l1'],
-        'throttle_error_mse': mpc_nw_dict['throttle']['mse'],
-        'roll_error_l1': mpc_nw_dict['roll']['l1'],
-        'roll_error_mse': mpc_nw_dict['roll']['mse'],
-        'pitch_error_l1': mpc_nw_dict['pitch']['l1'],
-        'pitch_error_mse': mpc_nw_dict['pitch']['mse'],
-        'yaw_error_l1': mpc_nw_dict['yaw']['l1'],
-        'yaw_error_mse': mpc_nw_dict['yaw']['mse'],
-        'filepath': filepath_trajectory
-        }, index=[0])
+        }
+    for k1 in sorted(mpc_nw_dict):
+        for k2 in sorted(mpc_nw_dict[k1]):
+            outdict['{}_error_{}'.format(k1, k2)] = mpc_nw_dict[k1][k2]
+    outdict['filepath'] = filepath_trajectory
+    P = pd.DataFrame(outdict, index=[0])
     return P
 
 
