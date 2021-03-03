@@ -8,11 +8,11 @@ sys.path.insert(0, base_path)
 from analysis.utils import *
 
 # What to do
-to_process = True
-to_performance = True
+to_process = False
+to_performance = False
 to_table = True
 
-to_override = True
+to_override = False
 
 to_plot_traj_3d = False
 to_plot_state = False
@@ -176,7 +176,6 @@ if to_process:
 
 # Collect performance metrics across runs
 if to_performance:
-
     for collider_name in collider_names:
         curr_feature_filename = 'features_{}.csv'.format(collider_name)
         outpath = './performance/{}/'.format(collider_name)
@@ -192,9 +191,7 @@ if to_performance:
                         filepaths.append(os.path.join(w[0], f))
             for filepath in filepaths:
                 print('..collecting performance: {}'.format(filepath))
-
                 df =  pd.read_csv(filepath)
-
                 # Get model and run information from filepath
                 strings = (
                     df['filepath'].iloc[0]
@@ -204,7 +201,6 @@ if to_performance:
                 )
                 if len(strings) == 2:
                     strings.insert(1, 's016_r05_flat_li01_buffer20')
-
                 # Load the yaml file
                 yamlpath = None
                 config = None
@@ -221,26 +217,20 @@ if to_performance:
                         except yaml.YAMLError as exc:
                             print(exc)
                             config = None
-
-                # print(yamlcount, yamlpath)
-
+                # Make Data dictionnairy for the output
                 ddict = {}
                 ddict['model_name'] = strings[0]
                 ddict['has_dda'] = int(strings[0].find('dda') > -1)
-                if strings[2].find('mpc_nw_act') > -1:
+                if ((strings[2].find('mpc_nw_act') > -1) &
+                    (filepath.find('mpc_nw_act') > -1)):
                     ddict['has_network_used'] = 0
                 else:
                     ddict['has_network_used'] = 1
-
                 if config is not None:
-
                     ddict['has_yaml'] = 1
-
                     ddict['has_ref'] = 1
                     if 'no_ref' in config['train']:
                         ddict['has_ref'] = int(config['train']['no_ref'] == False)
-
-
                     ddict['has_state_q'] = 0
                     ddict['has_state_v'] = 0
                     ddict['has_state_w'] = 0
@@ -256,14 +246,10 @@ if to_performance:
                                 if config['train']['imu_no_vels'] == True:
                                     ddict['has_state_v'] = 0
                                     ddict['has_state_w'] = 0
-
                     ddict['has_fts'] = 0
                     if 'use_fts_tracks' in config['train']:
                         if config['train']['use_fts_tracks']:
                             ddict['has_fts'] = 1
-
-
-
                     ddict['has_decfts'] = 0
                     ddict['has_gztr'] = 0
                     if 'attention_fts_type' in config['train']:
@@ -273,27 +259,19 @@ if to_performance:
                         elif config['train']['attention_fts_type'] == 'gaze_tracks':
                             ddict['has_decfts'] = 0
                             ddict['has_gztr'] = 1
-
-
                     ddict['has_attbr'] = 0
                     if 'attention_branching' in config['train']:
                         if config['train']['attention_branching'] == True:
                             ddict['has_attbr'] = 1
-
-
                     ddict['buffer'] = 0
                     if 'start_buffer' in config['simulation']:
                         ddict['buffer'] = config['simulation']['start_buffer']
-
-                # If no yaml file was found
                 else:
                     ddict['has_yaml'] = 0
-
                 ddict['buffer'] = float(strings[1].split('buffer')[-1]) / 10
                 ddict['subject'] = int(strings[1].split('_')[0].split('s')[-1])
                 ddict['run'] = int(strings[1].split('_')[1].split('r')[-1])
                 ddict['track'] = strings[1].split('_')[2]
-
                 li_string = strings[1].split('_')[3].split('li')[-1]
                 if li_string.find('-')>-1:
                     ddict['li'] = int(li_string.split('-')[0])
@@ -302,7 +280,6 @@ if to_performance:
                 else:
                     ddict['li'] = int(li_string)
                     ddict['num_laps'] = 1
-
                 if ddict['has_dda'] == 0:
                     if strings[2] == 'reference_mpc':
                         ddict['mt'] = -1
@@ -329,11 +306,11 @@ if to_performance:
                         ddict['mt'] = int(strings[2].split('_')[1].split('mt-')[-1])
                         ddict['st'] = int(strings[2].split('_')[2].split('st-')[-1])
                         ddict['repetition'] = int(strings[2].split('_')[-1])
-
+                # Add data dictionnairy as output row
                 for k in sorted(ddict):
                     df[k] = ddict[k]
-
                 performance = performance.append(df)
+        # Save perfromance dataframe
         performance.to_csv(outfilepath, index=False)
 
 
@@ -395,41 +372,28 @@ if to_table:
                         'has_dda': 1,
                         'has_network_used': 1,
                     }
-                elif online_name=='offline':
+                else:
                     network_dict = {
                         'has_dda': 1,
                         'has_network_used': 0,
                     }
-                else:
-                    network_dict = None
 
                 # Model dictionnairy
                 model_dicts = [
                     {
-                        'name': 'Ref + RVW + Fts + AIn',
+                        'name': 'Ref + RVW (Baseline)',
                         'specs': {
                             'has_ref': 1,
                             'has_state_q': 1,
                             'has_state_v': 1,
                             'has_state_w': 1,
-                            'has_fts': 1,
-                            'has_decfts': 1,
+                            'has_fts': 0,
+                            'has_decfts': 0,
                             'has_attbr': 0,
                             'has_gztr': 0,
                         },
-                    },{
-                        'name': 'Ref + RVW + Fts + ABr',
-                        'specs': {
-                            'has_ref': 1,
-                            'has_state_q': 1,
-                            'has_state_v': 1,
-                            'has_state_w': 1,
-                            'has_fts': 1,
-                            'has_decfts': 0,
-                            'has_attbr': 1,
-                            'has_gztr': 0,
-                        },
-                    },{
+                    },
+                    {
                         'name': 'Ref + RVW + Fts',
                         'specs': {
                             'has_ref': 1,
@@ -466,39 +430,15 @@ if to_table:
                             'has_gztr': 0,
                         },
                     },{
-                        'name': 'Ref + RVW',
+                        'name': 'Ref (Baseline)',
                         'specs': {
                             'has_ref': 1,
-                            'has_state_q': 1,
-                            'has_state_v': 1,
-                            'has_state_w': 1,
+                            'has_state_q': 0,
+                            'has_state_v': 0,
+                            'has_state_w': 0,
                             'has_fts': 0,
                             'has_decfts': 0,
                             'has_attbr': 0,
-                            'has_gztr': 0,
-                        },
-                    },{
-                        'name': 'Ref + Fts + AIn',
-                        'specs': {
-                            'has_ref': 1,
-                            'has_state_q': 0,
-                            'has_state_v': 0,
-                            'has_state_w': 0,
-                            'has_fts': 1,
-                            'has_decfts': 1,
-                            'has_attbr': 0,
-                            'has_gztr': 0,
-                        },
-                    },{
-                        'name': 'Ref + Fts + Abr',
-                        'specs': {
-                            'has_ref': 1,
-                            'has_state_q': 0,
-                            'has_state_v': 0,
-                            'has_state_w': 0,
-                            'has_fts': 1,
-                            'has_decfts': 0,
-                            'has_attbr': 1,
                             'has_gztr': 0,
                         },
                     },{
@@ -538,39 +478,15 @@ if to_table:
                             'has_gztr': 0,
                         },
                     },{
-                        'name': 'Ref',
+                        'name': 'RVW (Baseline)',
                         'specs': {
-                            'has_ref': 1,
-                            'has_state_q': 0,
-                            'has_state_v': 0,
-                            'has_state_w': 0,
+                            'has_ref': 0,
+                            'has_state_q': 1,
+                            'has_state_v': 1,
+                            'has_state_w': 1,
                             'has_fts': 0,
                             'has_decfts': 0,
                             'has_attbr': 0,
-                            'has_gztr': 0,
-                        },
-                    },{
-                        'name': 'RVW + Fts + AIn',
-                        'specs': {
-                            'has_ref': 0,
-                            'has_state_q': 1,
-                            'has_state_v': 1,
-                            'has_state_w': 1,
-                            'has_fts': 1,
-                            'has_decfts': 1,
-                            'has_attbr': 0,
-                            'has_gztr': 0,
-                        },
-                    },{
-                        'name': 'RVW + Fts + ABr',
-                        'specs': {
-                            'has_ref': 0,
-                            'has_state_q': 1,
-                            'has_state_v': 1,
-                            'has_state_w': 1,
-                            'has_fts': 1,
-                            'has_decfts': 0,
-                            'has_attbr': 1,
                             'has_gztr': 0,
                         },
                     },{
@@ -607,18 +523,6 @@ if to_table:
                             'has_fts': 0,
                             'has_decfts': 0,
                             'has_attbr': 1,
-                            'has_gztr': 0,
-                        },
-                    },{
-                        'name': 'RVW',
-                        'specs': {
-                            'has_ref': 0,
-                            'has_state_q': 1,
-                            'has_state_v': 1,
-                            'has_state_w': 1,
-                            'has_fts': 0,
-                            'has_decfts': 0,
-                            'has_attbr': 0,
                             'has_gztr': 0,
                         },
                     },
