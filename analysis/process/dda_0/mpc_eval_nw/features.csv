@@ -1,2 +1,0 @@
-t_start,t_end,flight_time,travel_distance,median_path_deviation,iqr_path_deviation,num_gates_passed,num_collisions,filepath
-0.0,6.989999999999895,6.989999999999895,70.58136851430594,1.8690791475650272,0.34404412271228213,6,0,./process/dda_0/mpc_eval_nw/trajectory.csv

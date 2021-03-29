@@ -1,2 +1,0 @@
-model,flight_time_mean,flight_time_sd,travel_distance_mean,travel_distance_sd,median_path_deviation_mean,median_path_deviation_sd,iqr_path_deviation_mean,iqr_path_deviation_sd,num_gates_passed_mean,num_gates_passed_sd,num_collisions_mean,num_collisions_sd
-dda_flat_med_full_bf2_cf25_decfts_ep45,14.809999999999723,0.0,154.3731918924773,0.07766970779628977,18.840897074226216,0.010147975036480614,4.456485156781599,0.0551268673182704,11.0,0.0,0.0,0.0

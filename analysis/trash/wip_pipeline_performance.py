@@ -1,5 +1,5 @@
 try:
-    from analysis.functions.visattention import *
+    from analysis.utils import *
 except:
     from functions.visattention import *
 

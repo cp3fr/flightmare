@@ -1,2 +1,0 @@
-t_start,t_end,flight_time,travel_distance,median_path_deviation,iqr_path_deviation,num_gates_passed,num_collisions,filepath
-4.619999999999946,5.609999999999925,0.9899999999999789,10.92123876879897,2.4506605089650035,2.1554880987623153,1,1,./process/dda_0/mpc2nw_mt-70_st-45_02/trajectory.csv
