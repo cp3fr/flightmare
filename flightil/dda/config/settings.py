@@ -38,7 +38,10 @@ class Settings:
             log_root = settings['log_dir']
             if not log_root == '' and generate_log:
                 current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-                self.log_dir = os.path.join(os.getenv("GAZESIM_ROOT"), os.pardir, log_root, current_time)
+                if os.path.isabs(log_root):
+                    self.log_dir = os.path.join(log_root, current_time)
+                else:
+                    self.log_dir = os.path.join(os.getenv("GAZESIM_ROOT"), os.pardir, log_root, current_time)
                 os.makedirs(self.log_dir)
                 net_file = os.path.join(os.getenv("FLIGHTMARE_PATH"),
                                         "flightil/dda/src/ControllerLearning/models/nets.py")
@@ -71,8 +74,16 @@ class TrainSetting(Settings):
             self.batch_size = train_conf['batch_size']
             self.learning_rate = train_conf["learning_rate"]
             self.summary_freq = train_conf['summary_freq']
-            self.train_dir = os.path.join(os.getenv("GAZESIM_ROOT"), os.pardir, train_conf['train_dir'])
+            if os.path.isabs(train_conf["train_dir"]):
+                self.train_dir = train_conf["train_dir"]
+            else:
+                self.train_dir = os.path.join(os.getenv("GAZESIM_ROOT"), os.pardir, train_conf["train_dir"])
+            if os.path.isabs(train_conf["val_dir"]):
+                self.val_dir = train_conf["val_dir"]
+            else:
+                self.val_dir = os.path.join(os.getenv("GAZESIM_ROOT"), os.pardir, train_conf["val_dir"])
             self.use_fts_tracks = train_conf['use_fts_tracks']
+            self.use_images = train_conf.get("use_images", False)
             self.use_imu = train_conf['use_imu']
             self.use_raw_imu_data = train_conf.get("use_raw_imu_data", False)
             self.use_pos = train_conf["use_pos"]
@@ -83,11 +94,18 @@ class TrainSetting(Settings):
             self.attention_fts_type = train_conf.get("attention_fts_type", "none")
             self.attention_model_path = train_conf.get("attention_model_path", "")
             self.attention_branching = train_conf.get("attention_branching", False)
-            self.attention_branching_threshold = train_conf.get("attention_branching_threshold", False)
+            self.attention_branching_threshold = train_conf.get("attention_branching_threshold", 25)
+            self.attention_masking = train_conf.get("attention_masking", False) and self.use_images
+            self.gate_direction_branching = train_conf.get("gate_direction_branching", False)
+            self.gate_direction_branching_threshold = train_conf.get("gate_direction_branching_threshold", 25)
+            self.gate_direction_start_gate = train_conf.get("gate_direction_start_gate", 9)
             self.shallow_control_module = train_conf.get("shallow_control_module", False)
-            self.val_dir = os.path.join(os.getenv("GAZESIM_ROOT"), os.pardir, train_conf['val_dir'])
             self.min_number_fts = train_conf['min_number_fts']
             self.save_every_n_epochs = train_conf['save_every_n_epochs']
+
+            assert not (self.use_fts_tracks and self.use_images), "Can only use one of feature tracks and images!"
+            assert not (self.attention_branching and self.gate_direction_branching), \
+                "Can only use one of attention branching and gate direction branching!"
 
 
 class TestSetting(Settings):
@@ -145,11 +163,18 @@ class DaggerSetting(Settings):
             self.learning_rate = train_conf["learning_rate"]
             self.min_number_fts = train_conf['min_number_fts']
             self.summary_freq = train_conf['summary_freq']
-            self.train_dir = os.path.join(os.getenv("GAZESIM_ROOT"), os.pardir, train_conf['train_dir'])
-            self.val_dir = os.path.join(os.getenv("GAZESIM_ROOT"), os.pardir, train_conf['val_dir'])
+            if os.path.isabs(train_conf["train_dir"]):
+                self.train_dir = train_conf["train_dir"]
+            else:
+                self.train_dir = os.path.join(os.getenv("GAZESIM_ROOT"), os.pardir, train_conf["train_dir"])
+            if os.path.isabs(train_conf["val_dir"]):
+                self.val_dir = train_conf["val_dir"]
+            else:
+                self.val_dir = os.path.join(os.getenv("GAZESIM_ROOT"), os.pardir, train_conf["val_dir"])
             self.use_imu = train_conf['use_imu']
             self.use_raw_imu_data = train_conf.get("use_raw_imu_data", False)
             self.use_fts_tracks = train_conf['use_fts_tracks']
+            self.use_images = train_conf.get("use_images", False)
             self.use_pos = train_conf["use_pos"]
             self.use_activation = train_conf["use_activation"]
             # TODO: this is very ugly and hacky, but to get things running quickly, I'll do it like this
@@ -162,7 +187,11 @@ class DaggerSetting(Settings):
             self.attention_model_path = train_conf.get("attention_model_path", "")
             self.attention_record_all_features = train_conf.get("attention_record_all_features", False)
             self.attention_branching = train_conf.get("attention_branching", False)
-            self.attention_branching_threshold = train_conf.get("attention_branching_threshold", False)
+            self.attention_branching_threshold = train_conf.get("attention_branching_threshold", 25)
+            self.attention_masking = train_conf.get("attention_masking", False) and self.use_images
+            self.gate_direction_branching = train_conf.get("gate_direction_branching", False)
+            self.gate_direction_branching_threshold = train_conf.get("gate_direction_branching_threshold", 25)
+            self.gate_direction_start_gate = train_conf.get("gate_direction_start_gate", 9)
             self.save_at_net_frequency = train_conf.get("save_at_net_frequency", False)
             self.shallow_control_module = train_conf.get("shallow_control_module", False)
             assert isinstance(self.verbose, bool)
@@ -179,3 +208,8 @@ class DaggerSetting(Settings):
             self.start_buffer = sim_conf["start_buffer"]
             self.max_time = sim_conf["max_time"]
             self.trajectory_path = sim_conf["trajectory_path"]
+            self.return_extra_info = sim_conf.get("return_extra_info", False)
+
+            assert not (self.use_fts_tracks and self.use_images), "Can only use one of feature tracks and images!"
+            assert not (self.attention_branching and self.gate_direction_branching), \
+                "Can only use one of attention branching and gate direction branching!"

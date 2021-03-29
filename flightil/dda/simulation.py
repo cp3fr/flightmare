@@ -1,8 +1,8 @@
 import numpy as np
 
 from collections import deque
-from mpc.simulation.planner import TrajectorySampler
-from mpc.simulation.mpc_test_wrapper import MPCTestWrapper, RacingEnvWrapper
+from planning.planner import TrajectorySampler
+from old.mpc.simulation.mpc_test_wrapper import MPCTestWrapper, RacingEnvWrapper
 from features.imu import IMURawMeasurements
 
 # TODO: remove this stuff or put it somewhere else
@@ -229,7 +229,7 @@ class PythonSimulation(Simulation):
     # GETTER METHODS #
     ##################
 
-    def _get_state(self, action):
+    def _get_state(self, action=None):
         self.current_state = self._dynamics_integration(action)
         return self.current_state
 
@@ -357,6 +357,20 @@ class FlightmareSimulation(Simulation):
 
         self.reference_sampler = TrajectorySampler(trajectory_path, max_time=(max_time or self.total_time))
 
+    def update_config(self, config):
+        self.config = config
+
+        self.base_frequency = config.base_frequency  # 100.0
+        self.image_frequency = config.image_frequency  # 30.0
+        self.ref_frequency = config.ref_frequency  # 50.0
+        self.command_frequency = config.command_frequency  # 100.0
+        self.expert_command_frequency = config.expert_command_frequency  # 20.0
+
+        if self.imu_measurements is None and self.config.use_raw_imu_data:
+            self.imu_measurements = IMURawMeasurements(self.base_frequency)
+        elif self.imu_measurements is not None:
+            self.imu_measurements = None
+
     #####################################
     # TAKING CARE OF FLIGHTMARE WRAPPER # (not sure if$ overkill, but it's kinda neat)
     #####################################
@@ -376,6 +390,11 @@ class FlightmareSimulation(Simulation):
         if action is not None:
             success = self.flightmare_wrapper.step(action)
         self.current_state = self.flightmare_wrapper.get_state()
+        """
+        # previously used for generating high-level attention labels for the reference trajectory
+        self.flightmare_wrapper.set_reduced_state(self.current_reference[:13])
+        self.current_state = self.current_reference[:13]
+        """
         return self.current_state, success
 
     def _get_state_estimate(self):

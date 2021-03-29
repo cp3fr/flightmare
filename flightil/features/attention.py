@@ -7,7 +7,7 @@ import numpy as np
 
 from torchvision import transforms
 from scipy.spatial.transform import Rotation
-from gazesim.models.utils import image_softmax, convert_attention_to_image
+from gazesim.models.utils import image_softmax, image_log_softmax, convert_attention_to_image
 from gazesim.training.utils import load_model, to_batch, to_device
 
 
@@ -221,6 +221,8 @@ class AttentionHighLevelLabel(AttentionFeatures):
 
         self.decision_threshold = config.attention_branching_threshold
 
+        self.return_extra_info = config.return_extra_info
+
     def get_attention_features(self, image, **kwargs):
         """
         test = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
@@ -228,9 +230,9 @@ class AttentionHighLevelLabel(AttentionFeatures):
         cv2.imshow("", test)
         cv2.waitKey(0)
         """
+        extra_info = {}
 
         drone_state = kwargs.get("drone_state", np.array([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]))
-        drone_pos = drone_state[:3]
         drone_rot = Rotation.from_quat(drone_state[4:7].tolist() + drone_state[3:4].tolist())
         drone_vel = drone_state[7:10]
         # drone_vel = np.array([-1.0, -0.10, 0.0])
@@ -248,14 +250,13 @@ class AttentionHighLevelLabel(AttentionFeatures):
 
         # get the gaze vector in 2D in the correct format (range [0, 1], x=right, y=down)
         gaze_2d = self.gaze_extractor.get_attention_features(image, **kwargs)
-        # print("Predicted gaze 2D (1):", gaze_2d)
         gaze_2d = gaze_2d[:2][::-1]  # need only position, but it's ordered in "OpenCV indexing" => y first, x second
-        # print("Predicted gaze 2D (2):", gaze_2d)
-        gaze_2d = (gaze_2d + 1.0) / 2.0
-        # print("Predicted gaze 2D (3):", gaze_2d)
-        # gaze_2d = np.array([0.5, 1.0])
+        extra_info["gaze_2d_norm_x"] = gaze_2d[0]
+        extra_info["gaze_2d_norm_y"] = gaze_2d[1]
 
-        cv2_gaze_2d = tuple((gaze_2d * np.array([800, 600])).astype(int))
+        gaze_2d = (gaze_2d + 1.0) / 2.0
+        extra_info["gaze_2d_x"] = gaze_2d[0]
+        extra_info["gaze_2d_y"] = gaze_2d[1]
 
         # get the gaze vector in 3D
         gaze_2d = np.hstack((gaze_2d, [1.0]))
@@ -263,6 +264,9 @@ class AttentionHighLevelLabel(AttentionFeatures):
         gaze_3d = np.array([gaze_3d[2], -gaze_3d[0], -gaze_3d[1]])
         gaze_3d = gaze_3d / np.linalg.norm(gaze_3d)
         gaze_3d = camera_rot_world_frame.apply(gaze_3d)
+        extra_info["gaze_3d_x"] = gaze_3d[0]
+        extra_info["gaze_3d_y"] = gaze_3d[1]
+        extra_info["gaze_3d_z"] = gaze_3d[2]
 
         # print("Velocity vector 3D:", drone_vel / np.linalg.norm(drone_vel))
         # print("Gaze 2D:", gaze_2d)
@@ -292,13 +296,17 @@ class AttentionHighLevelLabel(AttentionFeatures):
             """
 
         # print("Angle: {} (rad), {} (deg)".format(angle, angle * 180.0 / np.pi))
+        extra_info["angle_rad"] = angle
         angle = angle * 180.0 / np.pi
+        extra_info["angle_deg"] = angle
 
         high_level_label = 0
         if angle > self.decision_threshold:
             high_level_label = 1
         elif angle < -self.decision_threshold:
             high_level_label = 2
+
+        extra_info["high_level_label"] = high_level_label
 
         # print("High-level label:", high_level_label, "\n")
 
@@ -307,6 +315,8 @@ class AttentionHighLevelLabel(AttentionFeatures):
         # cv2.imshow("", img_to_show)
         # cv2.waitKey(0)
 
+        if self.return_extra_info:
+            return high_level_label, extra_info
         return high_level_label
 
 
@@ -324,6 +334,64 @@ class AllAttentionFeatures(AttentionFeatures):
             "gaze_tracks": self.gaze_tracks.get_attention_features(image, **kwargs),
         }
         return out
+
+
+class AttentionMasking:
+
+    def __init__(self, config):
+        super().__init__()
+
+        print("\n[AttentionMasking] Loading attention model.\n")
+
+        # load model and move to correct device
+        load_path = config.attention_model_path if isinstance(config.attention_model_path, str) else config.attention_model_path[0]
+        use_cuda = torch.cuda.is_available()
+        self.device = torch.device("cuda:{}".format(config.gpu) if use_cuda else "cpu")
+        self.model, self.model_config = load_model(load_path, gpu=config.gpu, return_config=True)
+        self.model.to(self.device)
+
+        # prepare transform
+        self.transform = transforms.Compose([
+            transforms.ToPILImage(),
+            transforms.Resize(self.model_config["resize"]),
+            transforms.ToTensor(),
+        ])
+
+        print("\n[AttentionMasking] Done loading attention model.\n")
+
+    def get_masked_image(self, image, **kwargs):
+        # convert from OpenCV image format (BGR) to normal/PIMS format (RGB) which was used for training
+        prepared_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+
+        # remember original shape
+        original_shape = image.shape
+
+        # apply transform
+        prepared_image = self.transform(prepared_image)
+
+        # prepare batch for input to the model
+        batch = {"input_image_0": prepared_image}
+        batch = to_device(to_batch([batch]), self.device)
+
+        # get the network output
+        out = self.model(batch)
+        mask = convert_attention_to_image(
+            attention=image_softmax((out["output_attention"])),
+            out_shape=original_shape[:2],
+        ).squeeze().cpu().detach().numpy()
+
+        # mask the input image
+        masked_image = image.astype(np.float32)
+        masked_image = np.round(masked_image * mask[:, :, np.newaxis]).astype(np.uint8)
+
+        """
+        cv2.imshow("original", image)
+        cv2.imshow("masked", masked_image)
+        cv2.imshow("mask", mask)
+        cv2.waitKey(0)
+        """
+
+        return masked_image
 
 
 if __name__ == "__main__":

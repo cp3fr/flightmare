@@ -7,14 +7,14 @@ import time
 from typing import Type
 from tqdm import tqdm
 
-from gazesim.data.utils import iterate_directories, parse_run_info, pair
+from gazesim.data.utils import iterate_directories, pair
 
-from mpc.simulation.mpc_test_env import MPCTestEnv
-from mpc.simulation.mpc_test_wrapper import MPCTestWrapper, RacingEnvWrapper
-from mpc.simulation.planner import TrajectoryPlanner
-from mpc.mpc.mpc_solver import MPCSolver
+from old.mpc.simulation.mpc_test_env import MPCTestEnv
+from old.mpc.simulation.mpc_test_wrapper import MPCTestWrapper, RacingEnvWrapper
+from planning.planner import TrajectoryPlanner
+from planning.mpc_solver import MPCSolver
 from features.feature_tracker import FeatureTracker
-from run_tests import sample_from_trajectory, ensure_quaternion_consistency
+from old.run_tests import sample_from_trajectory, ensure_quaternion_consistency
 
 
 class DataGenerator:
