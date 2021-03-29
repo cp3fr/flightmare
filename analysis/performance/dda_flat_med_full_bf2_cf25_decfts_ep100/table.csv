@@ -1,0 +1,2 @@
+model,flight_time_mean,flight_time_sd,travel_distance_mean,travel_distance_sd,median_path_deviation_mean,median_path_deviation_sd,iqr_path_deviation_mean,iqr_path_deviation_sd,num_gates_passed_mean,num_gates_passed_sd,num_collisions_mean,num_collisions_sd
+dda_flat_med_full_bf2_cf25_decfts_ep100,14.781999999999723,0.08400000000000088,154.9783829116243,0.6250445929726435,18.840071857424274,0.037218157682216,4.700605437324883,0.04812860977186445,11.0,0.0,0.0,0.0

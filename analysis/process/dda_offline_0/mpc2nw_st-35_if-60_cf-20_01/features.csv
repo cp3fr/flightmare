@@ -1,0 +1,2 @@
+t_start,t_end,flight_time,travel_distance,median_path_deviation,iqr_path_deviation,num_gates_passed,num_collisions,filepath
+0.0,2.149999999999997,2.149999999999997,22.07755801401518,1.5817132730275651,0.33087458545267023,1,1,./process/dda_offline_0/mpc2nw_st-35_if-60_cf-20_01/trajectory.csv
