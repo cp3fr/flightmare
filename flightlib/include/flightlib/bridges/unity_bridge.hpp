@@ -12,6 +12,8 @@
 #include <string>
 #include <unordered_map>
 
+// opencv
+#include <opencv2/imgproc/types_c.h>
 
 // Include ZMQ bindings for communications with Unity.
 #include <zmqpp/zmqpp.hpp>
@@ -94,7 +96,7 @@ class UnityBridge {
   int64_t u_packet_latency_;
 
   // axuiliary variables
-  const Scalar unity_connection_time_out_{20.0};
+  const Scalar unity_connection_time_out_{60.0};
   bool unity_ready_{false};
   bool connections_initialized_{false};
 };

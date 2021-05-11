@@ -157,6 +157,7 @@ bool Quadrotor::setWorldBox(const Ref<Matrix<3, 2>> box) {
     return false;
   }
   world_box_ = box;
+  return true;
 }
 
 
@@ -257,8 +258,6 @@ bool Quadrotor::getCamera(const size_t cam_id,
   return true;
 }
 
-bool Quadrotor::getCollision() {
-  return collision_;
-}
+bool Quadrotor::getCollision() const { return collision_; }
 
 }  // namespace flightlib
