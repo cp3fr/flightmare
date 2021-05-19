@@ -1,0 +1,15 @@
+\begin{tabular}{llllllllll}
+\toprule
+            Model & Num Runs & Throttle MSE & Throttle L1 & Roll MSE & Roll L1 & Pitch MSE & Pitch L1 & Yaw MSE &  Yaw L1 \\
+\midrule
+     ref+rvw+fts  &       1  &       1.328  &      1.153  &   0.071  &  0.267  &    0.108  &   0.328  &  0.009  &  0.094  \\
+ ref+rvw+fts+ain  &       1  &       1.419  &      1.191  &   0.156  &  0.395  &    0.077  &   0.277  &  0.019  &  0.139  \\
+ ref+rvw+fts+abr  &       1  &       1.292  &      1.137  &   0.259  &  0.508  &    0.027  &   0.163  &  0.013  &  0.112  \\
+         ref+fts  &       1  &       1.174  &      1.083  &   0.332  &  0.577  &    0.357  &   0.598  &  0.023  &  0.153  \\
+     ref+fts+ain  &       0  &          NaN &         NaN &      NaN &     NaN &       NaN &      NaN &     NaN &     NaN \\
+     ref+fts+abr  &       1  &       1.162  &      1.078  &   0.363  &  0.603  &    0.129  &   0.359  &  0.054  &  0.232  \\
+         rvw+fts  &       1  &       1.225  &      1.107  &   0.363  &  0.602  &    0.091  &   0.302  &   0.02  &   0.14  \\
+     rvw+fts+ain  &       1  &       1.235  &      1.111  &   0.256  &  0.505  &    0.251  &   0.501  &  0.105  &  0.324  \\
+     rvw+fts+abr  &       1  &       1.409  &      1.187  &   0.072  &  0.268  &    0.028  &   0.166  &  0.012  &  0.111  \\
+\bottomrule
+\end{tabular}

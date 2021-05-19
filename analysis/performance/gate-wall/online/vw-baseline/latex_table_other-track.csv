@@ -1,0 +1,18 @@
+\begin{tabular}{ll}
+\toprule
+       Model & Num Runs \\
+\midrule
+     ref+vw  &       0  \\
+ ref+vw+fts  &       0  \\
+ ref+vw+ain  &       0  \\
+ ref+vw+abr  &       0  \\
+        ref  &       0  \\
+    ref+fts  &       0  \\
+    ref+ain  &       0  \\
+    ref+abr  &       0  \\
+         vw  &       0  \\
+     vw+fts  &       0  \\
+     vw+ain  &       0  \\
+     vw+abr  &       0  \\
+\bottomrule
+\end{tabular}

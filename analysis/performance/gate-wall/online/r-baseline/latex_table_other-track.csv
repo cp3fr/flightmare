@@ -1,0 +1,18 @@
+\begin{tabular}{ll}
+\toprule
+      Model & Num Runs \\
+\midrule
+     ref+r  &       0  \\
+ ref+r+fts  &       0  \\
+ ref+r+ain  &       0  \\
+ ref+r+abr  &       0  \\
+       ref  &       0  \\
+   ref+fts  &       0  \\
+   ref+ain  &       0  \\
+   ref+abr  &       0  \\
+         r  &       0  \\
+     r+fts  &       0  \\
+     r+ain  &       0  \\
+     r+abr  &       0  \\
+\bottomrule
+\end{tabular}

@@ -1,0 +1,15 @@
+\begin{tabular}{lllllll}
+\toprule
+            Model & Num Runs & Flight Time [s] & Travel Distance [m] & Mean Error [m] & Gates Passed & \% Collision \\
+\midrule
+     ref+rvw+fts  &     540  &     10.95 (3.5) &      120.34 (37.12) &    5.12 (2.76) &  6.93 (2.64) &       16.0  \\
+ ref+rvw+fts+ain  &     540  &     9.38 (4.52) &      103.39 (47.95) &    4.11 (2.33) &  5.39 (2.88) &       37.0  \\
+ ref+rvw+fts+abr  &     540  &      9.9 (4.02) &      109.01 (42.56) &    4.57 (2.49) &  5.24 (2.62) &       29.0  \\
+         ref+fts  &       0  &             NaN &                 NaN &            NaN &          NaN &         NaN \\
+     ref+fts+ain  &       0  &             NaN &                 NaN &            NaN &          NaN &         NaN \\
+     ref+fts+abr  &       0  &             NaN &                 NaN &            NaN &          NaN &         NaN \\
+         rvw+fts  &       0  &             NaN &                 NaN &            NaN &          NaN &         NaN \\
+     rvw+fts+ain  &       0  &             NaN &                 NaN &            NaN &          NaN &         NaN \\
+     rvw+fts+abr  &       0  &             NaN &                 NaN &            NaN &          NaN &         NaN \\
+\bottomrule
+\end{tabular}

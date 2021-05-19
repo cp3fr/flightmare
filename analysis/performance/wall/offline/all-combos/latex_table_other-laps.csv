@@ -1,0 +1,70 @@
+\begin{tabular}{ll}
+\toprule
+             Model & Num Runs \\
+\midrule
+  ref+rvw+fts+ain  &       0  \\
+  ref+rvw+fts+abr  &       0  \\
+ ref+rvw+fts+gztr  &       0  \\
+      ref+rvw+fts  &       0  \\
+      ref+rvw+ain  &       0  \\
+      ref+rvw+abr  &       0  \\
+     ref+rvw+gztr  &       0  \\
+          ref+rvw  &       0  \\
+    ref+r+fts+ain  &       0  \\
+    ref+r+fts+abr  &       0  \\
+   ref+r+fts+gztr  &       0  \\
+        ref+r+fts  &       0  \\
+        ref+r+ain  &       0  \\
+        ref+r+abr  &       0  \\
+       ref+r+gztr  &       0  \\
+            ref+r  &       0  \\
+   ref+vw+fts+ain  &       0  \\
+   ref+vw+fts+abr  &       0  \\
+  ref+vw+fts+gztr  &       0  \\
+       ref+vw+fts  &       0  \\
+       ref+vw+ain  &       0  \\
+       ref+vw+abr  &       0  \\
+      ref+vw+gztr  &       0  \\
+           ref+vw  &       0  \\
+      ref+fts+ain  &       0  \\
+      ref+fts+abr  &       0  \\
+     ref+fts+gztr  &       0  \\
+          ref+fts  &       0  \\
+          ref+ain  &       0  \\
+          ref+abr  &       0  \\
+         ref+gztr  &       0  \\
+              ref  &       0  \\
+      rvw+fts+ain  &       0  \\
+      rvw+fts+abr  &       0  \\
+     rvw+fts+gztr  &       0  \\
+          rvw+fts  &       0  \\
+          rvw+ain  &       0  \\
+          rvw+abr  &       0  \\
+         rvw+gztr  &       0  \\
+              rvw  &       0  \\
+        r+fts+ain  &       0  \\
+        r+fts+abr  &       0  \\
+       r+fts+gztr  &       0  \\
+            r+fts  &       0  \\
+            r+ain  &       0  \\
+            r+abr  &       0  \\
+           r+gztr  &       0  \\
+                r  &       0  \\
+       vw+fts+ain  &       0  \\
+       vw+fts+abr  &       0  \\
+      vw+fts+gztr  &       0  \\
+           vw+fts  &       0  \\
+           vw+ain  &       0  \\
+           vw+abr  &       0  \\
+          vw+gztr  &       0  \\
+               vw  &       0  \\
+          fts+ain  &       0  \\
+          fts+abr  &       0  \\
+         fts+gztr  &       0  \\
+              fts  &       0  \\
+              ain  &       0  \\
+              abr  &       0  \\
+             gztr  &       0  \\
+                   &       0  \\
+\bottomrule
+\end{tabular}

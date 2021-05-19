@@ -1,0 +1,70 @@
+\begin{tabular}{lllllll}
+\toprule
+             Model & Num Runs & Flight Time [s] & Travel Distance [m] & Mean Error [m] & Gates Passed & \% Collision \\
+\midrule
+  ref+rvw+fts+ain  &     540  &     5.58 (4.26) &       60.85 (46.03) &    2.59 (1.33) &  3.72 (3.16) &       83.0  \\
+  ref+rvw+fts+abr  &     540  &     5.43 (4.09) &       59.29 (44.33) &    3.21 (2.17) &  3.25 (2.84) &       80.0  \\
+ ref+rvw+fts+gztr  &       0  &             NaN &                 NaN &            NaN &          NaN &         NaN \\
+      ref+rvw+fts  &     540  &     6.55 (4.75) &       69.94 (49.17) &    2.82 (2.14) &   4.39 (3.5) &       71.0  \\
+      ref+rvw+ain  &     540  &     6.81 (3.82) &        77.82 (46.0) &   5.99 (11.66) &   3.53 (2.5) &       83.0  \\
+      ref+rvw+abr  &     540  &     7.27 (4.25) &       79.81 (46.83) &    3.75 (2.48) &  4.44 (3.15) &       71.0  \\
+     ref+rvw+gztr  &       0  &             NaN &                 NaN &            NaN &          NaN &         NaN \\
+          ref+rvw  &     540  &      5.5 (3.36) &       59.43 (34.76) &    2.56 (2.15) &  3.77 (2.41) &       93.0  \\
+    ref+r+fts+ain  &       0  &             NaN &                 NaN &            NaN &          NaN &         NaN \\
+    ref+r+fts+abr  &       0  &             NaN &                 NaN &            NaN &          NaN &         NaN \\
+   ref+r+fts+gztr  &       0  &             NaN &                 NaN &            NaN &          NaN &         NaN \\
+        ref+r+fts  &       0  &             NaN &                 NaN &            NaN &          NaN &         NaN \\
+        ref+r+ain  &       0  &             NaN &                 NaN &            NaN &          NaN &         NaN \\
+        ref+r+abr  &       0  &             NaN &                 NaN &            NaN &          NaN &         NaN \\
+       ref+r+gztr  &       0  &             NaN &                 NaN &            NaN &          NaN &         NaN \\
+            ref+r  &       0  &             NaN &                 NaN &            NaN &          NaN &         NaN \\
+   ref+vw+fts+ain  &       0  &             NaN &                 NaN &            NaN &          NaN &         NaN \\
+   ref+vw+fts+abr  &       0  &             NaN &                 NaN &            NaN &          NaN &         NaN \\
+  ref+vw+fts+gztr  &       0  &             NaN &                 NaN &            NaN &          NaN &         NaN \\
+       ref+vw+fts  &       0  &             NaN &                 NaN &            NaN &          NaN &         NaN \\
+       ref+vw+ain  &       0  &             NaN &                 NaN &            NaN &          NaN &         NaN \\
+       ref+vw+abr  &       0  &             NaN &                 NaN &            NaN &          NaN &         NaN \\
+      ref+vw+gztr  &       0  &             NaN &                 NaN &            NaN &          NaN &         NaN \\
+           ref+vw  &     540  &     3.62 (2.85) &        39.1 (31.08) &    2.43 (1.04) &  2.27 (1.83) &       93.0  \\
+      ref+fts+ain  &       0  &             NaN &                 NaN &            NaN &          NaN &         NaN \\
+      ref+fts+abr  &       0  &             NaN &                 NaN &            NaN &          NaN &         NaN \\
+     ref+fts+gztr  &       0  &             NaN &                 NaN &            NaN &          NaN &         NaN \\
+          ref+fts  &       0  &             NaN &                 NaN &            NaN &          NaN &         NaN \\
+          ref+ain  &       0  &             NaN &                 NaN &            NaN &          NaN &         NaN \\
+          ref+abr  &       0  &             NaN &                 NaN &            NaN &          NaN &         NaN \\
+         ref+gztr  &       0  &             NaN &                 NaN &            NaN &          NaN &         NaN \\
+              ref  &       0  &             NaN &                 NaN &            NaN &          NaN &         NaN \\
+      rvw+fts+ain  &       0  &             NaN &                 NaN &            NaN &          NaN &         NaN \\
+      rvw+fts+abr  &       0  &             NaN &                 NaN &            NaN &          NaN &         NaN \\
+     rvw+fts+gztr  &       0  &             NaN &                 NaN &            NaN &          NaN &         NaN \\
+          rvw+fts  &       0  &             NaN &                 NaN &            NaN &          NaN &         NaN \\
+          rvw+ain  &       0  &             NaN &                 NaN &            NaN &          NaN &         NaN \\
+          rvw+abr  &       0  &             NaN &                 NaN &            NaN &          NaN &         NaN \\
+         rvw+gztr  &       0  &             NaN &                 NaN &            NaN &          NaN &         NaN \\
+              rvw  &       0  &             NaN &                 NaN &            NaN &          NaN &         NaN \\
+        r+fts+ain  &       0  &             NaN &                 NaN &            NaN &          NaN &         NaN \\
+        r+fts+abr  &       0  &             NaN &                 NaN &            NaN &          NaN &         NaN \\
+       r+fts+gztr  &       0  &             NaN &                 NaN &            NaN &          NaN &         NaN \\
+            r+fts  &       0  &             NaN &                 NaN &            NaN &          NaN &         NaN \\
+            r+ain  &       0  &             NaN &                 NaN &            NaN &          NaN &         NaN \\
+            r+abr  &       0  &             NaN &                 NaN &            NaN &          NaN &         NaN \\
+           r+gztr  &       0  &             NaN &                 NaN &            NaN &          NaN &         NaN \\
+                r  &       0  &             NaN &                 NaN &            NaN &          NaN &         NaN \\
+       vw+fts+ain  &       0  &             NaN &                 NaN &            NaN &          NaN &         NaN \\
+       vw+fts+abr  &       0  &             NaN &                 NaN &            NaN &          NaN &         NaN \\
+      vw+fts+gztr  &       0  &             NaN &                 NaN &            NaN &          NaN &         NaN \\
+           vw+fts  &       0  &             NaN &                 NaN &            NaN &          NaN &         NaN \\
+           vw+ain  &       0  &             NaN &                 NaN &            NaN &          NaN &         NaN \\
+           vw+abr  &       0  &             NaN &                 NaN &            NaN &          NaN &         NaN \\
+          vw+gztr  &       0  &             NaN &                 NaN &            NaN &          NaN &         NaN \\
+               vw  &       0  &             NaN &                 NaN &            NaN &          NaN &         NaN \\
+          fts+ain  &       0  &             NaN &                 NaN &            NaN &          NaN &         NaN \\
+          fts+abr  &       0  &             NaN &                 NaN &            NaN &          NaN &         NaN \\
+         fts+gztr  &       0  &             NaN &                 NaN &            NaN &          NaN &         NaN \\
+              fts  &       0  &             NaN &                 NaN &            NaN &          NaN &         NaN \\
+              ain  &       0  &             NaN &                 NaN &            NaN &          NaN &         NaN \\
+              abr  &       0  &             NaN &                 NaN &            NaN &          NaN &         NaN \\
+             gztr  &       0  &             NaN &                 NaN &            NaN &          NaN &         NaN \\
+                   &       0  &             NaN &                 NaN &            NaN &          NaN &         NaN \\
+\bottomrule
+\end{tabular}
