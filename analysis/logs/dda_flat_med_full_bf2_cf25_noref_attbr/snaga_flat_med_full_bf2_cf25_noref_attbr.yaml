@@ -19,7 +19,7 @@ train:
   learning_rate: 0.0003
   summary_freq: 400
   train_dir: "dda/data/flat-med-full-bf2-cf25-noref-attbr/train" # Where data will be generated and where the network will train
-  val_dir: "dda/data/flat-med-full-bf2-cf25-noref-attbr/test" # Validation Data, change to a new data folder!
+  val_dir: "dda/data/old-flat-med-full-bf2-cf25-noref-attbr/test" # Validation Data, change to a new data folder!
   save_every_n_epochs: 5
   use_imu: True
   use_fts_tracks: True
@@ -43,8 +43,8 @@ test_time:
   rand_rate_mag: 3.5
   rand_controller_prob: 0.05
 simulation:
-  flightmare_pub_port: 40253
-  flightmare_sub_port: 40254
+  flightmare_pub_port: 10253
+  flightmare_sub_port: 10254
   disconnect_when_training: False
   base_frequency: 100
   image_frequency: 15
