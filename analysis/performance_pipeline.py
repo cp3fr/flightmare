@@ -8,15 +8,15 @@ sys.path.insert(0, base_path)
 from analysis.utils import *
 
 # What to do
-to_process = False
-to_performance = False
+to_process = True
+to_performance = True
 to_table = True
 
 to_override = False
 
-to_plot_traj_3d = False
-to_plot_state = False
-to_plot_reference = False
+to_plot_traj_3d = True
+to_plot_state = True
+to_plot_reference = True
 to_plot_reference_with_decision = False
 
 # Buffer time: time runs with  network were started earlier than the reference
@@ -39,7 +39,7 @@ track_filepaths = {
 logfile_path = './logs/'
 reference_filepath = logfile_path+'reference/trajectory_reference_original.csv'
 models = [
-    # 'dda_flat_med_full_bf2_cf25_noref_nofts_decfts'
+    # 'dda_flat_med_full_bf2_cf25_noref_nofts_attbr'
         ]
 
 if len(models) == 0:
