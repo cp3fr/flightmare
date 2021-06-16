@@ -1,38 +1,16 @@
-# Flightmare - 左青龙
+# Flightmare (customized version)
 
-![Build Status](https://github.com/uzh-rpg/flightmare/workflows/CPP_CI/badge.svg) ![clang format](https://github.com/uzh-rpg/flightmare/workflows/clang_format/badge.svg)
-![License](https://img.shields.io/badge/License-MIT-blue.svg) ![website]( https://img.shields.io/website-up-down-green-red/https/naereen.github.io.svg)
+For general information on the Flightmare simulator, see the [parent repository](https://github.com/uzh-rpg/flightmare) of this one, as well as the [documentation](https://flightmare.readthedocs.io). This repository contains some changes and additional code used for my Master's thesis and a following project on optical flow.
 
-**Flightmare** is a flexible modular quadrotor simulator.
-Flightmare is composed of two main components: a configurable rendering engine built on Unity and a flexible physics engine for dynamics simulation.
-Those two components are totally decoupled and can run independently from each other. 
-Flightmare comes with several desirable features: (i) a large multi-modal sensor suite, including an interface to extract the 3D point-cloud of the scene; (ii) an API for reinforcement learning which can simulate hundreds of quadrotors in parallel; and (iii) an integration with a virtual-reality headset for interaction with the simulated environment.
-Flightmare can be used for various applications, including path-planning, reinforcement learning, visual-inertial odometry, deep learning, human-robot interaction, etc.
-
-**[Website](https://uzh-rpg.github.io/flightmare/)** & 
-**[Documentation](https://flightmare.readthedocs.io/)** 
-
-[![IMAGE ALT TEXT HERE](./docs/flightmare_main.png)](https://youtu.be/m9Mx1BCNGFU)
+The main changes to the code from the main repository as of June 16, 2021 are as follows:
+- Physics and rendering are completely decoupled, i.e. one can make use of the rendering capabilities of Flightmare without having to use its implemented quadrotor dynamics
+- Generation of ground-truth optical flow works in conjunction with the likewise customized [Flightmare Unity rendering engine](https://github.com/swengeler/flightmare_unity)
+- Additional code adapts the [Deep Drone Acrobatics](https://github.com/uzh-rpg/deep_drone_acrobatics) framework to work with Flightmare (and a simple MPC in Python, which means that the ROS software stack does not have to be used)
 
 ## Installation
-Installation instructions can be found in our [Wiki](https://github.com/uzh-rpg/flightmare/wiki).
-  
-## Updates
- *  17.11.2020 [Spotlight](https://youtu.be/8JyrjPLt8wo) Talk at CoRL 2020 
- *  04.09.2020 Release Flightmare
 
-## Publication
+### OpenCV requirements
 
-If you use this code in a publication, please cite the following paper **[PDF](http://rpg.ifi.uzh.ch/docs/CoRL20_Yunlong.pdf)**
+## 'Racing' environment and its interface
 
-```
-@article{song2020flightmare,
-    title={Flightmare: A Flexible Quadrotor Simulator},
-    author={Song, Yunlong and Naji, Selim and Kaufmann, Elia and Loquercio, Antonio and Scaramuzza, Davide},
-    booktitle={Conference on Robot Learning},
-    year={2020}
-}
-```
-
-## License
-This project is released under the MIT License. Please review the [License file](LICENSE) for more details.
+## Optical flow
