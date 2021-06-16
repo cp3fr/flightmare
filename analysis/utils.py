@@ -1,10 +1,10 @@
 import os
-import yaml
+# import yaml
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-from pprint import pprint
+from pprintpp import pprint
 from mpl_toolkits.mplot3d.art3d import Line3D
 from shapely.geometry import LineString
 from scipy.spatial.transform import Rotation
@@ -502,16 +502,25 @@ def get_pass_collision_events(
     pz= D['pz'].values
     # Detect checkpoint passing and collision events.
     events = {}
+    """
     for key, objects in [('gate_pass', gate_checkpoints),
                          ('gate_collision', gate_colliders),
                          ('wall_collision', wall_colliders)
                         ]:
+    """
+    for key, objects in [('gate_collision', gate_colliders),
+                         ('gate_pass', gate_checkpoints),
+                         ('wall_collision', wall_colliders)
+                         ]:
         for id in range(len(objects)):
             object = objects[id]
             for timestamp in detect_checkpoint_pass(t, px, py, pz, object):
                 if not ((key == 'gate_collision') and (
                         timestamp in events.keys())):
-                    events[timestamp] = (key, id)
+                    test_x = px[t == timestamp][0]
+                    test_y = py[t == timestamp][0]
+                    test_z = pz[t == timestamp][0]
+                    events[timestamp] = (key, id, test_x, test_y, test_z)
     # Make events dataframe
     E = pd.DataFrame({
         't': [
@@ -528,7 +537,17 @@ def get_pass_collision_events(
             for k in sorted(events)],
         'is-pass':  [
             int(events[k][0].find('pass') > 0)
-            for k in sorted(events)]},
+            for k in sorted(events)],
+        'px': [
+            events[k][2]
+            for k in sorted(events)],
+        'py': [
+            events[k][3]
+            for k in sorted(events)],
+        'pz': [
+            events[k][4]
+            for k in sorted(events)],
+        },
         index=list(range(len(events)))
         )
     return E

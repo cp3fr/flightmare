@@ -9,8 +9,7 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 from scipy.spatial.transform import Rotation
 from tqdm import tqdm
-from old.mpc.simulation.mpc_test_wrapper import RacingEnvWrapper
-
+from envs.racing_env_wrapper import RacingEnvWrapper
 
 REDUCED_STATE_VARS = [
     "position_x [m]", "position_y [m]", "position_z [m]",
@@ -75,6 +74,10 @@ def main(args):
     # load the trajectory
     trajectory_data = pd.read_csv(args.trajectory_path)
     trajectory_data = trajectory_data.iloc[200:]
+    trajectory_data = trajectory_data.iloc[::5]
+    # trajectory_data["position_x [m]"] -= 0.35
+    # print(trajectory_data.columns)
+    # exit()
 
     # load the reference, assumed to be in the same folder
     reference_data = pd.read_csv(os.path.join(os.path.dirname(args.trajectory_path), "original.csv"))

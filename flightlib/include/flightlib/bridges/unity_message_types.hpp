@@ -34,13 +34,14 @@ enum UnityScene {
 
 enum UnityScene {
   INDUSTRIAL = 0,
-  ARENA = 1,
-  WAREHOUSE = 2,
-  GARAGE = 3,
-  TUNELS = 4,
-  NATUREFOREST = 5,
+  STADIUM = 1,
+  EMPTY = 2,
+  WAREHOUSE = 3,
+  GARAGE = 4,
+  TUNELS = 5,
+  NATUREFOREST = 6,
   // total number of environment
-  SceneNum = 6
+  SceneNum = 7
 };
 
 // Unity Camera, should not be used alone.

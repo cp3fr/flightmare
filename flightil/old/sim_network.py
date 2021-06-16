@@ -12,7 +12,7 @@ from planning.mpc_solver import MPCSolver
 from features.feature_tracker import FeatureTracker
 from planning.planner import TrajectoryPlanner
 from old.mpc.simulation.mpc_test_env import MPCTestEnv
-from old.mpc.simulation.mpc_test_wrapper import RacingEnvWrapper
+from envs.racing_env_wrapper import RacingEnvWrapper
 from gazesim.training.utils import load_model, to_batch
 
 from old.run_tests import ensure_quaternion_consistency, visualise_actions, visualise_states

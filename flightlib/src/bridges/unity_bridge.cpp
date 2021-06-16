@@ -257,6 +257,32 @@ bool UnityBridge::handleOutput() {
             ->feedImageQueue(layer_idx, new_image);
 
 
+        } else if (layer_idx == 3) {
+            // optiindexing c++cal flow
+            uint32_t image_len = cam.width * cam.height * sizeof(float_t) * 2;
+            // doesn't really matter which type we take, but since we wrote "raw bytes"
+            // in Unity, we might as well read them here as well
+            const uint8_t* image_data;
+
+            // just get the raw binary data stored in the message (I guess at index image_i?)
+            msg.get(image_data, image_i);
+
+            image_i = image_i + 1;
+
+            // Pack image into cv::Mat
+            // cv::Mat new_image = cv::Mat(cam.height, cam.width, CV_MAKETYPE(CV_32F, 2));
+            cv::Mat new_image = cv::Mat(cam.height, cam.width, CV_32FC2);
+
+            // copy the raw data directly over from the "buffer" to the OpenCV matrix
+            memcpy(new_image.data, image_data, image_len);
+
+            // flip from Unity to OpenCV coordinates
+            cv::flip(new_image, new_image, 0);
+
+
+            unity_quadrotors_[idx]
+                ->getCameras()[cam.output_index]
+                ->feedImageQueue(layer_idx, new_image);
         } else {
           uint32_t image_len = cam.width * cam.height * cam.channels;
           // Get raw image bytes from ZMQ message.

@@ -7,7 +7,7 @@ from time import time
 from planning.mpc_solver import MPCSolver
 from planning.planner import TrajectoryPlanner
 from old.mpc.simulation.mpc_test_env import MPCTestEnv
-from old.mpc.simulation.mpc_test_wrapper import RacingEnvWrapper
+from envs.racing_env_wrapper import RacingEnvWrapper
 
 from old.run_tests import ensure_quaternion_consistency, visualise_actions, visualise_states
 

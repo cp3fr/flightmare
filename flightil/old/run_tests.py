@@ -9,7 +9,8 @@ from pprint import pprint
 from planning.mpc_solver import MPCSolver
 from planning.planner import TrajectoryPlanner
 from old.mpc.simulation.mpc_test_env import MPCTestEnv
-from old.mpc.simulation.mpc_test_wrapper import MPCTestWrapper, RacingEnvWrapper
+from old.mpc.simulation.mpc_test_wrapper import MPCTestWrapper
+from envs.racing_env_wrapper import RacingEnvWrapper
 # from envs.racing_env_wrapper import RacingEnvWrapper
 from features.feature_tracker import FeatureTracker
 

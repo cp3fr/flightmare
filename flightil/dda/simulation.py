@@ -2,7 +2,8 @@ import numpy as np
 
 from collections import deque
 from planning.planner import TrajectorySampler
-from old.mpc.simulation.mpc_test_wrapper import MPCTestWrapper, RacingEnvWrapper
+from old.mpc.simulation.mpc_test_wrapper import MPCTestWrapper
+from envs.racing_env_wrapper import RacingEnvWrapper
 from features.imu import IMURawMeasurements
 
 # TODO: remove this stuff or put it somewhere else

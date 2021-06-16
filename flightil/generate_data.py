@@ -10,7 +10,8 @@ from tqdm import tqdm
 from gazesim.data.utils import iterate_directories, pair
 
 from old.mpc.simulation.mpc_test_env import MPCTestEnv
-from old.mpc.simulation.mpc_test_wrapper import MPCTestWrapper, RacingEnvWrapper
+from old.mpc.simulation.mpc_test_wrapper import MPCTestWrapper
+from envs.racing_env_wrapper import RacingEnvWrapper
 from planning.planner import TrajectoryPlanner
 from planning.mpc_solver import MPCSolver
 from features.feature_tracker import FeatureTracker

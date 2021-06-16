@@ -83,7 +83,8 @@ endif()
 ################################################################################
 message(STATUS "======> Setup Compilation")
 
-add_definitions(-DEIGEN_STACK_ALLOCATION_LIMIT=1048576)
+# add_definitions(-DEIGEN_STACK_ALLOCATION_LIMIT=1048576)
+add_definitions(-DEIGEN_STACK_ALLOCATION_LIMIT=3145728)
 include_directories(${EIGEN_INCLUDE_DIR} "tests")
 include_directories(${OpenCV_INCLUDE_DIRS})
 

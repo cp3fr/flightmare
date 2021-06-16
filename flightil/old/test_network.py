@@ -5,7 +5,7 @@ import pandas as pd
 
 from planning.mpc_solver import MPCSolver
 from planning.planner import TrajectoryPlanner
-from old.mpc.simulation.mpc_test_wrapper import RacingEnvWrapper
+from envs.racing_env_wrapper import RacingEnvWrapper
 from old.sim_network import SimpleNetworkController, DDANetworkController
 
 from old.run_tests import ensure_quaternion_consistency, visualise_actions, visualise_states

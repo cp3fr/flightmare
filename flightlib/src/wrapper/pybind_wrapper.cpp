@@ -12,7 +12,7 @@
 #include "flightlib/envs/vec_env.hpp"
 #include "flightlib/envs/racing_env/racing_test_env.hpp"
 #include "flightlib/envs/racing_env/racing_env.hpp"
-#include "flightlib/envs/test_mpc_env.hpp"
+// #include "flightlib/envs/rendering_env.hpp"
 
 namespace py = pybind11;
 using namespace flightlib;
@@ -44,6 +44,7 @@ PYBIND11_MODULE(flightgym, m) {
     .def("reset", &TestEnv<QuadrotorEnv>::reset)
     .def("__repr__", [](const TestEnv<QuadrotorEnv>& a) { return "Test Env"; });
 
+/*
   py::class_<MPCTest>(m, "MPCTest_v0")
   .def(py::init<>())
   .def(py::init<const std::string&, const bool>())
@@ -57,12 +58,14 @@ PYBIND11_MODULE(flightgym, m) {
   .def("__repr__", [](const MPCTest& a) {
     return "MPC Test Environment";
   });
+*/
 
   py::class_<RacingEnv>(m, "RacingEnv")
   .def(py::init<>())
   .def(py::init<const std::string&, const bool>())
   .def("step", &RacingEnv::step)
   .def("getImage", &RacingEnv::getImage)
+  .def("getOpticalFlow", &RacingEnv::getOpticalFlow)
   .def("getState", &RacingEnv::getState)
   .def("getImageHeight", &RacingEnv::getImageHeight)
   .def("getImageWidth", &RacingEnv::getImageWidth)
@@ -70,6 +73,8 @@ PYBIND11_MODULE(flightgym, m) {
   .def("getSimTimeStep", &RacingEnv::getSimTimeStep)
   .def("setReducedState", &RacingEnv::setReducedState)
   .def("setSimTimeStep", &RacingEnv::setSimTimeStep)
+  .def("setSceneID", &RacingEnv::setSceneID)
+  .def("render", &RacingEnv::render)
   .def("connectUnity", &RacingEnv::connectUnity)
   .def("disconnectUnity", &RacingEnv::disconnectUnity)
   .def("__repr__", [](const RacingEnv& a) {

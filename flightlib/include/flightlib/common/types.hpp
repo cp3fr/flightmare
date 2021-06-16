@@ -66,13 +66,42 @@ using Map = Eigen::Map<Derived>;
 // ------------ Image Stuff------------
 
 //
+// template<int rows = Dynamic>
+// using ImageFlat = Eigen::Matrix<uint8_t, rows, 1>;
+// using ImageFlat = Eigen::Matrix<uint8_t, Dynamic, 1>;
+
+//
+// template<int rows = Dynamic, int cols = Dynamic>
+// using ImageChannel = Eigen::Matrix<uint8_t, rows, cols, Eigen::RowMajor>;
+
+
+// ------------ Optical Flow Stuff------------
+
+//
 template<int rows = Dynamic>
-using ImageFlat = Eigen::Matrix<uint8_t, rows, 1>;
+using OpticalFlowFlat = Eigen::Matrix<float_t, rows, 1>;
+// template<int cols = Dynamic>
+// using OpticalFlowFlat = Eigen::Matrix<float_t, 1, cols>;
 // using ImageFlat = Eigen::Matrix<uint8_t, Dynamic, 1>;
 
 //
 template<int rows = Dynamic, int cols = Dynamic>
-using ImageChannel = Eigen::Matrix<uint8_t, rows, cols, Eigen::RowMajor>;
+using OpticalFlowChannel = Eigen::Matrix<float_t, rows, cols, Eigen::RowMajor>;
+// using OpticalFlowChannel = Eigen::Matrix<float_t, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
+// using OpticalFlowChannel = Eigen::Matrix<float_t, Eigen::Dynamic, Eigen::Dynamic>;
+// using OpticalFlowChannel = Eigen::Matrix<float_t, Eigen::Dynamic, Eigen::Dynamic>;
+
+
+// ------------ Unified Stuff------------
+
+//
+template<typename tn = uint8_t, int rows = Dynamic>
+using ImageFlat = Eigen::Matrix<tn, rows, 1>;
+// using ImageFlat = Eigen::Matrix<uint8_t, Dynamic, 1>;
+
+//
+template<typename tn = uint8_t, int rows = Dynamic, int cols = Dynamic>
+using ImageChannel = Eigen::Matrix<tn, rows, cols, Eigen::RowMajor>;
 
 
 static constexpr Scalar Gz = -9.81;

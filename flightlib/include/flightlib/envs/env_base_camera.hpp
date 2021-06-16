@@ -27,9 +27,11 @@ class EnvBaseCamera {
   // (pure virtual) public methods (have to be implemented by child classes)
   virtual bool step(const Ref<Vector<>> action) = 0;
   virtual bool getImage(Ref<ImageFlat<>> image) = 0;
+  virtual bool getOpticalFlow(Ref<ImageFlat<float_t>> optical_flow) = 0;
   virtual void getState(Ref<Vector<>> state) = 0;
 
   // Unity methods
+  virtual bool render() = 0;
   virtual void addObjectsToUnity(std::shared_ptr<UnityBridge> bridge) = 0;
   virtual bool setUnity(bool render) = 0;
   virtual bool connectUnity(const int pub_port = 10253, const int sub_port = 10254) = 0;
@@ -42,6 +44,7 @@ class EnvBaseCamera {
   inline Scalar getSimTimeStep() { return sim_dt_; };
 
   inline void setSimTimeStep(Scalar time_step) { sim_dt_ = time_step; };
+  inline void setSceneID(SceneID scene_id) { scene_id_ = scene_id; };
 
  protected:
   // quadrotor
@@ -54,7 +57,8 @@ class EnvBaseCamera {
   Scalar sim_dt_{0.02};
 
   // camera
-  int image_height_, image_width_;
+  int image_height_ = 600, image_width_ = 800;
+  Scalar image_fov_ = 90.0;
   std::shared_ptr<RGBCamera> rgb_camera_;
 
   // image observations
@@ -63,7 +67,8 @@ class EnvBaseCamera {
 
   // unity
   std::shared_ptr<UnityBridge> unity_bridge_ptr_;
-  SceneID scene_id_{UnityScene::ARENA};
+  // SceneID scene_id_{UnityScene::Stadium};
+  SceneID scene_id_{UnityScene::STADIUM};
   bool unity_ready_{false};
   bool unity_render_{false};
 };

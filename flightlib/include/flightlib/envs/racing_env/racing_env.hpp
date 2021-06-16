@@ -45,7 +45,8 @@ namespace racingenv {
       // for testing
       image_height = 600,
       image_width = 800,
-      fov = 80,
+      fov = 90,
+      // fov = 110,
       // track info (should maybe be loaded)
       num_gates = 10,
       num_elevated_gates = 6,
@@ -55,15 +56,17 @@ namespace racingenv {
 class RacingEnv final : public EnvBaseCamera {
  public:
   RacingEnv();
-  RacingEnv(const std::string &cfg_path, const bool wave_track = false);
+  RacingEnv(const std::string &cfg_path, const bool rendering_only = false);
   ~RacingEnv();
 
   // method to set the quadrotor state and get a rendered image
   bool step(const Ref<Vector<>> action) override;
   bool getImage(Ref<ImageFlat<>> image) override;
+  bool getOpticalFlow(Ref<ImageFlat<float_t>> optical_flow) override;
   void getState(Ref<Vector<>> state) override;
 
   // Unity methods
+  bool render() override;
   void addObjectsToUnity(std::shared_ptr<UnityBridge> bridge) override;
   bool setUnity(bool render) override;
   bool connectUnity(const int pub_port = 10253, const int sub_port = 10254) override;
@@ -77,12 +80,20 @@ class RacingEnv final : public EnvBaseCamera {
 
  private:
   // image observations (better way of doing this?)
-  ImageChannel<racingenv::image_height, racingenv::image_width> channels_[3];
+  // ImageChannel<racingenv::image_height, racingenv::image_width> channels_[3];
+  // ImageChannel<> channels_[3];
+
+  // whether to bother with quadrotor dynamics etc.
+  bool rendering_only_{false};
 
   // gates
-  std::shared_ptr<StaticGate> gates_[racingenv::num_gates];
+  // std::shared_ptr<StaticGate> gates_[racingenv::num_gates];
+  std::vector<std::shared_ptr<StaticGate>> gates_;
 
   std::vector<std::vector<Scalar>> test_yaml_;
+  int num_gates_{0};
+  std::vector<std::vector<Scalar>> gate_positions_;
+  std::vector<std::vector<Scalar>> gate_orientations_;
 
   // constants?
   float POSITIONS[racingenv::num_gates][3] = {
