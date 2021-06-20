@@ -18,6 +18,7 @@ set(
   EIGEN_ALTERNATIVE "" CACHE STRING
   "Path to alternative Eigen, autodownload if blank"
 )
+add_definitions(-DOPENCV_DISABLE_EIGEN_TENSOR_SUPPORT)
 
 ################################################################################
 # Finding Dependencies
@@ -47,7 +48,13 @@ include(cmake/pybind11.cmake)
 include(cmake/yaml.cmake)
 
 # Including dependencies 
-find_package(OpenCV REQUIRED)
+# set(OpenCV_DIR /home/simon/build_opencv)
+# set(OpenCV_DIR /home/simon/.local)
+# list(APPEND CMAKE_PREFIX_PATH /home/simon/.local)
+find_package(OpenCV 4 REQUIRED PATHS /home/simon/.local/lib/cmake)
+# find_package(OpenCV 4 REQUIRED)
+# find_package(OpenCV 4 PATHS /home/simon/.local/includ)
+# message(STATUS "==================> OpenCV found at ${OpenCV_INCLUDE_DIRS}")
 include_directories(${OpenCV_INCLUDE_DIRS})
 find_package(OpenMP REQUIRED)
 
