@@ -17,21 +17,23 @@ bool RGBCamera::feedImageQueue(const int image_layer,
   queue_mutex_.lock();
   switch (image_layer) {
     case 0:  // rgb image
-      if (rgb_queue_.size() > queue_size_) rgb_queue_.resize(queue_size_);
+      // if (rgb_queue_.size() > queue_size_) rgb_queue_.resize(queue_size_);
+      if (rgb_queue_.size() >= queue_size_) rgb_queue_.resize(queue_size_ - 1);
       rgb_queue_.push_back(image_mat);
       break;
     case CameraLayer::DepthMap:
-      if (depth_queue_.size() > queue_size_) depth_queue_.resize(queue_size_);
+      // if (depth_queue_.size() > queue_size_) depth_queue_.resize(queue_size_);
+      if (depth_queue_.size() >= queue_size_) depth_queue_.resize(queue_size_ - 1);
       depth_queue_.push_back(image_mat);
       break;
     case CameraLayer::Segmentation:
-      if (segmentation_queue_.size() > queue_size_)
-        segmentation_queue_.resize(queue_size_);
+      // if (segmentation_queue_.size() > queue_size_) segmentation_queue_.resize(queue_size_);
+      if (segmentation_queue_.size() >= queue_size_) segmentation_queue_.resize(queue_size_ - 1);
       segmentation_queue_.push_back(image_mat);
       break;
     case CameraLayer::OpticalFlow:
-      if (opticalflow_queue_.size() > queue_size_)
-        opticalflow_queue_.resize(queue_size_);
+      // if (opticalflow_queue_.size() > queue_size_) opticalflow_queue_.resize(queue_size_);
+      if (opticalflow_queue_.size() >= queue_size_) opticalflow_queue_.resize(queue_size_ - 1);
       opticalflow_queue_.push_back(image_mat);
       break;
   }
@@ -146,6 +148,7 @@ void RGBCamera::enableOpticalFlow(const bool on) {
 }
 
 bool RGBCamera::getRGBImage(cv::Mat& rgb_img) {
+  // std::cout << "RGB queue size: " << rgb_queue_.size() << std::endl;
   if (!rgb_queue_.empty()) {
     rgb_img = rgb_queue_.front();
     rgb_queue_.pop_front();
@@ -173,6 +176,7 @@ bool RGBCamera::getSegmentation(cv::Mat& segmentation) {
 }
 
 bool RGBCamera::getOpticalFlow(cv::Mat& opticalflow) {
+  // std::cout << "Optical flow queue size: " << opticalflow_queue_.size() << std::endl;
   if (!opticalflow_queue_.empty()) {
     opticalflow = opticalflow_queue_.front();
     opticalflow_queue_.pop_front();

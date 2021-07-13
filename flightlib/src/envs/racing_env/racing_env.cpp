@@ -121,6 +121,7 @@ bool RacingEnv::getImage(Ref<ImageFlat<>> image) {
   if (unity_render_ && unity_ready_) {
     bool rgb_success = rgb_camera_->getRGBImage(cv_image_);
     if (rgb_success) {
+      // std::cout << "Got RGB successfully" << std::endl;
       ImageChannel<> image_channels_[3];
       cv::split(cv_image_, cv_channels_);
       for (int i = 0; i < cv_image_.channels(); i++) {
@@ -128,6 +129,8 @@ bool RacingEnv::getImage(Ref<ImageFlat<>> image) {
         Map<ImageFlat<>> image_(image_channels_[i].data(), image_channels_[i].size());
         image.block(i * image_height_ * image_width_, 0, image_height_ * image_width_, 1) = image_;
       }
+    } else {
+      // std::cout << "Did not get RGB" << std::endl;
     }
     return rgb_success;
   } else {
@@ -143,6 +146,7 @@ bool RacingEnv::getOpticalFlow(Ref<ImageFlat<float_t>> optical_flow) {
     ImageChannel<float_t> optical_flow_channels_[2];
     bool flow_success = rgb_camera_->getOpticalFlow(cv_image_);
     if (flow_success) {
+      // std::cout << "Got optical flow successfully" << std::endl;
       cv::split(cv_image_, cv_channels_);
       if (cv_image_.channels() != 2) {
         std::cout << "WARNING: Optical flow returned from Unity does not have the correct number of values." << std::endl;
@@ -161,6 +165,8 @@ bool RacingEnv::getOpticalFlow(Ref<ImageFlat<float_t>> optical_flow) {
         }
         optical_flow.block(i * image_height_ * image_width_, 0, image_height_ * image_width_, 1) = optical_flow_ * multiplier;
       }
+    } else {
+      // std::cout << "Did not get optical flow" << std::endl;
     }
     return flow_success;
   } else {
@@ -180,9 +186,11 @@ void RacingEnv::getState(Ref<Vector<>> state) {
  ****************************/
 
 bool RacingEnv::render() {
+  // std::cout << "Quad state on render:" << std::endl << quad_state_.x.segment(0, 7) << std::endl;
   if (unity_render_ && unity_ready_) {
-    unity_bridge_ptr_->getRender(0);
+    unity_bridge_ptr_->getRender(render_counter_);
     unity_bridge_ptr_->handleOutput();
+    render_counter_++;
   } else {
     std::cout << "WARNING: Unity rendering not available; cannot get images." << std::endl;
     return false;
@@ -215,6 +223,7 @@ bool RacingEnv::connectUnity(const int pub_port, const int sub_port) {
 }
 
 void RacingEnv::disconnectUnity(void) {
+  render_counter_ = 0;
   if (unity_bridge_ptr_ != nullptr) {
     unity_bridge_ptr_->disconnectUnity();
     unity_ready_ = false;

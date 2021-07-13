@@ -5,12 +5,13 @@ import os
 import csv
 import datetime
 import cv2
+import warnings
 
 from collections import deque
 from scipy.spatial.transform import Rotation
 from dda.models.bodyrate_learner import BodyrateLearner
 from features.feature_tracker import FeatureTracker
-from features.attention import AttentionDecoderFeatures, AttentionMapTracks, GazeTracks
+from features.attention import AttentionEncoderFeatures, AttentionMapTracks, GazeTracks
 from features.attention import AllAttentionFeatures, AttentionHighLevelLabel, AttentionMasking
 from features.gates import GateDirectionHighLevelLabel
 from planning.mpc_solver import MPCSolver
@@ -37,10 +38,10 @@ class ControllerLearning:
         self.csv_filename = None
         self.image_save_dir = None
         self.attention_fts_save_dir = None
-        self.raw_image_save_dir = None
 
         # things to keep track of the current "status"
         self.record_data = False
+        self.record_test_data = False
         self.is_training = False
         self.use_network = False
         self.network_initialised = False
@@ -72,6 +73,7 @@ class ControllerLearning:
         self.image = None
         self.attention_label = 0
         self.gate_direction_label = 0
+        self.collision = 0
 
         self.extra_info = {}
 
@@ -92,9 +94,12 @@ class ControllerLearning:
         self.attention_fts_size = -1
         if self.config.attention_record_all_features:
             self.attention_fts_extractor = AllAttentionFeatures(self.config)
-        if self.config.attention_fts_type == "decoder_fts":
+        if self.config.attention_fts_type == "encoder_fts":
+            self.attention_fts_size = 475  # 128
+            self.attention_fts_extractor = self.attention_fts_extractor or AttentionEncoderFeatures(self.config)
+        elif self.config.attention_fts_type == "decoder_fts":
             self.attention_fts_size = 128
-            self.attention_fts_extractor = self.attention_fts_extractor or AttentionDecoderFeatures(self.config)
+            self.attention_fts_extractor = self.attention_fts_extractor or AttentionEncoderFeatures(self.config)
         elif self.config.attention_fts_type == "map_tracks":
             self.attention_fts_size = 4
             self.attention_fts_extractor = self.attention_fts_extractor or AttentionMapTracks(self.config)
@@ -114,16 +119,18 @@ class ControllerLearning:
             self.gate_direction_high_level_label_extractor = GateDirectionHighLevelLabel(self.config)
 
         # preparing for data saving
+        """
         if self.mode == "iterative" or self.config.verbose:
             self.write_csv_header()
+        """
 
     def reset(self, new_rollout=True):
+        if new_rollout:
+            self.rollout_idx += 1
         self.n_times_net = 0
         self.n_times_expert = 0
         self.n_times_randomised = 0
         self.counter = 0
-        if new_rollout:
-            self.rollout_idx += 1
 
         self.use_network = True
 
@@ -135,6 +142,7 @@ class ControllerLearning:
         self.reference = np.zeros((13,), dtype=np.float32)
         self.state_estimate = np.zeros((13,), dtype=np.float32)
         self.attention_label = 0
+        self.collision = 0
 
         self.extra_info = {}
 
@@ -165,7 +173,9 @@ class ControllerLearning:
             self.state_queue.append(np.zeros((n_init_states,), dtype=np.float32))
             self.fts_queue.append(init_dict)
             if self.config.attention_record_all_features:
-                self.attention_fts_queue.append({att_f_t: np.zeros((att_f_sz,), dtype=np.float32) for att_f_t, att_f_sz in [("decoder_fts", 128), ("map_tracks", 4), ("gaze_tracks", 4)]})
+                self.attention_fts_queue.append({att_f_t: np.zeros((att_f_sz,), dtype=np.float32)
+                                                 for att_f_t, att_f_sz in
+                                                 [("encoder_fts", 475), ("map_tracks", 4), ("gaze_tracks", 4)]})
             elif self.config.attention_fts_type != "none":
                 self.attention_fts_queue.append(np.zeros((self.attention_fts_size,), dtype=np.float32))
             if self.config.use_images:
@@ -176,6 +186,14 @@ class ControllerLearning:
         if self.config.gate_direction_branching:
             self.gate_direction_high_level_label_extractor.reset()
         # TODO: also reset attention feature extractor if necessary
+
+    def prepare_data_recording(self):
+        if self.mode == "iterative":
+            print("\n[ControllerLearning] Directories set and header written\n")
+            self.csv_filename = None
+            self.image_save_dir = None
+            self.attention_fts_save_dir = None
+            self.write_csv_header()
 
     def start_data_recording(self):
         print("\n[ControllerLearning] Collecting data\n")
@@ -199,14 +217,19 @@ class ControllerLearning:
         self.is_training = False
         self.use_network = False
 
-    def update_trajectory(self, trajectory_path, max_time=None):
+    def update_trajectory(self, trajectory_path, max_time=None, max_time_from_new=False):
         if self.mode != "testing":
-            raise UserWarning("Trajectory changed/updated during mode '{}'. This functionality is mostly "
-                              "intended for testing, but can be used outside outside of that.".format(self.mode))
+            warnings.warn("Trajectory changed/updated during mode '{}'. This functionality is mostly "
+                          "intended for testing, but can be used outside outside of that.".format(self.mode))
 
         print("\n[ControllerLearning] Trajectory updated (should probably reset)\n")
-        previous_max_time = self.planner.get_final_time_stamp()
-        self.planner = TrajectoryPlanner(trajectory_path, 4.0, 0.2, max_time=(max_time or previous_max_time))
+
+        if max_time_from_new:
+            max_time = None
+        elif max_time is None:
+            max_time = self.planner.get_final_time_stamp()
+
+        self.planner = TrajectoryPlanner(trajectory_path, 4.0, 0.2, max_time=max_time)
 
     def update_simulation_time(self, simulation_time):
         self.simulation_time = simulation_time
@@ -303,6 +326,8 @@ class ControllerLearning:
             self.image_queue.append(processed_image)
 
     def update_info(self, info_dict):
+        if info_dict["collision"]:
+            self.collision = 1
         self.update_simulation_time(info_dict["time"])
         self.update_state(info_dict["state"])
         self.update_state_estimate(info_dict["state_estimate"])
@@ -549,11 +574,16 @@ class ControllerLearning:
             # High-level attention decision variable for branching
             "Attention_label",
             "Gate_direction_label",
+            # Whether we are collidiging at the moment
+            "Collision",
         ]
 
         current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
         if self.mode == "iterative":
-            root_save_dir = self.config.train_dir
+            if self.record_test_data:
+                root_save_dir = self.config.val_dir
+            else:
+                root_save_dir = self.config.train_dir
         else:
             root_save_dir = self.config.log_dir
 
@@ -569,7 +599,7 @@ class ControllerLearning:
         if self.config.attention_record_all_features:
             self.attention_fts_save_dir = {
                 att_f_t: os.path.join(root_save_dir, "{}_{}".format(att_f_t, current_time))
-                for att_f_t in ["decoder_fts", "map_tracks", "gaze_tracks"]
+                for att_f_t in ["encoder_fts", "map_tracks", "gaze_tracks"]
             }
             for _, fts_dir in self.attention_fts_save_dir.items():
                 if not os.path.exists(fts_dir):
@@ -643,7 +673,9 @@ class ControllerLearning:
             # High-level attention decision variable for branching
             self.attention_label,
             self.gate_direction_label,
-        ]
+            # Whether we are colliding at the moment
+            self.collision,
+            ]
 
         if self.record_data:
             # save the state data and commands
@@ -652,6 +684,7 @@ class ControllerLearning:
                 writer.writerows([row])
 
             # save the feature track data
+            # if self.config.use_fts_tracks: TODO: should rework data loading for tensorflow so that this isn't needed
             fts_name = "{:08d}.npy"
             fts_filename = os.path.join(self.image_save_dir, fts_name.format(self.recorded_samples))
             np.save(fts_filename, self.feature_tracks)

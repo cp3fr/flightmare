@@ -6,9 +6,9 @@ from flightgym import RacingEnv
 
 class RacingEnvWrapper:
 
-    def __init__(self, rendering_only=False):
+    def __init__(self, rendering_only=False, config_path=None):
         self.env = RacingEnv(
-            os.path.join(os.getenv("FLIGHTMARE_PATH"), "flightlib/configs/racing_env.yaml"),
+            config_path or os.path.join(os.getenv("FLIGHTMARE_PATH"), "flightlib/configs/racing_env.yaml"),
             rendering_only,
         )
 
@@ -18,15 +18,12 @@ class RacingEnvWrapper:
 
         self.image = np.zeros((self.image_height * self.image_width * 3,), dtype=np.uint8)
         self.optical_flow = np.zeros((self.image_height * self.image_width * 2,), dtype=np.float32)
-        print(self.image.shape, self.optical_flow.shape)
         self.state = np.zeros((self.state_dim,), dtype=np.float32)
 
     def _reshape_image(self, image):
-        print("PYTHON TEST 4")
         return np.reshape(image, (3, self.image_height, self.image_width)).transpose((1, 2, 0))
 
     def _reshape_optical_flow(self, optical_flow):
-        print("PYTHON TEST 5")
         return np.reshape(optical_flow, (2, self.image_height, self.image_width)).transpose((1, 2, 0))
 
     def step(self, action):
@@ -102,6 +99,9 @@ if __name__ == "__main__":
     diff_down = np.array([0.0, 0.0, -0.25, 0.0, 0.0, 0.0, 0.0])
     diff = diff_straight
 
+    current = np.array([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0])
+    diff = np.array([0.0, 0.0, 0.35, 0.0, 0.0, 0.0, 0.0])
+
     env = RacingEnvWrapper(rendering_only=True)
     print(env.image_width, env.image_height)
     env.connect_unity()
@@ -121,6 +121,7 @@ if __name__ == "__main__":
         # print(optical_flow[:5, :5])
         # env.step(np.array([12.0, 0.0, 0.0, 0.0]))
         current += diff
+        diff *= -1
         env.set_reduced_state(current)
         # sleep(0.1)
         # print("First RGB value in optical flow image (BGR):", optical_flow[0, 0])
@@ -131,6 +132,7 @@ if __name__ == "__main__":
             break
 
         c += 1
+        continue
         if c > 20:
             diff = diff_back
         if c > 40:

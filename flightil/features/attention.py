@@ -17,12 +17,15 @@ class AttentionFeatures:
         raise NotImplementedError()
 
 
-class AttentionDecoderFeatures(AttentionFeatures):
+class AttentionEncoderFeatures(AttentionFeatures):
 
     def __init__(self, config):
         super().__init__()
 
         print("\n[AttentionDecoderFeatures] Loading attention model.\n")
+
+        # determine if old/deprecated features should be used
+        self.use_old_features = config.attention_fts_type == "decoder_fts"
 
         # load model and move to correct device
         load_path = config.attention_model_path if isinstance(config.attention_model_path, str) else config.attention_model_path[0]
@@ -58,7 +61,14 @@ class AttentionDecoderFeatures(AttentionFeatures):
         out = self.model(batch)
 
         # get the features .reshape(-1).cpu().detach().numpy()
-        attention_features = F.adaptive_avg_pool2d(out["output_features"], (1, 1)).reshape(-1).cpu().detach().numpy()
+        if self.use_old_features:
+            # this was the old implementation, which averages over the image dimensions, which loses spatial information
+            attention_features = F.adaptive_avg_pool2d(out["output_features"], (1, 1)).reshape(-1).cpu().detach().numpy()
+        else:
+            # TODO: maybe remove hard-coded size; it is here atm, because we need "dummy values" in the learner
+            attention_features = torch.mean(out["output_features"], dim=1, keepdim=True)
+            attention_features = F.interpolate(attention_features, size=(19, 25), mode="bilinear", align_corners=False)
+            attention_features = attention_features.reshape(-1).cpu().detach().numpy()
 
         return attention_features
 
@@ -323,13 +333,14 @@ class AttentionHighLevelLabel(AttentionFeatures):
 class AllAttentionFeatures(AttentionFeatures):
 
     def __init__(self, config):
-        self.attention_decoder_features = AttentionDecoderFeatures(config)
+        self.attention_decoder_features = AttentionEncoderFeatures(config)
+        self.attention_decoder_features.use_old_features = False
         self.attention_map_tracks = AttentionMapTracks(config)
         self.gaze_tracks = GazeTracks(config)
 
     def get_attention_features(self, image, **kwargs):
         out = {
-            "decoder_fts": self.attention_decoder_features.get_attention_features(image, **kwargs),
+            "encoder_fts": self.attention_decoder_features.get_attention_features(image, **kwargs),
             "map_tracks": self.attention_map_tracks.get_attention_features(image, **kwargs),
             "gaze_tracks": self.gaze_tracks.get_attention_features(image, **kwargs),
         }

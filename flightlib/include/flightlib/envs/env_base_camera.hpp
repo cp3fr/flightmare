@@ -65,6 +65,9 @@ class EnvBaseCamera {
   cv::Mat cv_image_;
   cv::Mat cv_channels_[3];
 
+  // needed to sync outgoing requests for frames and incoming "results"/renders
+  unsigned long render_counter_{0};
+
   // unity
   std::shared_ptr<UnityBridge> unity_bridge_ptr_;
   // SceneID scene_id_{UnityScene::Stadium};

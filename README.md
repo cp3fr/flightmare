@@ -9,6 +9,8 @@ The main changes to the code from the main repository as of June 16, 2021 are as
 
 ## Installation
 
+All of the stuff in here: https://docs.google.com/document/d/1Ml7bXefs_a7B5St0GMv-6eGhczUWtRhdd5gFeuDmrLQ/edit
+
 ### OpenCV requirements
 
 ## 'Racing' environment and its interface

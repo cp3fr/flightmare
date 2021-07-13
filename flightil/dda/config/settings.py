@@ -28,6 +28,12 @@ class Settings:
 
             self.seq_len = settings['seq_len']
 
+            self.env_config_path = os.path.join(
+                os.getenv("FLIGHTMARE_PATH"),
+                "flightlib/configs",
+                "{}.yaml".format(settings.get("env_config", "racing_env")),
+            )
+
             # --- checkpoint ---
             checkpoint = settings['checkpoint']
             self.resume_training = checkpoint['resume_training']
@@ -41,10 +47,10 @@ class Settings:
                 if os.path.isabs(log_root):
                     self.log_dir = os.path.join(log_root, current_time)
                 else:
-                    self.log_dir = os.path.join(os.getenv("GAZESIM_ROOT"), os.pardir, log_root, current_time)
+                    self.log_dir = os.path.join(os.getenv("DDA_ROOT"), log_root, current_time)
                 os.makedirs(self.log_dir)
                 net_file = os.path.join(os.getenv("FLIGHTMARE_PATH"),
-                                        "flightil/dda/src/ControllerLearning/models/nets.py")
+                                        "flightil/dda/models/nets.py")
                 assert os.path.isfile(net_file)
                 shutil.copy(net_file, self.log_dir)
                 shutil.copy(settings_yaml, self.log_dir)
@@ -77,11 +83,11 @@ class TrainSetting(Settings):
             if os.path.isabs(train_conf["train_dir"]):
                 self.train_dir = train_conf["train_dir"]
             else:
-                self.train_dir = os.path.join(os.getenv("GAZESIM_ROOT"), os.pardir, train_conf["train_dir"])
+                self.train_dir = os.path.join(os.getenv("DDA_ROOT"), train_conf["train_dir"])
             if os.path.isabs(train_conf["val_dir"]):
                 self.val_dir = train_conf["val_dir"]
             else:
-                self.val_dir = os.path.join(os.getenv("GAZESIM_ROOT"), os.pardir, train_conf["val_dir"])
+                self.val_dir = os.path.join(os.getenv("DDA_ROOT"), os.pardir, train_conf["val_dir"])
             self.use_fts_tracks = train_conf['use_fts_tracks']
             self.use_images = train_conf.get("use_images", False)
             self.use_imu = train_conf['use_imu']
@@ -159,6 +165,7 @@ class DaggerSetting(Settings):
             self.gpu = train_conf["gpu"]
             self.max_training_epochs = train_conf['max_training_epochs']
             self.max_allowed_error = train_conf['max_allowed_error']
+            self.exclude_collision_rollouts = train_conf.get("exclude_collision_rollouts", True)
             self.batch_size = train_conf['batch_size']
             self.learning_rate = train_conf["learning_rate"]
             self.min_number_fts = train_conf['min_number_fts']
@@ -166,11 +173,11 @@ class DaggerSetting(Settings):
             if os.path.isabs(train_conf["train_dir"]):
                 self.train_dir = train_conf["train_dir"]
             else:
-                self.train_dir = os.path.join(os.getenv("GAZESIM_ROOT"), os.pardir, train_conf["train_dir"])
+                self.train_dir = os.path.join(os.getenv("DDA_ROOT"), train_conf["train_dir"])
             if os.path.isabs(train_conf["val_dir"]):
                 self.val_dir = train_conf["val_dir"]
             else:
-                self.val_dir = os.path.join(os.getenv("GAZESIM_ROOT"), os.pardir, train_conf["val_dir"])
+                self.val_dir = os.path.join(os.getenv("DDA_ROOT"), train_conf["val_dir"])
             self.use_imu = train_conf['use_imu']
             self.use_raw_imu_data = train_conf.get("use_raw_imu_data", False)
             self.use_fts_tracks = train_conf['use_fts_tracks']
@@ -208,6 +215,11 @@ class DaggerSetting(Settings):
             self.start_buffer = sim_conf["start_buffer"]
             self.max_time = sim_conf["max_time"]
             self.trajectory_path = sim_conf["trajectory_path"]
+            if os.path.isdir(self.trajectory_path):
+                trajectory_list = []
+                for file in os.listdir(self.trajectory_path):
+                    trajectory_list.append(os.path.join(self.trajectory_path, file))
+                self.trajectory_path = trajectory_list
             self.return_extra_info = sim_conf.get("return_extra_info", False)
 
             assert not (self.use_fts_tracks and self.use_images), "Can only use one of feature tracks and images!"

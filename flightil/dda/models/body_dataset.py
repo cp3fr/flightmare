@@ -168,6 +168,7 @@ class SafeDataset(BodyDataset):
                         "Reference_position_y",
                         "Reference_position_z"]
         position_ref_v = df[position_ref].values
+        collision_v = df["Collision"].values
 
         good_rollouts = []
 
@@ -178,8 +179,14 @@ class SafeDataset(BodyDataset):
             rollout_positions = rollout_fts_v == r
             roll_gt = position_gt_v[np.squeeze(rollout_positions), :]
             roll_ref = position_ref_v[np.squeeze(rollout_positions), :]
+            roll_collision = collision_v[np.squeeze(rollout_positions)]
+
             if roll_gt.shape[0] == 0:
                 continue
+            if self.config.exclude_collision_rollouts and np.sum(roll_collision) > 0:
+                print(f"COLLISION ROLLOUT: {r}")
+                continue
+
             assert roll_ref.shape == roll_gt.shape
             error = np.mean(np.linalg.norm(roll_gt - roll_ref, axis=1))
             if error < self.config.max_allowed_error:

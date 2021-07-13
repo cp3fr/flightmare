@@ -10,12 +10,77 @@ from tqdm import tqdm
 from gazesim.data.utils import iterate_directories, pair
 
 from old.mpc.simulation.mpc_test_env import MPCTestEnv
-from old.mpc.simulation.mpc_test_wrapper import MPCTestWrapper
+# from old.mpc.simulation.mpc_test_wrapper import MPCTestWrapper
 from envs.racing_env_wrapper import RacingEnvWrapper
 from planning.planner import TrajectoryPlanner
 from planning.mpc_solver import MPCSolver
 from features.feature_tracker import FeatureTracker
-from old.run_tests import sample_from_trajectory, ensure_quaternion_consistency
+# from old.run_tests import sample_from_trajectory, ensure_quaternion_consistency
+
+
+def row_to_state(row):
+
+    state_original = np.array([
+        row["position_x [m]"],
+        row["position_y [m]"],
+        row["position_z [m]"],  # + 0.75,
+        row["rotation_w [quaternion]"],
+        row["rotation_x [quaternion]"],
+        row["rotation_y [quaternion]"],
+        row["rotation_z [quaternion]"],
+        row["velocity_x [m/s]"],
+        row["velocity_y [m/s]"],
+        row["velocity_z [m/s]"],
+    ], dtype=np.float32)
+
+    return state_original
+
+
+def sample_from_trajectory(trajectory, time_stamp):
+    # probably just take the closest ts for now, might do interpolation later
+    if time_stamp < trajectory["time-since-start [s]"].min():
+        index = 0
+    else:
+        index = trajectory.loc[trajectory["time-since-start [s]"] <= time_stamp, "time-since-start [s]"].idxmax()
+    return row_to_state(trajectory.iloc[index])
+    # return np.array([0, 0, 5, 1, 0, 0, 0, 0, 0, 0], dtype=np.float32)
+    # return row_to_state(trajectory.iloc[0])
+
+
+def ensure_quaternion_consistency(trajectory, use_norm=True, show_progress=False):
+    trajectory = trajectory.reset_index(drop=True)
+    flipped = 0
+    trajectory["flipped"] = 0
+    trajectory.loc[0, "flipped"] = flipped
+
+    quat_columns = ["rotation_{} [quaternion]".format(c) for c in ["w", "x", "y", "z"]]
+    prev_quaternion = trajectory.loc[0, quat_columns]
+    prev_signs_positive = prev_quaternion >= 0
+
+    norm_diffs = []
+    for i in tqdm(range(1, len(trajectory.index)), disable=(not show_progress)):
+        current_quaternion = trajectory.loc[i, quat_columns]
+        current_signs_positive = current_quaternion >= 0
+        condition_sign = prev_signs_positive == ~current_signs_positive
+
+        # TODO: should probably do something like X standard deviations above the running mean for "good methodology"
+        norm_diff = np.linalg.norm(prev_quaternion.values - current_quaternion.values)
+        norm_diffs.append(norm_diff)
+
+        if use_norm:
+            if norm_diff >= 0.5:  # TODO should this be 1.0?
+                flipped = 1 - flipped
+        else:
+            if np.sum(condition_sign) >= 3:
+                flipped = 1 - flipped
+        trajectory.loc[i, "flipped"] = flipped
+
+        prev_signs_positive = current_signs_positive
+        prev_quaternion = current_quaternion
+
+    trajectory.loc[trajectory["flipped"] == 1, quat_columns] *= -1.0
+
+    return trajectory  # , norm_diffs
 
 
 class DataGenerator:
@@ -86,7 +151,8 @@ class FlightmareReplicator(DataGenerator):
         self.frame_skip = int(60 / self.fps)
 
         self.wave_track = config["track_name"] == "wave"
-        self.env = MPCTestWrapper(wave_track=self.wave_track)
+        # self.env = MPCTestWrapper(wave_track=self.wave_track)
+        self.env = RacingEnvWrapper()
         if not self.trajectory_only:
             self.env.connect_unity(pub_port=config["pub_port"], sub_port=config["sub_port"])
 
@@ -118,10 +184,10 @@ class FlightmareReplicator(DataGenerator):
         df_traj = df_traj.rename(FlightmareReplicator.COLUMN_DICT, axis=1)
 
         # ensure quaternion consistency
-        df_traj = ensure_quaternion_consistency(df_traj)
+        df_traj = ensure_quaternion_consistency(df_traj, show_progress=True)
 
         # adjust height to be suitable for Flightmare
-        df_traj["position_x [m]"] += 0.35
+        # df_traj["position_z [m]"] += 0.35  # TODO: THIS IS MAYBE A BUG
 
         # save the adjusted trajectory (including setting start to 0? probably not)
         # df_traj["time-since-start [s]"] = df_traj["time-since-start [s]"] - df_traj["time-since-start [s]"].min()
@@ -141,10 +207,14 @@ class FlightmareReplicator(DataGenerator):
         )
 
         # if there are screen timestamps < the first drone timestamp, should just "wait" in the first position
-        for i in tqdm(range(0, len(df_ts.index), self.frame_skip), disable=False):
+        # for i in tqdm(range(0, len(df_ts.index), self.frame_skip), disable=False):
+        for i in tqdm(range(0, 2000, self.frame_skip), disable=False):
             time_current = df_ts["ts"].iloc[i]
             sample = sample_from_trajectory(df_traj, time_current)
-            image = self.env.step(sample)
+            # image = self.env.step(sample)
+            self.env.set_reduced_state(sample)
+            self.env.render()
+            image = self.env.get_image()
             video_writer.write(image)
 
         """

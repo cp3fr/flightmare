@@ -125,6 +125,16 @@ bool UnityBridge::getRender(const FrameID frame_id) {
     unity_quadrotors_[idx]->getState(&quad_state);
     pub_msg_.vehicles[idx].position = positionRos2Unity(quad_state.p);
     pub_msg_.vehicles[idx].rotation = quaternionRos2Unity(quad_state.q());
+    /*
+    std::cout << "Quad position on render request (Flightmare):" << std::endl << quad_state.p << std::endl;
+    std::cout << "Quad position on render request (Unity):" << std::endl;
+    for (int i = 0; i < pub_msg_.vehicles[idx].position.size(); i++)
+      std::cout << pub_msg_.vehicles[idx].position[i] << std::endl;
+    std::cout << "Quad rotation on render request (Flightmare):" << std::endl << quad_state.q().coeffs() << std::endl;
+    std::cout << "Quad rotation on render request (Unity):" << std::endl;
+    for (int i = 0; i < pub_msg_.vehicles[idx].rotation.size(); i++)
+      std::cout << pub_msg_.vehicles[idx].rotation[i] << std::endl;
+    */
   }
 
   for (size_t idx = 0; idx < pub_msg_.objects.size(); idx++) {
@@ -215,11 +225,22 @@ bool UnityBridge::addStaticObject(std::shared_ptr<StaticObject> static_object) {
 bool UnityBridge::handleOutput() {
   // create new message object
   zmqpp::message msg;
-  sub_.receive(msg);
-  // unpack message metadata
-  std::string json_sub_msg = msg.get(0);
-  // parse metadata
-  SubMessage_t sub_msg = json::parse(json_sub_msg);
+  SubMessage_t sub_msg;
+
+  int received_frame_id = -1;
+
+  while (received_frame_id != pub_msg_.frame_id) {
+      sub_.receive(msg);
+      // unpack message metadata
+      std::string json_sub_msg = msg.get(0);
+      // parse metadata
+      sub_msg = json::parse(json_sub_msg);
+      received_frame_id = sub_msg.frame_id;
+  }
+
+  // std::cout << "Current sent frame ID: " << pub_msg_.frame_id << std::endl;
+  // std::cout << "Current received frame ID: " << sub_msg.frame_id << std::endl;
+
 
   size_t image_i = 1;
   // ensureBufferIsAllocated(sub_msg);
@@ -303,6 +324,7 @@ bool UnityBridge::handleOutput() {
           // Tell OpenCv that the input is RGB.
           if (cam.channels == 3) {
             cv::cvtColor(new_image, new_image, CV_RGB2BGR);
+            // cv::imwrite("/home/simon/Documents/Meetings/week_25/debug_flightmare/flightmare/" + std::to_string(received_frame_id) + ".png", new_image);
           }
           unity_quadrotors_[idx]
             ->getCameras()[cam.output_index]

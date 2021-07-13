@@ -1,10 +1,16 @@
+import os.path
+
 import numpy as np
 
 from collections import deque
+
+import pandas as pd
+
 from planning.planner import TrajectorySampler
-from old.mpc.simulation.mpc_test_wrapper import MPCTestWrapper
+# from old.mpc.simulation.mpc_test_wrapper import MPCTestWrapper
 from envs.racing_env_wrapper import RacingEnvWrapper
 from features.imu import IMURawMeasurements
+from dda.collisions import track2colliders, check_collision
 
 # TODO: remove this stuff or put it somewhere else
 # state index
@@ -78,6 +84,7 @@ class Simulation:
         self.reference_updated = False
         self.command_to_be_updated = False
         self.expert_to_be_updated = False
+        self.collision = False
 
     def reset(self):
         self.base_time = 0.0
@@ -93,6 +100,7 @@ class Simulation:
         self.reference_updated = False
         self.command_to_be_updated = False
         self.expert_to_be_updated = False
+        self.collision = False
 
         self._reset()
 
@@ -101,10 +109,12 @@ class Simulation:
         self.current_image = self._get_image()
         self.current_reference = self._get_reference()
         self.expert_to_be_updated = self._determine_expert_update()
+        self.collision = self._determine_collision()
 
         result = {
             "done": self.trajectory_done,
             "time": self.base_time,
+            "collision": self.collision,
             "state": self.current_state,
             "state_estimate": self.current_state_estimate,
             "image": self.current_image,
@@ -145,7 +155,10 @@ class Simulation:
         self.current_image = self._get_image()
         self.current_reference = self._get_reference()
         self.expert_to_be_updated = self._determine_expert_update()
+        self.collision = self._determine_collision()
         # successes.append(success)
+
+        # TODO: also need to check for collisions here!!
 
         if self.base_time > self.total_time:  # or self.command_time > self.total_time:
             # TODO: there should be a more elegant way of doing this than having to check the command_time separately
@@ -154,6 +167,7 @@ class Simulation:
         result = {
             "done": self.trajectory_done,
             "time": self.base_time,
+            "collision": self.collision,
             "state": self.current_state,
             "state_estimate": self.current_state_estimate,
             "image": self.current_image,
@@ -189,7 +203,11 @@ class Simulation:
             self.expert_to_be_updated = True
         return self.expert_to_be_updated
 
+    def _determine_collision(self):
+        raise NotImplementedError
 
+
+"""
 class PythonSimulation(Simulation):
 
     def __init__(self, config, trajectory_path):
@@ -252,6 +270,9 @@ class PythonSimulation(Simulation):
             self.reference_updated = True
         return self.current_reference
 
+    def _determine_collision(self):
+        return False
+
     ########################
     # QUADROTOR SIMULATION #
     ########################
@@ -304,11 +325,11 @@ class PythonSimulation(Simulation):
         quat = state[kQuatW:kQuatZ + 1]
         quat = quat / np.linalg.norm(quat)
         return quat
+"""
 
 
 class FlightmareSimulation(Simulation):
-    # TODO: instead of using Python dynamics (as in PythonSimulation), use Flightmare dynamics
-    #  => will have to write a different interface/wrapper for that (to e.g. get/set mass, thrust limits etc.)
+
     def __init__(self, config, trajectory_path, max_time=None):
         super().__init__(config)
 
@@ -317,10 +338,11 @@ class FlightmareSimulation(Simulation):
 
         # Flightmare wrapper/bridge, in this class mostly to get images
         self.wave_track = "wave" in trajectory_path
-        self.flightmare_wrapper = RacingEnvWrapper(wave_track=self.wave_track)
+        self.flightmare_wrapper = RacingEnvWrapper(config_path=config.env_config_path)
         # self.flightmare_wrapper = RacingEnvWrapper(wave_track=False)
-        self.current_image = np.zeros((self.flightmare_wrapper.image_width, self.flightmare_wrapper.image_height, 3),
-                                      dtype=np.uint8)
+        self.current_image = np.zeros(
+            (self.flightmare_wrapper.image_width, self.flightmare_wrapper.image_height, 3), dtype=np.uint8
+        )
 
         # sampler to get reference states for the network only (not for the MPC expert)
         self.reference_sampler = TrajectorySampler(trajectory_path, max_time=max_time)
@@ -338,6 +360,32 @@ class FlightmareSimulation(Simulation):
         if self.config.use_raw_imu_data:
             self.imu_measurements = IMURawMeasurements(self.base_frequency)
 
+        # collision detection (needs to happen outside of Flightmare currently)
+        track_path = os.path.join(
+            os.getenv("HOME", "/home/simon"),
+            "dda-inputs", "tracks",
+            "{}.csv".format("wave" if self.wave_track else "flat")
+        )
+        self.collision_resolution = 0.1
+        self.collision_limits_x = (-30, 30)
+        self.collision_limits_y = (-20, 20)
+        self.collision_limits_z = (-1, 8 if self.wave_track else 5)
+        if not os.path.exists(track_path):
+            self.collision_map = None
+            print("\n[FlightmareSimulation] WARNING: Could not find track data at '{}', "
+                  "collision detection will not work.\n".format(track_path))
+        else:
+            track = pd.read_csv(track_path)
+            track["pz"] += 0.35
+            self.collision_map = track2colliders(
+                track,
+                self.collision_resolution,
+                self.collision_limits_x,
+                self.collision_limits_y,
+                self.collision_limits_z,
+                0.5, 0.0
+            )
+
     ########################
     # RESET(-LIKE) METHODS #
     ########################
@@ -350,13 +398,21 @@ class FlightmareSimulation(Simulation):
         self.current_state = self.reference_sampler.get_initial_state(columns=["pos", "rot", "vel", "omega"])
         self.flightmare_wrapper.set_reduced_state(self.current_state)
 
-    def update_trajectory(self, trajectory_path, max_time=None):
+    def update_trajectory(self, trajectory_path, max_time=None, max_time_from_new=False):
         if (self.wave_track and "flat" in trajectory_path) or (not self.wave_track and "wave" in trajectory_path):
             raise ValueError("Cannot update Flightmare simulation with a different track type ({}) than what was "
                              "previously specified ({}).".format("flat" if self.wave_track else "wave",
                                                                  "wave" if self.wave_track else "flat"))
 
-        self.reference_sampler = TrajectorySampler(trajectory_path, max_time=(max_time or self.total_time))
+        if max_time_from_new:
+            max_time = None
+        elif max_time is None:
+            max_time = self.total_time
+
+        self.reference_sampler = TrajectorySampler(trajectory_path, max_time=max_time)
+
+        # TODO: hopefully adjusting gate positions is possible in Flightmare in the future,
+        #  this should be changed then (also need to update the collision map in that case)
 
     def update_config(self, config):
         self.config = config
@@ -410,6 +466,7 @@ class FlightmareSimulation(Simulation):
     def _get_image(self):
         if self.image_time <= self.base_time:
             self.image_time += self.image_time_step
+            self.flightmare_wrapper.render()
             self.current_image = self.flightmare_wrapper.get_image()
             self.image_updated = True
         return self.current_image
@@ -422,16 +479,17 @@ class FlightmareSimulation(Simulation):
             self.reference_updated = True
         return self.current_reference
 
-
-class TestSimulation:
-    # TODO: maybe test with this yield stuff? just a fancy way of doing it though
-    def __init__(self):
-        self.action_queue = deque(maxlen=1)
-
-    def step(self):
-        while True:
-            test = self.action_queue.pop()
-            yield test
+    def _determine_collision(self):
+        if self.collision_map is None:
+            return False
+        return check_collision(
+            self.current_state_estimate[:3].reshape((1, 3)),
+            self.collision_map,
+            self.collision_resolution,
+            self.collision_limits_x,
+            self.collision_limits_y,
+            self.collision_limits_z,
+        )
 
 
 if __name__ == "__main__":
