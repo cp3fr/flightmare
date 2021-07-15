@@ -6,22 +6,20 @@ base_path = os.getcwd().split('/flightmare/')[0]+'/flightmare/'
 sys.path.insert(0, base_path)
 
 from analysis.utils import *
+from pathlib import Path
 
 # What to do
-to_process = False
-to_performance = False
+to_process = True
+to_performance = True
 to_table = True
 
 to_override = False
 
-to_plot_traj_3d = False
-to_plot_state = False
+to_plot_traj_3d = True
+to_plot_state = True
 to_plot_reference = False
 to_plot_reference_with_decision = False
 
-# Buffer time: time runs with  network were started earlier than the reference
-# trajectory
-buffer = 2.0
 collider_names = ['gate-wall', 'wall']
 
 
@@ -37,7 +35,6 @@ track_filepaths = {
     'wave': './tracks/wave.csv',
     }
 logfile_path = './logs/'
-reference_filepath = logfile_path+'reference/trajectory_reference_original.csv'
 models = [
     # 'dda_flat_med_full_bf2_cf25_noref_nofts_decfts'
         ]
@@ -58,12 +55,17 @@ if to_process:
         log_filepaths = []
         for w in os.walk(os.path.join(logfile_path, model)):
             for f in w[2]:
-                if (f.find('.csv') > 0) and (reference_filepath.find(f) < 0):
+                if f.find('.csv') > 0:
                     log_filepaths.append(os.path.join(w[0], f))
+
+        # Exclude the reference trajectory
+        log_filepaths = [f for f in log_filepaths if Path(
+            f).name != 'original.csv']
 
         # Process individual trajectories flown by the network.
         for filepath in sorted(log_filepaths):
             print('..processing {}'.format(filepath))
+            reference_filepath = Path(filepath).parent/'original.csv'
             # Make output folder
             data_path = (filepath
                          .replace('.csv', '/')
@@ -74,9 +76,6 @@ if to_process:
             # Copy trajectory, reference, and track files to output folder
             if not os.path.isfile(data_path + 'trajectory.csv'):
                 trajectory = trajectory_from_logfile(filepath=filepath)
-                # Important: compensate for buffer time (i.e. earlier start
-                # of the network, before start of the reference trajectory)
-                trajectory['t'] -= buffer
                 trajectory.to_csv(data_path + 'trajectory.csv',
                                   index=False)
             if not os.path.isfile(data_path + 'reference.csv'):
