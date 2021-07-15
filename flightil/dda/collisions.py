@@ -203,8 +203,13 @@ def check_collision(p, colliders, reso, xl, yl, zl):
     """Returns collision checks (True=collision, False=No collision) for given
     positions (p), collider map (colliders), map resolution and limits."""
     coords = p2vox(p.reshape((-1, 3)), reso, xl, yl, zl)
-    return np.array([colliders[coords[i, 0], coords[i, 1], coords[i, 2]] for i in
-                     range(p.shape[0])]).astype(bool)
+
+    in_bounds = np.array([0 <= coords[i, 0] < colliders.shape[0]
+                          and 0 <= coords[i, 1] < colliders.shape[1]
+                          and 0 <= coords[i, 2] < colliders.shape[2] for i in range(p.shape[0])]).astype(bool)
+
+    return np.array([colliders[coords[i, 0], coords[i, 1], coords[i, 2]] if in_bounds[i] else 1 for i in
+                     range(p.shape[0])]).astype(bool) | ~in_bounds
 
 
 if __name__ == "__main__":

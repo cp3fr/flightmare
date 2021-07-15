@@ -11,8 +11,8 @@ from dda.learner import ControllerLearning
 from dda.config.settings import create_settings
 
 
-def save_trajectory_data(time_stamps, output_file, mpc_actions, network_actions, states, network_used,
-                         max_time, switch_time, repetition, save_path, extra_info=None):
+def save_trajectory_data(time_stamps, output_file, mpc_actions, network_actions,
+                         states, network_used, save_path, extra_info=None):
     data = {
         "time-since-start [s]": time_stamps,
         "throttle_mpc": mpc_actions[:, 0],
@@ -215,7 +215,7 @@ def main(args):
                         output_file = "mpc_nw_act_{:02d}".format(repetition)
                     else:
                         output_file = "mpc2nw_mt-{:02d}_st-{:02d}_{:02d}".format(
-                            int(settings.max_time * 10), int(settings.start_buffer * 10), repetition)
+                            int(simulation.total_time * 10), int(settings.start_buffer * 10), repetition)
 
                 writer = None
                 if args.save_video:
@@ -349,8 +349,8 @@ def main(args):
 
                 # save the data
                 # trajectory_dir = "/home/simon/Desktop/weekly_meeting/meeting21/debug_weird_nw_pred"
-                save_trajectory_data(time_stamps, output_file, mpc_actions, network_actions, states, network_used,
-                                     settings.max_time, settings.start_buffer, repetition, trajectory_dir, extra_info)
+                save_trajectory_data(time_stamps, output_file, mpc_actions, network_actions,
+                                     states, network_used, trajectory_dir, extra_info)
 
                 print("\n[Testing] Finished repetition {} in {:.2f}s ({}/{})\n".format(
                     repetition, time.time() - repetition_start, experiments_counter, experiments_total))
@@ -379,7 +379,7 @@ if __name__ == "__main__":
     parser.add_argument("-rma", "--record_mpc_actions", action="store_true", help="Whether or not to do this")
     parser.add_argument("-off", "--offline_evaluation", action="store_true",
                         help="Whether or not to evaluate the trained model 'offline', i.e. using the MPC to "
-                             "fly the trajectory, but evaluating the model is is done during training and "
+                             "fly the trajectory, but evaluating the model is done during training and "
                              "recording its actions.")
     parser.add_argument("-xi", "--record_extra_info", action="store_true",
                         help="Whether or not to record extra info, e.g. from attention branching (only one "

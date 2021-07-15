@@ -9,7 +9,7 @@ checkpoint:
   resume_file: ""
 data_generation:
   max_rollouts: 150
-  train_every_n_rollouts: 2
+  train_every_n_rollouts: 30
   double_th_every_n_rollouts: 30
 train:
   gpu: 0
@@ -44,6 +44,8 @@ train:
   gate_direction_start_gate: 9
   save_at_net_frequency: True
   shallow_control_module: False
+  mpc_time_horizon: 2.0
+  mpc_time_step: 0.1
 test_time:
   test_every_n_rollouts: 30
   execute_nw_predictions: True

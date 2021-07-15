@@ -201,6 +201,8 @@ class DaggerSetting(Settings):
             self.gate_direction_start_gate = train_conf.get("gate_direction_start_gate", 9)
             self.save_at_net_frequency = train_conf.get("save_at_net_frequency", False)
             self.shallow_control_module = train_conf.get("shallow_control_module", False)
+            self.mpc_time_horizon = train_conf.get("mpc_time_horizon", 2.0)
+            self.mpc_time_step = train_conf.get("mpc_time_step", 0.1)
             assert isinstance(self.verbose, bool)
             # --- Flightmare simulation --- #
             sim_conf = settings["simulation"]

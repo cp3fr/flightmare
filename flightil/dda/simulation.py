@@ -98,7 +98,7 @@ class Simulation:
 
         self.image_updated = False
         self.reference_updated = False
-        self.command_to_be_updated = False
+        self.command_to_be_updated = True
         self.expert_to_be_updated = False
         self.collision = False
 
@@ -410,6 +410,7 @@ class FlightmareSimulation(Simulation):
             max_time = self.total_time
 
         self.reference_sampler = TrajectorySampler(trajectory_path, max_time=max_time)
+        self.total_time = self.reference_sampler.get_final_time_stamp()
 
         # TODO: hopefully adjusting gate positions is possible in Flightmare in the future,
         #  this should be changed then (also need to update the collision map in that case)
@@ -489,7 +490,7 @@ class FlightmareSimulation(Simulation):
             self.collision_limits_x,
             self.collision_limits_y,
             self.collision_limits_z,
-        )
+        )[0]
 
 
 if __name__ == "__main__":

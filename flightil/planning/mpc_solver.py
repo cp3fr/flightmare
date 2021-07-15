@@ -80,16 +80,25 @@ class MPCSolver(object):
         ])
         """
 
+        """
+        # "pre-multi-trajectory" cost matrix
         self._cost_matrix_traj = np.diag([
             100, 100, 300,  # position
             100, 100, 100, 100,  # rotation (as quaternion)
             50, 50, 50,  # velocity
         ])
+        """
+        self._cost_matrix_traj = np.diag([
+            200, 200, 500,  # position
+            50, 50, 50, 50,  # rotation (as quaternion)
+            10, 10, 10,  # velocity
+        ])
 
         self._cost_quaternion_norm = 10000
 
         # cost matrix for the action
-        self._cost_matrix_action = np.diag([0.1, 0.1, 0.1, 0.1])  # T, wx, wy, wz
+        # self._cost_matrix_action = np.diag([0.1, 0.1, 0.1, 0.1])  # T, wx, wy, wz
+        self._cost_matrix_action = np.diag([1.0, 1.0, .01, 1.0])  # T, wx, wy, wz
         # self._cost_matrix_action = np.diag([0, 0, 0, 0])
         # self._cost_matrix_action = np.diag([100, 100, 100, 100])  # T, wx, wy, wz
 

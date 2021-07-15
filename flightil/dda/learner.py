@@ -84,8 +84,13 @@ class ControllerLearning:
         # objects
         self.feature_tracker = FeatureTracker(int(self.config.min_number_fts * 1.5))
         self.learner = BodyrateLearner(settings=self.config, expect_partial=(mode == "testing"))
-        self.planner = TrajectoryPlanner(trajectory_path, 4.0, 0.2, max_time=max_time)
-        self.expert = MPCSolver(4.0, 0.2)
+        self.planner = TrajectoryPlanner(
+            trajectory_path=trajectory_path,
+            plan_time_horizon=self.config.mpc_time_horizon,
+            plan_time_step=self.config.mpc_time_step,
+            max_time=max_time,
+        )
+        self.expert = MPCSolver(self.config.mpc_time_horizon, self.config.mpc_time_step)
 
         # TODO: should probably only have one of these at a time and gather some sort of attention features
         #  => also need to set the feature size according to that
@@ -229,7 +234,12 @@ class ControllerLearning:
         elif max_time is None:
             max_time = self.planner.get_final_time_stamp()
 
-        self.planner = TrajectoryPlanner(trajectory_path, 4.0, 0.2, max_time=max_time)
+        self.planner = TrajectoryPlanner(
+            trajectory_path=trajectory_path,
+            plan_time_horizon=self.config.mpc_time_horizon,
+            plan_time_step=self.config.mpc_time_step,
+            max_time=max_time,
+        )
 
     def update_simulation_time(self, simulation_time):
         self.simulation_time = simulation_time
