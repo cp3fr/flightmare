@@ -1,17 +1,18 @@
-import os
-import yaml
+import cv2
 import numpy as np
-import pandas as pd
 import matplotlib.pyplot as plt
+import os
+import pandas as pd
+import yaml
 
-from pprint import pprint
 from mpl_toolkits.mplot3d.art3d import Line3D
-from shapely.geometry import LineString
+from pprint import pprint
 from scipy.spatial.transform import Rotation
+from scipy.stats import iqr
+from shapely.geometry import LineString
 from shutil import copyfile
 from skspatial.objects import Vector, Points, Line, Point, Plane
 from skspatial.plotting import plot_3d
-from scipy.stats import iqr
 
 
 class Checkpoint(object):
