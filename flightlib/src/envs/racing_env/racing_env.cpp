@@ -42,7 +42,8 @@ RacingEnv::RacingEnv(const std::string &cfg_path, const bool rendering_only) {
   } else {
     // airsim
     B_r_BC = Vector<3>(0.2, 0.0, 0.1);
-    float uptilt_angle = 30.0;
+    // float uptilt_angle = 30.0;
+    float uptilt_angle = 25.0;
     uptilt_angle = -(uptilt_angle / 90.0) * M_PI_2;
     R_BC = Quaternion(std::cos(0.5 * uptilt_angle), 0.0, std::sin(0.5 * uptilt_angle), 0.0).toRotationMatrix();
     Matrix<3, 3> temp = Quaternion(std::cos(-0.5 * M_PI_2), 0.0, 0.0, std::sin(-0.5 * M_PI_2)).toRotationMatrix();

@@ -49,8 +49,10 @@ bool QuadrotorDynamics::dState(const Ref<const Vector<QuadState::SIZE>> state,
   dstate.segment<QS::NVEL>(QS::VEL) = state.segment<QS::NACC>(QS::ACC);
 
   // angular accleration = domega / dt
+  /* not used because of simplification of the dynamics for DDA
   dstate.segment<QS::NOME>(QS::OME) =
     J_inv_ * (body_torque - omega.cross(J_ * omega));
+  */
   //
   return true;
 }
