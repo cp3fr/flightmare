@@ -373,13 +373,21 @@ if to_performance:
                             ddict['has_fts'] = 1
                     ddict['has_decfts'] = 0
                     ddict['has_gztr'] = 0
+                    ddict['has_encfts'] = 0
                     if 'attention_fts_type' in config['train']:
                         if config['train']['attention_fts_type'] == 'decoder_fts':
                             ddict['has_decfts'] = 1
                             ddict['has_gztr'] = 0
+                            ddict['has_encfts'] = 0
                         elif config['train']['attention_fts_type'] == 'gaze_tracks':
                             ddict['has_decfts'] = 0
                             ddict['has_gztr'] = 1
+                            ddict['has_encfts'] = 0
+                        elif config['train']['attention_fts_type'] == \
+                                'encoder_fts':
+                            ddict['has_decfts'] = 0
+                            ddict['has_gztr'] = 0
+                            ddict['has_encfts'] = 1
                     ddict['has_attbr'] = 0
                     if 'attention_branching' in config['train']:
                         if config['train']['attention_branching'] == True:

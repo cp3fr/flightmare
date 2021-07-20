@@ -7,6 +7,7 @@ import yaml
 
 from mpl_toolkits.mplot3d.art3d import Line3D
 from multiprocessing import Pool
+from pathlib import Path
 from pprint import pprint
 from scipy.spatial.transform import Rotation
 from scipy.stats import iqr
@@ -663,20 +664,12 @@ def make_path(
         path: str
         ) -> bool():
     """Make (nested) folders, if not already existent, from provided path."""
-    path = path.replace('//', '/')
-    if path[0] == '/':
-        curr_path = '/'
+    if isinstance(path, str):
+        p=Path(path)
     else:
-        curr_path = ''
-    folders = path.split('/')
-    made_some_folders = False
-    for folder in folders:
-        if len(folder) > 0:
-            curr_path += folder + '/'
-            if os.path.isdir(curr_path) == False:
-                os.mkdir(curr_path)
-                made_some_folders = True
-    return made_some_folders
+        p=path
+    if not p.exists():
+        p.mkdir(parents=True,exist_ok=True)
 
 
 def trajectory_from_logfile(
