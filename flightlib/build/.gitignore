@@ -4,3 +4,4 @@
 !.gitignore
 !.clang-format
 !setup.py
+!clean

@@ -122,7 +122,7 @@ def format_trajectory(time_stamps, states, references, actions, collisions):
 
 def run(args):
     # hard-coded for now, should maybe be parameters
-    planning_time_horizon = 1.0
+    planning_time_horizon = 2.0
     planning_num_steps = 20
     planning_time_step = planning_time_horizon / planning_num_steps
 

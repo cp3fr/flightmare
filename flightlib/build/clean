@@ -1,0 +1,2 @@
+#!/usr/bin/env bash
+find . ! -name "setup.py" ! -name ".gitignore" ! -name ".clang-format" ! -name "clean" ! -name "." ! -name ".." -exec rm -rf {} +
