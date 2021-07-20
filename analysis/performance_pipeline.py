@@ -1,12 +1,13 @@
 import os
 import sys
+from pathlib import Path
 
 # Add base path
-base_path = os.getcwd().split('/flightmare/')[0]+'/flightmare/'
-sys.path.insert(0, base_path)
+base_path = Path(os.getcwd().split('/flightmare/')[0]+'/flightmare/')
+sys.path.insert(0, base_path.as_posix())
 
 from analysis.utils import *
-from pathlib import Path
+
 
 # What to do
 to_process = True
@@ -21,6 +22,7 @@ to_plot_reference = False
 to_plot_reference_with_decision = False
 
 collider_names = ['gate-wall', 'wall']
+num_parallel_processes = 8
 
 
 
@@ -34,143 +36,263 @@ track_filepaths = {
     'flat': './tracks/flat.csv',
     'wave': './tracks/wave.csv',
     }
-logfile_path = './logs/'
+logfile_path = base_path/'analysis'/'logs'
 models = [
     # 'dda_flat_med_full_bf2_cf25_noref_nofts_decfts'
         ]
 
 if len(models) == 0:
-    for w in os.walk(logfile_path):
-        if w[0] == logfile_path:
+    for w in os.walk(logfile_path.as_posix()):
+        if w[0] == logfile_path.as_posix():
             models = w[1]
 models = sorted(models)
 
 
 # Process individual runs
+def process_individual_run(filepath, args):
+    print('..processing {}'.format(filepath))
+    reference_filepath = Path(filepath).parent / 'original.csv'
+    # Make output folder
+    data_path = (filepath
+                 .replace('.csv', '/')
+                 .replace('/logs/', '/process/')
+                 .replace('trajectory_', '')
+                 )
+    make_path(data_path)
+    # Copy trajectory, reference, and track files to output folder
+    if not os.path.isfile(data_path + 'trajectory.csv'):
+        trajectory = trajectory_from_logfile(filepath=filepath)
+        trajectory.to_csv(data_path + 'trajectory.csv',
+                          index=False)
+    if not os.path.isfile(data_path + 'reference.csv'):
+        reference = trajectory_from_logfile(filepath=reference_filepath)
+        reference.to_csv(data_path + 'reference.csv',
+                         index=False)
+    if not os.path.isfile(data_path + 'track.csv'):
+        if filepath.find('wave') > -1:
+            track_filepath = track_filepaths['wave']
+        else:
+            track_filepath = track_filepaths['flat']
+
+        track = track_from_logfile(filepath=track_filepath)
+        # Make some adjustments
+        track['pz'] += 0.35  # shift gates up in fligthmare
+        track['dx'] = 0.
+        track['dy'] = 3  # in the middle of inner diameter 2.5 and outer 3.0
+        track['dz'] = 3  # in the middle of inner diameter 2.5 and outer 3.0
+        track.to_csv(data_path + 'track.csv',
+                     index=False)
+    # Save gate pass and collision events to output folder
+    if not os.path.isfile(data_path + 'events.csv'):
+        E = get_pass_collision_events(
+            filepath_trajectory=data_path + 'trajectory.csv',
+            filepath_track=data_path + 'track.csv')
+        E.to_csv(data_path + 'events.csv', index=False)
+
+    # Loop across collider conditions
+    for collider_name in collider_names:
+        curr_colliders = collider_dict[collider_name]
+        curr_feature_filename = 'features_{}.csv'.format(collider_name)
+
+        # Save performance features to output folder
+        if ((not os.path.isfile(data_path + curr_feature_filename))
+                or (to_override == True)):
+            P = extract_performance_features(
+                filepath_trajectory=data_path + 'trajectory.csv',
+                filepath_reference=data_path + 'reference.csv',
+                filepath_events=data_path + 'events.csv',
+                colliders=curr_colliders)
+            P.to_csv(data_path + curr_feature_filename, index=False)
+
+        # Save trajectory plot to output folder
+        if to_plot_traj_3d:
+            track = pd.read_csv(data_path + 'track.csv')
+            trajectory = pd.read_csv(data_path + 'trajectory.csv')
+            features = pd.read_csv(data_path + curr_feature_filename)
+            for label in ['', 'valid_']:
+                for view, xlims, ylims, zlims in [
+                    [(45, 270), (-15, 19), (-17, 17), (-8, 8)],
+                    # [(0, 270), (-15, 19), (-17, 17), (-12, 12)],
+                    # [(0, 180), (-15, 19), (-17, 17), (-12, 12)],
+                    # [(90, 270), (-15, 19), (-15, 15), (-12, 12)],
+                ]:
+                    outpath = (data_path + '{}trajectory-with-gates_{}_'
+                                           '{}x{}.jpg'
+                               .format(label,
+                                       collider_name,
+                                       '%03d' % view[0],
+                                       '%03d' % view[1])
+                               )
+                    if not os.path.isfile(outpath):
+                        if label == 'valid_':
+                            ind = ((trajectory['t'].values >=
+                                    features['t_start'].iloc[0]) &
+                                   (trajectory['t'].values <=
+                                    features['t_end'].iloc[0]))
+                        else:
+                            ind = np.array([True for i in range(
+                                trajectory.shape[0])])
+                        ax = plot_trajectory_with_gates_3d(
+                            trajectory=trajectory.iloc[ind, :],
+                            track=track,
+                            view=view,
+                            xlims=xlims,
+                            ylims=ylims,
+                            zlims=zlims,
+                        )
+
+                        ax.set_title(outpath)
+                        plt.savefig(outpath)
+                        plt.close(plt.gcf())
+                        ax = None
+
+        # Plot the drone state
+        if to_plot_state:
+            curr_state_filename = 'state_{}.jpg'.format(collider_name)
+            if not os.path.isfile(data_path + curr_state_filename):
+                plot_state(
+                    filepath_trajectory=data_path + 'trajectory.csv',
+                    filepath_reference=data_path + 'reference.csv',
+                    filepath_features=data_path + curr_feature_filename,
+                )
+                plt.savefig(data_path + curr_state_filename)
+                plt.close(plt.gcf())
+
+
 if to_process:
 
     for model in models:
 
         # Make a list of input logfiles of network trajectories.
-        log_filepaths = []
-        for w in os.walk(os.path.join(logfile_path, model)):
-            for f in w[2]:
-                if f.find('.csv') > 0:
-                    log_filepaths.append(os.path.join(w[0], f))
+        # log_filepaths = []
+        # for w in os.walk(os.path.join(logfile_path, model)):
+        #     for f in w[2]:
+        #         if f.find('.csv') > 0:
+        #             log_filepaths.append(os.path.join(w[0], f))
+        log_filepaths = sorted((logfile_path/model).rglob('*.csv'))
+        print('-------------')
+        pprint(log_filepaths)
 
         # Exclude the reference trajectory
-        log_filepaths = [f for f in log_filepaths if Path(
-            f).name != 'original.csv']
+        log_filepaths = [f for f in log_filepaths if f.name != 'original.csv']
+        print('-------------')
+        pprint(log_filepaths)
 
-        # Process individual trajectories flown by the network.
-        for filepath in sorted(log_filepaths):
-            print('..processing {}'.format(filepath))
-            reference_filepath = Path(filepath).parent/'original.csv'
-            # Make output folder
-            data_path = (filepath
-                         .replace('.csv', '/')
-                         .replace('/logs/', '/process/')
-                         .replace('trajectory_', '')
-                         )
-            make_path(data_path)
-            # Copy trajectory, reference, and track files to output folder
-            if not os.path.isfile(data_path + 'trajectory.csv'):
-                trajectory = trajectory_from_logfile(filepath=filepath)
-                trajectory.to_csv(data_path + 'trajectory.csv',
-                                  index=False)
-            if not os.path.isfile(data_path + 'reference.csv'):
-                reference = trajectory_from_logfile(filepath=reference_filepath)
-                reference.to_csv(data_path + 'reference.csv',
-                                  index=False)
-            if not os.path.isfile(data_path + 'track.csv'):
-                if filepath.find('wave') > -1:
-                    track_filepath = track_filepaths['wave']
-                else:
-                    track_filepath = track_filepaths['flat']
+        map = [(f.as_posix(), {})
+               for f in log_filepaths]
 
-                track = track_from_logfile(filepath=track_filepath)
-                # Make some adjustments
-                track['pz'] += 0.35 # shift gates up in fligthmare
-                track['dx'] = 0.
-                track['dy'] = 3 # in the middle of inner diameter 2.5 and outer 3.0
-                track['dz'] = 3 # in the middle of inner diameter 2.5 and outer 3.0
-                track.to_csv(data_path + 'track.csv',
-                             index=False)
-            # Save gate pass and collision events to output folder
-            if not os.path.isfile(data_path + 'events.csv'):
-                E = get_pass_collision_events(
-                    filepath_trajectory=data_path+'trajectory.csv',
-                    filepath_track=data_path+'track.csv')
-                E.to_csv(data_path + 'events.csv', index=False)
+        with Pool(num_parallel_processes) as p:
+            p.starmap(process_individual_run, map)
 
-            # Loop across collider conditions
-            for collider_name in collider_names:
-                curr_colliders = collider_dict[collider_name]
-                curr_feature_filename = 'features_{}.csv'.format(collider_name)
-
-                # Save performance features to output folder
-                if ((not os.path.isfile(data_path + curr_feature_filename))
-                        or (to_override == True)):
-                    P = extract_performance_features(
-                        filepath_trajectory=data_path + 'trajectory.csv',
-                        filepath_reference=data_path + 'reference.csv',
-                        filepath_events=data_path + 'events.csv',
-                        colliders=curr_colliders)
-                    P.to_csv(data_path + curr_feature_filename, index=False)
-
-                # Save trajectory plot to output folder
-                if to_plot_traj_3d:
-                    track = pd.read_csv(data_path + 'track.csv')
-                    trajectory = pd.read_csv(data_path + 'trajectory.csv')
-                    features = pd.read_csv(data_path + curr_feature_filename)
-                    for label in ['', 'valid_']:
-                        for view, xlims, ylims, zlims in [
-                                     [(45, 270), (-15, 19), (-17, 17), (-8, 8)],
-                                     # [(0, 270), (-15, 19), (-17, 17), (-12, 12)],
-                                     # [(0, 180), (-15, 19), (-17, 17), (-12, 12)],
-                                     # [(90, 270), (-15, 19), (-15, 15), (-12, 12)],
-                                ]:
-                            outpath = (data_path + '{}trajectory-with-gates_{}_'
-                                                   '{}x{}.jpg'
-                                       .format(label,
-                                               collider_name,
-                                               '%03d' % view[0],
-                                               '%03d' % view[1])
-                                       )
-                            if not os.path.isfile(outpath):
-                                if label == 'valid_':
-                                    ind = ((trajectory['t'].values >=
-                                           features['t_start'].iloc[0]) &
-                                           (trajectory['t'].values <=
-                                            features['t_end'].iloc[0]))
-                                else:
-                                    ind = np.array([True for i in range(
-                                        trajectory.shape[0])])
-                                ax = plot_trajectory_with_gates_3d(
-                                    trajectory=trajectory.iloc[ind, :],
-                                    track=track,
-                                    view=view,
-                                    xlims=xlims,
-                                    ylims=ylims,
-                                    zlims=zlims,
-                                )
-
-                                ax.set_title(outpath)
-                                plt.savefig(outpath)
-                                plt.close(plt.gcf())
-                                ax=None
-
-                # Plot the drone state
-                if to_plot_state:
-                    curr_state_filename = 'state_{}.jpg'.format(collider_name)
-                    if not os.path.isfile(data_path + curr_state_filename):
-                        plot_state(
-                            filepath_trajectory=data_path + 'trajectory.csv',
-                            filepath_reference=data_path + 'reference.csv',
-                            filepath_features=data_path + curr_feature_filename,
-                            )
-                        plt.savefig(data_path + curr_state_filename)
-                        plt.close(plt.gcf())
+        # # Process individual trajectories flown by the network.
+        # for filepath in sorted(log_filepaths):
+        #     print('..processing {}'.format(filepath))
+        #     reference_filepath = Path(filepath).parent/'original.csv'
+        #     # Make output folder
+        #     data_path = (filepath
+        #                  .replace('.csv', '/')
+        #                  .replace('/logs/', '/process/')
+        #                  .replace('trajectory_', '')
+        #                  )
+        #     make_path(data_path)
+        #     # Copy trajectory, reference, and track files to output folder
+        #     if not os.path.isfile(data_path + 'trajectory.csv'):
+        #         trajectory = trajectory_from_logfile(filepath=filepath)
+        #         trajectory.to_csv(data_path + 'trajectory.csv',
+        #                           index=False)
+        #     if not os.path.isfile(data_path + 'reference.csv'):
+        #         reference = trajectory_from_logfile(filepath=reference_filepath)
+        #         reference.to_csv(data_path + 'reference.csv',
+        #                           index=False)
+        #     if not os.path.isfile(data_path + 'track.csv'):
+        #         if filepath.find('wave') > -1:
+        #             track_filepath = track_filepaths['wave']
+        #         else:
+        #             track_filepath = track_filepaths['flat']
+        #
+        #         track = track_from_logfile(filepath=track_filepath)
+        #         # Make some adjustments
+        #         track['pz'] += 0.35 # shift gates up in fligthmare
+        #         track['dx'] = 0.
+        #         track['dy'] = 3 # in the middle of inner diameter 2.5 and outer 3.0
+        #         track['dz'] = 3 # in the middle of inner diameter 2.5 and outer 3.0
+        #         track.to_csv(data_path + 'track.csv',
+        #                      index=False)
+        #     # Save gate pass and collision events to output folder
+        #     if not os.path.isfile(data_path + 'events.csv'):
+        #         E = get_pass_collision_events(
+        #             filepath_trajectory=data_path+'trajectory.csv',
+        #             filepath_track=data_path+'track.csv')
+        #         E.to_csv(data_path + 'events.csv', index=False)
+        #
+        #     # Loop across collider conditions
+        #     for collider_name in collider_names:
+        #         curr_colliders = collider_dict[collider_name]
+        #         curr_feature_filename = 'features_{}.csv'.format(collider_name)
+        #
+        #         # Save performance features to output folder
+        #         if ((not os.path.isfile(data_path + curr_feature_filename))
+        #                 or (to_override == True)):
+        #             P = extract_performance_features(
+        #                 filepath_trajectory=data_path + 'trajectory.csv',
+        #                 filepath_reference=data_path + 'reference.csv',
+        #                 filepath_events=data_path + 'events.csv',
+        #                 colliders=curr_colliders)
+        #             P.to_csv(data_path + curr_feature_filename, index=False)
+        #
+        #         # Save trajectory plot to output folder
+        #         if to_plot_traj_3d:
+        #             track = pd.read_csv(data_path + 'track.csv')
+        #             trajectory = pd.read_csv(data_path + 'trajectory.csv')
+        #             features = pd.read_csv(data_path + curr_feature_filename)
+        #             for label in ['', 'valid_']:
+        #                 for view, xlims, ylims, zlims in [
+        #                              [(45, 270), (-15, 19), (-17, 17), (-8, 8)],
+        #                              # [(0, 270), (-15, 19), (-17, 17), (-12, 12)],
+        #                              # [(0, 180), (-15, 19), (-17, 17), (-12, 12)],
+        #                              # [(90, 270), (-15, 19), (-15, 15), (-12, 12)],
+        #                         ]:
+        #                     outpath = (data_path + '{}trajectory-with-gates_{}_'
+        #                                            '{}x{}.jpg'
+        #                                .format(label,
+        #                                        collider_name,
+        #                                        '%03d' % view[0],
+        #                                        '%03d' % view[1])
+        #                                )
+        #                     if not os.path.isfile(outpath):
+        #                         if label == 'valid_':
+        #                             ind = ((trajectory['t'].values >=
+        #                                    features['t_start'].iloc[0]) &
+        #                                    (trajectory['t'].values <=
+        #                                     features['t_end'].iloc[0]))
+        #                         else:
+        #                             ind = np.array([True for i in range(
+        #                                 trajectory.shape[0])])
+        #                         ax = plot_trajectory_with_gates_3d(
+        #                             trajectory=trajectory.iloc[ind, :],
+        #                             track=track,
+        #                             view=view,
+        #                             xlims=xlims,
+        #                             ylims=ylims,
+        #                             zlims=zlims,
+        #                         )
+        #
+        #                         ax.set_title(outpath)
+        #                         plt.savefig(outpath)
+        #                         plt.close(plt.gcf())
+        #                         ax=None
+        #
+        #         # Plot the drone state
+        #         if to_plot_state:
+        #             curr_state_filename = 'state_{}.jpg'.format(collider_name)
+        #             if not os.path.isfile(data_path + curr_state_filename):
+        #                 plot_state(
+        #                     filepath_trajectory=data_path + 'trajectory.csv',
+        #                     filepath_reference=data_path + 'reference.csv',
+        #                     filepath_features=data_path + curr_feature_filename,
+        #                     )
+        #                 plt.savefig(data_path + curr_state_filename)
+        #                 plt.close(plt.gcf())
 
 
 # Collect performance metrics across runs
@@ -735,7 +857,7 @@ if to_plot_reference:
     track['dz'] = 3
     # Load reference and downsample to 20 Hz
     reference = trajectory_from_logfile(
-        filepath=reference_filepath)
+        filepath=(base_path/'analysis'/'tracks'/'flat.csv').as_posix())
     sr = 1 / np.nanmedian(np.diff(reference.t.values))
     reference = reference.iloc[np.arange(0, reference.shape[0], int(sr / 20)), :]
     # Plot reference, track, and format figure.
