@@ -13,7 +13,7 @@ from analysis.utils import *
 colliders = 'gate-wall'
 
 # Process new logfiles.
-outpath = base_path/'analysis'/'tmp'/'performance.csv'
+outpath = base_path/'analysis'/colliders/'subject_performance.csv'
 if not outpath.exists():
     filepaths = sorted((base_path/'analysis'/'process').rglob(
         '*/features_{}.csv'.format(colliders)))
@@ -39,8 +39,8 @@ if not outpath.exists():
     data.to_csv(outpath, index=False)
 
 # Extract performance from logfiles.
-inpath = base_path/'analysis'/'tmp'/'performance.csv'
-outpath = base_path/'analysis'/'tmp'/'summary.csv'
+inpath = base_path/'analysis'/colliders/'subject_performance.csv'
+outpath = base_path/'analysis'/colliders/'summary.csv'
 if (inpath.exists()) & (not outpath.exists()):
     data = pd.read_csv(inpath)
     ddict={}
@@ -88,9 +88,9 @@ if (inpath.exists()) & (not outpath.exists()):
 # Plot performance tables and figure.
 to_plot_performance = False
 if to_plot_performance:
-    inpath = base_path/'analysis'/'tmp'/'performance.csv'
-    inpath2 = base_path/'analysis'/'tmp'/'summary.csv'
-    outpath = base_path/'analysis'/'tmp'/'plots'
+    inpath = base_path/'analysis'/colliders/'subject_performance.csv'
+    inpath2 = base_path/'analysis'/colliders/'summary.csv'
+    outpath = base_path/'analysis'/colliders/'plots'
     if inpath2.exists():
         # Load performance data
         data = pd.read_csv(inpath)
@@ -204,8 +204,8 @@ if to_plot_performance:
 # Plot proportion of successful laps for each of the tracks
 to_plot_dist_successful_flight = False
 if to_plot_dist_successful_flight:
-    inpath = base_path/'analysis'/'tmp'/'summary.csv'
-    outpath = base_path/'analysis'/'tmp'/'success_by_subject.csv'
+    inpath = base_path/'analysis'/colliders/'summary.csv'
+    outpath = base_path/'analysis'/colliders/'success_by_subject.csv'
     if inpath.exists():
         summary = pd.read_csv(inpath)
         ddict={}

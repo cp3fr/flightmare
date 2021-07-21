@@ -32,3 +32,5 @@ flightros
 
 # PyCharm
 .idea
+/analysis/process/
+/analysis/performance/
