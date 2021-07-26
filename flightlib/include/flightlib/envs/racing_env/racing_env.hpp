@@ -18,6 +18,7 @@
 
 // flightlib
 #include "flightlib/envs/env_base_camera.hpp"
+#include "flightlib/objects/static_object.hpp"
 #include "flightlib/objects/static_gate.hpp"
 
 namespace flightlib {
@@ -88,12 +89,13 @@ class RacingEnv final : public EnvBaseCamera {
 
   // gates
   // std::shared_ptr<StaticGate> gates_[racingenv::num_gates];
-  std::vector<std::shared_ptr<StaticGate>> gates_;
+  std::vector<std::shared_ptr<StaticObject>> gates_;
 
   std::vector<std::vector<Scalar>> test_yaml_;
   int num_gates_{0};
   std::vector<std::vector<Scalar>> gate_positions_;
   std::vector<std::vector<Scalar>> gate_orientations_;
+  std::vector<std::string> gate_types_;
 
   // constants?
   float POSITIONS[racingenv::num_gates][3] = {
