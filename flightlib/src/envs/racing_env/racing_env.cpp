@@ -39,6 +39,7 @@ RacingEnv::RacingEnv(const std::string &cfg_path, const bool rendering_only) {
   if (rendering_only) {
     B_r_BC = Vector<3>(0.0, 0.0, 0.0);
     R_BC = Quaternion(std::cos(-0.5 * M_PI_2), 0.0, 0.0, std::sin(-0.5 * M_PI_2)).toRotationMatrix();
+    // R_BC = Quaternion(1.0, 0.0, 0.0, 0.0).toRotationMatrix();
   } else {
     // airsim
     B_r_BC = Vector<3>(0.2, 0.0, 0.1);
@@ -79,7 +80,9 @@ RacingEnv::RacingEnv(const std::string &cfg_path, const bool rendering_only) {
 
   Quaternion ttmp(std::cos(-0.5 * M_PI_2), 0.0, 0.0, std::sin(-0.5 * M_PI_2));
   for (int i = 0; i < num_gates_; i++) {
-    gates_.push_back(std::make_shared<StaticGate>("racing_gate_" + std::to_string(i), "rpg_gate"));
+    // gates_.push_back(std::make_shared<StaticGate>("racing_gate_" + std::to_string(i), "rpg_gate"));
+    // gates_.push_back(std::make_shared<StaticObject>("liftoff_gate_" + std::to_string(i), "liftoff_gate"));
+    gates_.push_back(std::make_shared<StaticObject>("liftoff_gate_" + std::to_string(i), gate_types_[i]));
     // gates_[i] = std::make_shared<StaticGate>("test_gate_" + std::to_string(i), "rpg_gate");
     gates_[i]->setPosition(Eigen::Vector3f(gate_positions_[i].data()));
     Quaternion actual(gate_orientations_[i].data());
@@ -271,10 +274,14 @@ bool RacingEnv::loadParam(const YAML::Node &cfg) {
 
     gate_positions_ = cfg["track"]["positions"].as<std::vector<std::vector<Scalar>>>();
     gate_orientations_ = cfg["track"]["orientations"].as<std::vector<std::vector<Scalar>>>();
+    gate_types_ = cfg["track"]["types"].as<std::vector<std::string>>();
 
     num_gates_ = gate_positions_.size();
     if (num_gates_ != gate_orientations_.size()) {
-      std::cout << "WARNING: Length of provided positions and orientations does not match." << std::endl;
+      std::cout << "WARNING: Length of provided gate positions and orientations does not match." << std::endl;
+      return false;
+    } else if (num_gates_ != gate_types_.size()) {
+      std::cout << "WARNING: Length of provided gate positions and types does not match." << std::endl;
       return false;
     }
 

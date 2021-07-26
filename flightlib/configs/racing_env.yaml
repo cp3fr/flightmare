@@ -48,3 +48,15 @@ track:
   # TODO: probably add info about the "format" of at least the orientation, because right now it
   #  is hard-coded to be rotated by -90° (because for some reason this has to be done in Flightmare
   #  coming from the original data, but just for the gates...)
+  types: [
+    "rpg_gate",
+    "rpg_gate",
+    "rpg_gate",
+    "rpg_gate",
+    "rpg_gate",
+    "rpg_gate",
+    "rpg_gate",
+    "rpg_gate",
+    "rpg_gate",
+    "rpg_gate",
+  ]
