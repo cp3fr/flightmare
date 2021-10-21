@@ -1468,3 +1468,13 @@ def process_individual_run(
                 plt.savefig(data_path + curr_state_filename)
                 plt.close(plt.gcf())
 
+def confidence_interval(x,axis=0):
+    """Computes the 95% confidence interval of the standard error of means."""
+    m = np.nanmean(x,axis=axis)
+    s = np.nanstd(x,axis=axis,ddof=1) / np.sqrt(x.shape[axis])
+    cl = m - 1.96 * s
+    cu = m + 1.96 * s
+    if axis==0:
+        return np.vstack((cl,cu))
+    else:
+        return np.vstack((cl,cu)).T

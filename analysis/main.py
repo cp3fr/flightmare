@@ -3,7 +3,6 @@ import sys
 
 from pathlib import Path
 
-# Add base path
 base_path = Path(os.getcwd().split('/flightmare/')[0]+'/flightmare/')
 sys.path.insert(0, base_path.as_posix())
 
