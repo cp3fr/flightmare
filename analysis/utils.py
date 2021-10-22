@@ -1094,9 +1094,9 @@ def plot_state(
     reference = reference.iloc[ind, :]
 
     if ax == None:
-        fig , axs = plt.subplots(3, 1)
+        fig , axs = plt.subplots(4, 1)
         fig.set_figwidth(15)
-        fig.set_figheight(15)
+        fig.set_figheight(20)
     else:
         axs = [ax]
 
@@ -1147,6 +1147,24 @@ def plot_state(
     axs[iax].legend(['trajectory vx', 'trajectory vy', 'trajectory vz',
                      'reference vx', 'reference vy', 'reference vz', ],
                     loc='upper right')
+
+    iax += 1
+    axs[iax].plot(trajectory.t, trajectory.throttle_nw, 'k-',label='nw throttle')
+    axs[iax].plot(trajectory.t, trajectory.roll_nw, 'r-',label='nw roll')
+    axs[iax].plot(trajectory.t, trajectory.pitch_nw, 'g-',label='nw pitch')
+    axs[iax].plot(trajectory.t, trajectory.yaw_nw, 'b-',label='nw yaw')
+    axs[iax].plot(trajectory.t, trajectory.throttle_mpc, 'k--', label='mpc throttle')
+    axs[iax].plot(trajectory.t, trajectory.roll_mpc, 'r--', label='mpc roll')
+    axs[iax].plot(trajectory.t, trajectory.pitch_mpc, 'g--', label='mpc pitch')
+    axs[iax].plot(trajectory.t, trajectory.yaw_mpc, 'b--', label='mpc yaw')
+    ind=trajectory.network_used.values==1
+    axs[iax].plot(trajectory.loc[ind,'t'].values, trajectory.loc[ind,'network_used'].values,
+        'mo', lw=4, label='network used')
+    axs[iax].set_xlabel('Time [sec]')
+    axs[iax].set_ylabel('Control commands')
+    axs[iax].legend(loc='upper right')
+
+
     return axs
 
 
