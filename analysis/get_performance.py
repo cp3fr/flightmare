@@ -162,3 +162,17 @@ for n in ['train','test']:
     print(n.upper())
     print(t)
     print()
+
+
+#todo: plot command prediction image and attention models
+p=p.sort_values(by=['throttle_error_mse'])
+for i in range(p.shape[0]):
+    print(p['throttle_error_mse'].iloc[i], p['filepath'].iloc[i])
+
+
+
+
+
+
+#todo: plot training and test trajectories
+

@@ -14,16 +14,16 @@ def main():
     and gate passes, extract performance features and makes some plots."""
     # What to do.
     to_process = True
-    to_performance = False
-    to_table = False
+    to_performance = True
+    to_table = True
     to_override = False
-    to_plot_traj_3d = True
+    to_plot_traj_3d = False
     to_plot_state = True
-    to_plot_reference = False
+    to_plot_reference = True
     to_plot_reference_with_decision = False
     to_collect_results=True
     # Some settings.
-    num_parallel_processes = 8
+    num_parallel_processes = 1
     collider_names = ['gate-wall', 'wall']
     collider_dict = {'gate-wall': ['gate', 'wall'],
                      'wall': ['wall']}
@@ -56,7 +56,7 @@ def main():
             # Exclude the reference trajectory
             log_filepaths = [f for f in log_filepaths if f.name != 'original.csv']
 
-            map = [(f.as_posix(), to_override)
+            map = [(f.as_posix(), to_override, to_plot_traj_3d, to_plot_state)
                    for f in log_filepaths]
 
             with Pool(num_parallel_processes) as p:
