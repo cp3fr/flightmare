@@ -10,6 +10,10 @@ sys.path.insert(0, base_path.as_posix())
 
 from analysis.utils import *
 
+#todo: get data from offline control command predictions by the network (simon)
+#todo: run again main.py and export these data to process and performance folders
+#todo: collect again performance summary, now compute TRPY MSE/L1 using this offline data
+#todo: update the tables showing these results
 
 path={}
 path['logs']=base_path/'analysis'/'logs'
@@ -165,13 +169,12 @@ for n in ['train','test']:
 
 
 #todo: plot command prediction image and attention models
-p=p.sort_values(by=['throttle_error_mse'])
-for i in range(p.shape[0]):
-    print(p['throttle_error_mse'].iloc[i], p['filepath'].iloc[i])
+# p=p.sort_values(by=['throttle_error_mse'])
+# for i in range(p.shape[0]):
+#     print(p['throttle_error_mse'].iloc[i], p['filepath'].iloc[i])
 
 
-
-
+#todo: plot the tracking error (norm) as functionof track progress for each model
 
 
 #todo: plot training and test trajectories

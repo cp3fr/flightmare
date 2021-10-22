@@ -14,14 +14,14 @@ def main():
     and gate passes, extract performance features and makes some plots."""
     # What to do.
     to_process = True
-    to_performance = True
-    to_table = True
+    to_performance = False
+    to_table = False
     to_override = False
-    to_plot_traj_3d = False
+    to_plot_traj_3d = True
     to_plot_state = True
-    to_plot_reference = True
+    to_plot_reference = False
     to_plot_reference_with_decision = False
-    to_collect_results=True
+    to_collect_results=False
     # Some settings.
     num_parallel_processes = 1
     collider_names = ['gate-wall', 'wall']
