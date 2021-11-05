@@ -122,17 +122,28 @@ bool RacingEnv::step(const Ref<Vector<>> action) {
 }
 
 bool RacingEnv::getImage(Ref<ImageFlat<>> image) {
+  // std::cout << "C++ test 1" << std::endl;
   if (unity_render_ && unity_ready_) {
+    // std::cout << "C++ test 2" << std::endl;
     bool rgb_success = rgb_camera_->getRGBImage(cv_image_);
+    // std::cout << "C++ test 3" << std::endl;
     if (rgb_success) {
       // std::cout << "Got RGB successfully" << std::endl;
       ImageChannel<> image_channels_[3];
+      // std::cout << "C++ test 3.1 " << " " << cv_image_.rows << " " << cv_image_.cols << std::endl;
       cv::split(cv_image_, cv_channels_);
+      // std::cout << "C++ test 4 " << image.size() << " " << image.rows() << " " << image.cols() << std::endl;
+      // cv::imwrite("/home/simon/Pictures/test.png", cv_image_);
       for (int i = 0; i < cv_image_.channels(); i++) {
+        // std::cout << "C++ test 4.0 " << " " << cv_channels_[i].rows << " " << cv_channels_[i].cols << std::endl;
+        // std::cout << "C++ test 4.1 " << image_channels_[i].size() << " " << image_channels_[i].rows() << " " << image_channels_[i].cols() << std::endl;
         cv::cv2eigen(cv_channels_[i], image_channels_[i]);
         Map<ImageFlat<>> image_(image_channels_[i].data(), image_channels_[i].size());
+        // std::cout << "C++ test 4.2 " << image_.size() << " " << image_.rows() << " " << image_.cols() << std::endl;
         image.block(i * image_height_ * image_width_, 0, image_height_ * image_width_, 1) = image_;
+        // std::cout << "C++ test 4.3" << std::endl;
       }
+      // std::cout << "C++ test 5" << std::endl;
     } else {
       // std::cout << "Did not get RGB" << std::endl;
     }

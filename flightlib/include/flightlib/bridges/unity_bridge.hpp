@@ -51,6 +51,7 @@ class UnityBridge {
 
   // public set functions
   bool setScene(const SceneID &scene_id);
+  // bool setCameraParameters(Scalar fov, int width, int height);
 
   // add object
   bool addQuadrotor(std::shared_ptr<Quadrotor> quad);

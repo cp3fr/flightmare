@@ -143,6 +143,8 @@ bool UnityBridge::getRender(const FrameID frame_id) {
     pub_msg_.objects[idx].rotation = quaternionRos2Unity(gate->getQuaternion());
   }
 
+  // TODO: could probably update camera in a similar way...
+
   // create new message object
   zmqpp::message msg;
   // add topic header
@@ -164,6 +166,17 @@ bool UnityBridge::setScene(const SceneID& scene_id) {
   settings_.scene_id = scene_id;
   return true;
 }
+
+/*
+bool UnityBridge::setCameraParameters(Scalar fov, int width, int height) {
+  for (size_t idx = 0; idx < pub_msg_.cameras.size(); idx++) {
+    pub_msg_.cameras[idx].fov = fov;
+    pub_msg_.cameras[idx].width = width;
+    pub_msg_.cameras[idx].height = height;
+  }
+  return true;
+}
+*/
 
 bool UnityBridge::addQuadrotor(std::shared_ptr<Quadrotor> quad) {
   Vehicle_t vehicle_t;
