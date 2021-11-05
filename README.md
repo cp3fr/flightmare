@@ -101,7 +101,7 @@ As mentioned above, this repository re-implements DDA to work with Flightmare. H
 
 ### Prerequisites
 
-The training is performed by loading a trajectory (or multiple) from CSV file(s) and then flying that trajectory (these trajectories) repeatedly. Some trajectories from the [AlphaPilot dataset](https://osf.io/gvdse/wiki/home/) are included in `dda-inputs.tar.gz`. Also included are checkpoints for the attention/gaze prediction models used by some of the implemented models that can be trained for DDA.
+The training is performed by loading a trajectory (or multiple) from CSV file(s) and then flying that trajectory (these trajectories) repeatedly. Some trajectories from the [AlphaPilot dataset](https://osf.io/gvdse/wiki/home/) are included in `dda-inputs`, which will be stored on one of the RPG servers. Also included are checkpoints for the attention/gaze prediction models used by some of the implemented models that can be trained for DDA.
 
 These trajectories should be specified as absolute paths in the specification YAML file. In contrast, the output data is stored relative to the environment variable `DDA_ROOT`. An additional environment variable that should be set is `FLIGHTMARE_PATH`, which should point to the root of this repository.
 
@@ -127,4 +127,4 @@ An example use of the testing script would be to go to `flightil/dda` and run:
 python test.py -mlp <path_to_last_model_checkpoint> -tp $DDA_INPUTS_PATH/mtt_total_median/flat/test
 ```
 
-This would run the specified model on the test trajectories included in `dda-inputs.tar.gz` (if they have been extracted to `DDA_INPUTS_PATH`). For more options of the testing script, see the script itself (or `python test.py -h`). 
+This runs the specified model on the test trajectories included in `dda-inputs` (should be backed up by RPG). For more options of the testing script, see the script itself (or `python test.py -h`). 
