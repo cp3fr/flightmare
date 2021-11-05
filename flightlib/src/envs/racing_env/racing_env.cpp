@@ -203,8 +203,16 @@ void RacingEnv::getState(Ref<Vector<>> state) {
 bool RacingEnv::render() {
   // std::cout << "Quad state on render:" << std::endl << quad_state_.x.segment(0, 7) << std::endl;
   if (unity_render_ && unity_ready_) {
-    unity_bridge_ptr_->getRender(render_counter_);
-    unity_bridge_ptr_->handleOutput();
+    bool test_ = false;
+    int c_ = 0;
+    // unity_bridge_ptr_->getRender(render_counter_);
+    do {
+      // std::cout << "attempting to render and get output " << c_ << std::endl;
+      unity_bridge_ptr_->getRender(render_counter_);
+      test_ = unity_bridge_ptr_->handleOutput();
+      // std::cout << "after rendeirng/output " << c_ << ", result is: " << test_ << std::endl;
+      c_++;
+    } while (!test_);
     render_counter_++;
   } else {
     std::cout << "WARNING: Unity rendering not available; cannot get images." << std::endl;

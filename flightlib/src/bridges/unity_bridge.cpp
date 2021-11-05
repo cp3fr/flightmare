@@ -25,6 +25,7 @@ bool UnityBridge::initializeConnections() {
 
   // create and bind a download_socket
   sub_.set(zmqpp::socket_option::receive_high_water_mark, 6);
+  sub_.set(zmqpp::socket_option::receive_timeout, 1000);
   sub_.bind(client_address_ + ":" + sub_port_);
 
   // subscribe all messages from ZMQ
@@ -143,7 +144,7 @@ bool UnityBridge::getRender(const FrameID frame_id) {
     pub_msg_.objects[idx].rotation = quaternionRos2Unity(gate->getQuaternion());
   }
 
-  // TODO: could probably update camera in a similar way...
+  // std::cout << "sending rendering request with frame ID " << pub_msg_.frame_id << std::endl;
 
   // create new message object
   zmqpp::message msg;
@@ -242,17 +243,36 @@ bool UnityBridge::handleOutput() {
 
   int received_frame_id = -1;
 
+  // std::cout << "listening for response" << std::endl;
+
   while (received_frame_id != pub_msg_.frame_id) {
-      sub_.receive(msg);
-      // unpack message metadata
-      std::string json_sub_msg = msg.get(0);
-      // parse metadata
-      sub_msg = json::parse(json_sub_msg);
-      received_frame_id = sub_msg.frame_id;
+      // bool got_message = sub_.receive(msg, true);
+      bool got_message = sub_.receive(msg);
+      if (!got_message) {
+        return false;
+      }
+      //if (got_message) {
+        // unpack message metadata
+        std::string json_sub_msg = msg.get(0);
+        // parse metadata
+        sub_msg = json::parse(json_sub_msg);
+        received_frame_id = sub_msg.frame_id;
+
+        // std::cout << "received response with frame ID " << received_frame_id << " (expected " << pub_msg_.frame_id << ")" << std::endl;
+      //} else {
+      //  break;
+      //}
+  }
+
+  if (received_frame_id == -1) {
+    // std::cout << "failed to receive rendering output" << std::endl;
+    return false;
   }
 
   // std::cout << "Current sent frame ID: " << pub_msg_.frame_id << std::endl;
   // std::cout << "Current received frame ID: " << sub_msg.frame_id << std::endl;
+
+  // std::cout << "handle output 0" << std::endl;
 
 
   size_t image_i = 1;
@@ -261,11 +281,20 @@ bool UnityBridge::handleOutput() {
     // update vehicle collision flag
     unity_quadrotors_[idx]->setCollision(sub_msg.sub_vehicles[idx].collision);
 
+    // std::cout << "vehicle start " << idx << std::endl;
+    int cam_idx = 0;
+
     // feed image data to RGB camera
     for (const auto& cam : settings_.vehicles[idx].cameras) {
+
+      // std::cout << "cam start " << cam_idx << std::endl;
+      cam_idx++;
       for (size_t layer_idx = 0; layer_idx <= cam.enabled_layers.size();
            layer_idx++) {
+
+        //std::cout << "layer start " << layer_idx << std::endl;
         if (!layer_idx == 0 && !cam.enabled_layers[layer_idx - 1]) continue;
+        //std::cout << "layer used " << layer_idx << std::endl;
 
         if (layer_idx == 1) {
           // depth
@@ -292,31 +321,43 @@ bool UnityBridge::handleOutput() {
 
 
         } else if (layer_idx == 3) {
+            //std::cout << "handle output 1" << std::endl;
             // optiindexing c++cal flow
             uint32_t image_len = cam.width * cam.height * sizeof(float_t) * 2;
             // doesn't really matter which type we take, but since we wrote "raw bytes"
             // in Unity, we might as well read them here as well
             const uint8_t* image_data;
 
+            //std::cout << "handle output 2" << std::endl;
+
             // just get the raw binary data stored in the message (I guess at index image_i?)
             msg.get(image_data, image_i);
+
+            //std::cout << "handle output 3" << std::endl;
 
             image_i = image_i + 1;
 
             // Pack image into cv::Mat
             // cv::Mat new_image = cv::Mat(cam.height, cam.width, CV_MAKETYPE(CV_32F, 2));
             cv::Mat new_image = cv::Mat(cam.height, cam.width, CV_32FC2);
+            //std::cout << "handle output 4" << std::endl;
 
             // copy the raw data directly over from the "buffer" to the OpenCV matrix
             memcpy(new_image.data, image_data, image_len);
 
+            //std::cout << "handle output 5" << std::endl;
+
             // flip from Unity to OpenCV coordinates
             cv::flip(new_image, new_image, 0);
+
+            //std::cout << "handle output 6" << std::endl;
 
 
             unity_quadrotors_[idx]
                 ->getCameras()[cam.output_index]
                 ->feedImageQueue(layer_idx, new_image);
+
+            //std::cout << "handle output 7" << std::endl;
         } else {
           uint32_t image_len = cam.width * cam.height * cam.channels;
           // Get raw image bytes from ZMQ message.
@@ -346,6 +387,7 @@ bool UnityBridge::handleOutput() {
       }
     }
   }
+  //std::cout << "handle output 8" << std::endl;
   return true;
 }
 
