@@ -1305,7 +1305,8 @@ def plot_trajectory_with_gates_3d(
     Make a 3D trajectory plot with gates
     """
     if ax==None:
-        fig, ax =plt.subplots(1,1,1)
+        fig=plt.figure()
+        ax=fig.add_subplot(1,1,1,projection='3d')
     if trajectory.shape[0] > 1:
         trajectory_sampling_rate = 1 / np.nanmedian(np.diff(trajectory.t.values))
         step_size = int(trajectory_sampling_rate / sampling_rate)
