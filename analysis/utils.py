@@ -1393,6 +1393,9 @@ def process_individual_run(
         track_filepaths={'flat': './tracks/flat.csv',
                          'wave': './tracks/wave.csv'},
         ) -> None:
+    """Processes individual flight data logs: loading raw csv logs,
+    track information, converts to standard format, computes gate passing
+    events, plots drone states etc."""
     if isinstance(filepath,str):
         filepath=Path(filepath)
     print('..processing {}'.format(filepath))

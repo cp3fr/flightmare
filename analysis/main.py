@@ -6,11 +6,30 @@ sys.path.insert(0, base_path.as_posix())
 from analysis.utils import *
 
 
+def process(
+        path,
+        num_parallel_processes=1,
+        to_override=False,
+        to_plot_traj_3d=False,
+        to_plot_state=False,
+        exclude=['original.csv'],
+    ) -> None:
+    """Process raw files in parallel."""
+    f = sorted(path.rglob('*.csv'))
+    for n in exclude:
+        f = [_f for _f in f if _f.name != n]
+    map = [(_f, to_override, to_plot_traj_3d, to_plot_state) for _f in f]
+    with Pool(num_parallel_processes) as p:
+        p.starmap(process_individual_run, map)
+
+
+
+
 def main(
     to_process = True,
     to_override = False,
     to_plot_traj_3d = True,
-    to_plot_state = False,
+    to_plot_state = True,
     num_parallel_processes = 1,
     to_performance = False,
     to_table = False,
@@ -27,28 +46,13 @@ def main(
     models = [f.name for f in logfile_path.glob('*/')]
 
 
-    def process(
-            path,
-            num_parallel_processes=1,
-            to_override=False,
-            to_plot_traj_3d=False,
-            to_plot_state=False,
-            exclude=['original.csv'],
-            ):
-        """Process raw files in parallel."""
-        f=sorted(path.rglob('*.csv'))
-        for n in exclude:
-            f=[_f for _f in f if _f.name!=n]
-        map = [(_f, to_override, to_plot_traj_3d, to_plot_state) for _f in f]
-        with Pool(num_parallel_processes) as p:
-            p.starmap(process_individual_run, map)
     for m in models:
         print(logfile_path/m)
-        process(logfile_path/m,
-                num_parallel_processes,
-                to_override,
-                to_plot_traj_3d,
-                to_plot_state)
+        #todo: computer freezes if more than 1 parallel process, because
+        # of plotting trajectory 3d and plotting of state, needs debugging.
+        process(path=logfile_path/m,num_parallel_processes=1,to_override=
+            to_override,to_plot_traj_3d=to_plot_traj_3d,to_plot_state=
+            to_plot_state)
 
 
     # if to_process:
