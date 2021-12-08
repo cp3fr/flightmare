@@ -9,14 +9,6 @@ from PIL import Image
 from pprint import pprint
 
 
-def make_path(f):
-    """Makes a filepath after checking if it already exists."""
-    if isinstance(f,str):
-        f=Path(f)
-    if not f.exists():
-        f.mkdir(parents=True, exist_ok=True)
-
-
 def feature2image(x,xres,yres,minval=None,maxval=None):
     """Feature vector to PIL image."""
     if minval is None:

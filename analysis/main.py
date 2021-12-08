@@ -23,16 +23,577 @@ def process(
         p.starmap(process_individual_run, map)
 
 
+def compute_performance(
+        collider_name,
+        models,
+    ) -> pd.DataFrame:
+    """"Collects flight performance metrics across different flight datasets."""
+    curr_feature_filename = 'features_{}.csv'.format(collider_name)
+    performance = pd.DataFrame([])
+    for model in models:
+        filepaths = []
+        for w in os.walk('./process/'+model+'/'):
+            for f in w[2]:
+                if f==curr_feature_filename:
+                    filepaths.append(os.path.join(w[0], f))
+        for filepath in filepaths:
+            print('..collecting performance: {}'.format(filepath))
+            df =  pd.read_csv(filepath)
+            # Get model and run information from filepath
+            strings = (
+                df['filepath'].iloc[0]
+                    .split('/process/')[-1]
+                    .split('/trajectory.csv')[0]
+                    .split('/')
+            )
+            if len(strings) == 2:
+                strings.insert(1, 's016_r05_flat_li01_buffer20')
+            # Load the yaml file
+            yamlpath = None
+            config = None
+            yamlcount = 0
+            for w in os.walk('./logs/'+model+'/'):
+                for f in w[2]:
+                    if f.find('.yaml')>-1:
+                        yamlpath = os.path.join(w[0], f)
+                        yamlcount += 1
+            if yamlpath is not None:
+                with open(yamlpath, 'r') as stream:
+                    try:
+                        config = yaml.safe_load(stream)
+                    except yaml.YAMLError as exc:
+                        print(exc)
+                        config = None
+            # Make Data dictionnairy for the output
+            ddict = {}
+            ddict['model_name'] = strings[0]
+            ddict['has_dda'] = int(strings[0].find('dda') > -1)
+            if ((strings[2].find('mpc_nw_act') > -1) &
+                (filepath.find('mpc_nw_act') > -1)):
+                ddict['has_network_used'] = 0
+            else:
+                ddict['has_network_used'] = 1
+
+            ddict.setdefault('has_yaml', 0)
+            ddict.setdefault('has_ref', 0)
+            if config is not None:
+                ddict['has_yaml'] = 1
+                if 'no_ref' in config['train']:
+                    ddict['has_ref'] = int(config['train']['no_ref'] == False)
+                # Which drone state inputs were used.
+                ddict['has_state_q'] = 0
+                ddict['has_state_v'] = 0
+                ddict['has_state_w'] = 0
+                if 'use_imu' in config['train']:
+                    if config['train']['use_imu'] == True:
+                        ddict['has_state_q'] = 1
+                        ddict['has_state_v'] = 1
+                        ddict['has_state_w'] = 1
+                        if 'imu_no_rot' in config['train']:
+                            if config['train']['imu_no_rot'] == True:
+                                ddict['has_state_q'] = 0
+                        if 'imu_no_vels' in config['train']:
+                            if config['train']['imu_no_vels'] == True:
+                                ddict['has_state_v'] = 0
+                                ddict['has_state_w'] = 0
+                # Whether image features were used.
+                ddict.setdefault('has_img', 0)
+                if 'use_images' in config['train']:
+                    ddict['has_img']=int(config['train']['use_images'])
+                else:
+                    if strings[0].find('_img')>-1:
+                        ddict['has_img']=1
+                # Whether feature tracks were used.
+                ddict.setdefault('has_fts', 0)
+                if 'use_fts_tracks' in config['train']:
+                    ddict['has_fts'] = int(
+                        config['train']['use_fts_tracks'])
+                # Whether encoder features were used.
+                ddict.setdefault('has_encfts', 0)
+                if 'attention_fts_type' in config['train']:
+                    if config['train']['attention_fts_type'] == \
+                            'encoder_fts':
+                        ddict['has_encfts'] = 1
+                # Whether decoder features were used.
+                ddict.setdefault('has_decfts', 0)
+                if 'attention_fts_type' in config['train']:
+                    if config['train']['attention_fts_type'] == \
+                            'decoder_fts':
+                        ddict['has_deccfts'] = 1
+                # Whether gaze tracks used.
+                ddict.setdefault('has_gztr', 0)
+                if 'attention_fts_type' in config['train']:
+                    if config['train']['attention_fts_type'] == \
+                            'gaze_tracks':
+                        ddict['has_gztr'] = 1
+                # Whether attention branching was used
+                ddict.setdefault('has_attbr', 0)
+                if 'attention_branching' in config['train']:
+                    if config['train']['attention_branching'] == True:
+                        ddict['has_attbr'] = 1
+                # Size of the time buffer used.
+                ddict.setdefault('buffer', 0)
+                if 'start_buffer' in config['simulation']:
+                    ddict['buffer'] = config['simulation']['start_buffer']
+            # Update the buffer time.
+            ddict['buffer'] = float(strings[1].split('buffer')[-1]) / 10
+            ddict['subject'] = int(
+                strings[1].split('_')[0].split('-')[2].split('s')[-1])
+            # Whether data is training or testing data.
+            ddict.setdefault('has_train',0)
+            ddict['has_train']=int(strings[1].split('_')[0].split(
+                '-')[3]=='train')
+            ddict.setdefault('has_test', 0)
+            ddict['has_test']=int(strings[1].split('_')[0].split(
+                '-')[3]=='test')
+            # Dataset information
+            ddict['run'] = int(strings[1].split('_')[1].replace('r',''))
+            ddict['track'] = strings[1].split('_')[0].split('-')[1]
+            li_string = strings[1].split('_')[2].replace('li','')
+            if li_string.find('-')>-1:
+                ddict['li'] = int(li_string.split('-')[0])
+                ddict['num_laps'] = (int(li_string.split('-')[-1]) -
+                                     int(li_string.split('-')[0]) + 1)
+            else:
+                ddict['li'] = int(li_string)
+                ddict['num_laps'] = 1
+            if ddict['has_dda'] == 0:
+                if strings[2] == 'reference_mpc':
+                    ddict['mt'] = -1
+                    ddict['st'] = 0
+                    ddict['repetition'] = 0
+                else:
+                    ddict['mt'] = -1
+                    ddict['st'] = int(strings[2].split('_')[1].split('switch-')[-1])
+                    ddict['repetition'] = int(strings[2].split('_')[-1])
+            else:
+                if strings[0].find('dda_offline')>-1:
+                    ddict['mt'] = -1
+                    ddict['st'] = int(strings[2].split('_')[1].split('st-')[-1])
+                    ddict['repetition'] = int(strings[2].split('_')[-1])
+                elif strings[2].find('mpc_eval_nw')>-1:
+                    ddict['mt'] = -1
+                    ddict['st'] = -1
+                    ddict['repetition'] = 0
+                elif strings[2].find('mpc_nw_act')>-1:
+                    ddict['mt'] = -1
+                    ddict['st'] = -1
+                    ddict['repetition'] = 0
+                else:
+                    ddict['mt'] = int(strings[2].split('_')[1].split('mt-')[-1])
+                    ddict['st'] = int(strings[2].split('_')[2].split('st-')[-1])
+                    ddict['repetition'] = int(strings[2].split('_')[-1])
+            # Add data dictionnairy as output row
+            for k in sorted(ddict):
+                df[k] = ddict[k]
+            performance = performance.append(df)
+    return performance
+
+
+#todo: figure out what "mpc_nw_act" vs "mpc2nw" means and label accordingly
+def make_performance_table(
+        collider_name,
+        curr_path,
+        performance,
+        online_name,
+        trajectory_name
+    ):
+    print('----------------')
+    print(online_name, trajectory_name)
+    print('----------------')
+
+    # Subject dictionnairy
+    run_dict = None
+    exclude_run_dict = None
+    if trajectory_name == 'reference':
+        run_dict = {
+            'track': 'flat',
+            'subject': 16,
+            'run': 5,
+            'li': 1,
+            'num_laps': 1,
+        }
+    elif trajectory_name == 'other-laps':
+        run_dict = {
+            'track': 'flat',
+            'num_laps': 1,
+        }
+        exclude_run_dict = {
+            'track': 'flat',
+            'subject': 16,
+            'run': 5,
+            'li': 1,
+            'num_laps': 1,
+        }
+    elif trajectory_name == 'other-track':
+        run_dict = {
+            'track': 'wave',
+            'num_laps': 1,
+        }
+    elif trajectory_name == 'multi-laps':
+        run_dict = {
+            'track': 'flat',
+        }
+        exclude_run_dict = {
+            'num_laps': 1,
+        }
+
+    # Network general dictionnairy
+    if online_name == 'online':
+        network_dict = {
+            'has_dda': 1,
+            'has_network_used': 1,
+        }
+    else:
+        network_dict = {
+            'has_dda': 1,
+            'has_network_used': 0,
+        }
+
+    # Model dictionnairy
+    model_dicts = [
+        {
+            'name': 'Ref + RVW (Baseline)',
+            'specs': {
+                'has_ref': 1,
+                'has_state_q': 1,
+                'has_state_v': 1,
+                'has_state_w': 1,
+                'has_fts': 0,
+                'has_decfts': 0,
+                'has_attbr': 0,
+                'has_gztr': 0,
+            },
+        },
+        {
+            'name': 'Ref + RVW + Fts',
+            'specs': {
+                'has_ref': 1,
+                'has_state_q': 1,
+                'has_state_v': 1,
+                'has_state_w': 1,
+                'has_fts': 1,
+                'has_decfts': 0,
+                'has_attbr': 0,
+                'has_gztr': 0,
+            },
+        }, {
+            'name': 'Ref + RVW + AIn',
+            'specs': {
+                'has_ref': 1,
+                'has_state_q': 1,
+                'has_state_v': 1,
+                'has_state_w': 1,
+                'has_fts': 0,
+                'has_decfts': 1,
+                'has_attbr': 0,
+                'has_gztr': 0,
+            },
+        }, {
+            'name': 'Ref + RVW + Abr',
+            'specs': {
+                'has_ref': 1,
+                'has_state_q': 1,
+                'has_state_v': 1,
+                'has_state_w': 1,
+                'has_fts': 0,
+                'has_decfts': 0,
+                'has_attbr': 1,
+                'has_gztr': 0,
+            },
+        }, {
+            'name': 'Ref (Baseline)',
+            'specs': {
+                'has_ref': 1,
+                'has_state_q': 0,
+                'has_state_v': 0,
+                'has_state_w': 0,
+                'has_fts': 0,
+                'has_decfts': 0,
+                'has_attbr': 0,
+                'has_gztr': 0,
+            },
+        }, {
+            'name': 'Ref + Fts',
+            'specs': {
+                'has_ref': 1,
+                'has_state_q': 0,
+                'has_state_v': 0,
+                'has_state_w': 0,
+                'has_fts': 1,
+                'has_decfts': 0,
+                'has_attbr': 0,
+                'has_gztr': 0,
+            },
+        }, {
+            'name': 'Ref + AIn',
+            'specs': {
+                'has_ref': 1,
+                'has_state_q': 0,
+                'has_state_v': 0,
+                'has_state_w': 0,
+                'has_fts': 0,
+                'has_decfts': 1,
+                'has_attbr': 0,
+                'has_gztr': 0,
+            },
+        }, {
+            'name': 'Ref + ABr',
+            'specs': {
+                'has_ref': 1,
+                'has_state_q': 0,
+                'has_state_v': 0,
+                'has_state_w': 0,
+                'has_fts': 0,
+                'has_decfts': 0,
+                'has_attbr': 1,
+                'has_gztr': 0,
+            },
+        }, {
+            'name': 'RVW (Baseline)',
+            'specs': {
+                'has_ref': 0,
+                'has_state_q': 1,
+                'has_state_v': 1,
+                'has_state_w': 1,
+                'has_fts': 0,
+                'has_decfts': 0,
+                'has_attbr': 0,
+                'has_gztr': 0,
+            },
+        }, {
+            'name': 'RVW + Fts',
+            'specs': {
+                'has_ref': 0,
+                'has_state_q': 1,
+                'has_state_v': 1,
+                'has_state_w': 1,
+                'has_fts': 1,
+                'has_decfts': 0,
+                'has_attbr': 0,
+                'has_gztr': 0,
+            },
+        }, {
+            'name': 'RVW + AIn',
+            'specs': {
+                'has_ref': 0,
+                'has_state_q': 1,
+                'has_state_v': 1,
+                'has_state_w': 1,
+                'has_fts': 0,
+                'has_decfts': 1,
+                'has_attbr': 0,
+                'has_gztr': 0,
+            },
+        }, {
+            'name': 'RVW + ABr',
+            'specs': {
+                'has_ref': 0,
+                'has_state_q': 1,
+                'has_state_v': 1,
+                'has_state_w': 1,
+                'has_fts': 0,
+                'has_decfts': 0,
+                'has_attbr': 1,
+                'has_gztr': 0,
+            },
+        },
+    ]
+
+    # Feature dictionnairy
+    if online_name == 'online':
+        feature_dict = {
+            'Flight Time [s]': {
+                'varname': 'flight_time',
+                'track': '',
+                'first_line': 'mean',
+                'second_line': 'std',
+                'precision': 2
+            },
+            'Travel Distance [m]': {
+                'varname': 'travel_distance',
+                'track': '',
+                'first_line': 'mean',
+                'second_line': 'std',
+                'precision': 2
+            },
+            'Mean Error [m]': {
+                'varname': 'median_path_deviation',
+                'track': '',
+                'first_line': 'mean',
+                'second_line': 'std',
+                'precision': 2
+            },
+            'Gates Passed': {
+                'varname': 'num_gates_passed',
+                'track': '',
+                'first_line': 'mean',
+                'second_line': 'std',
+                'precision': 2
+            },
+            '% Collision': {
+                'varname': 'num_collisions',
+                'track': '',
+                'first_line': 'percent',
+                'second_line': '',
+                'precision': 0
+            },
+        }
+    else:
+        feature_dict = {
+            'Throttle MSE': {
+                'varname': 'throttle_error_mse-median',
+                'track': '',
+                'first_line': 'mean',
+                'second_line': '',
+                'precision': 3
+            },
+            'Throttle L1': {
+                'varname': 'throttle_error_l1-median',
+                'track': '',
+                'first_line': 'mean',
+                'second_line': '',
+                'precision': 3
+            },
+            'Roll MSE': {
+                'varname': 'roll_error_mse-median',
+                'track': '',
+                'first_line': 'mean',
+                'second_line': '',
+                'precision': 3
+            },
+            'Roll L1': {
+                'varname': 'roll_error_l1-median',
+                'track': '',
+                'first_line': 'mean',
+                'second_line': '',
+                'precision': 3
+            },
+            'Pitch MSE': {
+                'varname': 'pitch_error_mse-median',
+                'track': '',
+                'first_line': 'mean',
+                'second_line': '',
+                'precision': 3
+            },
+            'Pitch L1': {
+                'varname': 'pitch_error_l1-median',
+                'track': '',
+                'first_line': 'mean',
+                'second_line': '',
+                'precision': 3
+            },
+            'Yaw MSE': {
+                'varname': 'yaw_error_mse-median',
+                'track': '',
+                'first_line': 'mean',
+                'second_line': '',
+                'precision': 3
+            },
+            'Yaw L1': {
+                'varname': 'yaw_error_l1-median',
+                'track': '',
+                'first_line': 'mean',
+                'second_line': '',
+                'precision': 3
+            },
+        }
+
+    # Make a table
+    if (run_dict is not None) and (model_dicts is not None):
+        table = pd.DataFrame([])
+        for mdict in model_dicts:
+
+            # add subject dictionnairy to the model dictionnairy
+            mdict['specs'] = {**mdict['specs'],
+                              **network_dict,
+                              **run_dict}
+
+            ddict = {}
+            ddict['Model'] = [mdict['name'], '']
+
+            # Select performance data
+            # Runs to include
+            ind = np.array([True for i in range(performance.shape[0])])
+            for k, v in mdict['specs'].items():
+                ind = ind & (performance[k] == v)
+            # Runs to exclude
+            if exclude_run_dict is not None:
+                ind_exclude = np.array([True for i in range(
+                    performance.shape[0])])
+                for k, v in exclude_run_dict.items():
+                    ind_exclude = ind_exclude & (performance[k] == v)
+                # Combine run selection
+                ind = (ind == True) & (ind_exclude == False)
+            # Select current runs
+            curr_performance = performance.copy().loc[ind, :]
+
+            ddict['Num Runs'] = [str(curr_performance.shape[0]), '']
+
+            print(mdict['name'], ':', curr_performance.shape[0])
+            # print(curr_performance)
+
+            if curr_performance.shape[0] > 0:
+                # Compute Average performances
+                for outvar in feature_dict:
+                    ddict.setdefault(outvar, [])
+                    invar = feature_dict[outvar]['varname']
+                    curr_vals = curr_performance[invar].values
+                    # first line value
+                    op1 = feature_dict[outvar]['first_line']
+                    if op1 == 'mean':
+                        val1 = np.nanmean(curr_vals)
+                    elif op1 == 'percent':
+                        val1 = 100 * np.mean(
+                            (curr_vals > 0).astype(int))
+                    else:
+                        val1 = None
+                    if val1 is None:
+                        ddict[outvar].append('')
+                    else:
+                        ddict[outvar].append(
+                            str(np.round(val1, feature_dict[outvar][
+                                'precision'])))
+                    # second line value
+                    op2 = feature_dict[outvar]['second_line']
+                    if op2 == 'std':
+                        val1 = np.nanstd(curr_vals)
+                    else:
+                        val1 = None
+                    if val1 is None:
+                        ddict[outvar].append('')
+                    else:
+                        ddict[outvar].append(
+                            '(' + str(
+                                np.round(val1, feature_dict[outvar][
+                                    'precision'])) + ')')
+
+            for k in ddict:
+                ddict[k] = [' '.join(ddict[k])]
+
+            # Append two lines to the output table
+            table = table.append(
+                pd.DataFrame(ddict,
+                             index=list(range(len(ddict['Model']))))
+            )
+
+        outpath = curr_path + '/{}/'.format(online_name)
+        if not os.path.exists(outpath):
+            make_path(outpath)
+
+        outfilepath = outpath + 'latex_table_{}.csv'.format(
+            trajectory_name)
+        table.to_latex(outfilepath, index=False)
 
 
 def main(
-    to_process = True,
     to_override = False,
+    to_process = False,
+    to_performance = False,
+    to_table = False,
     to_plot_traj_3d = True,
     to_plot_state = True,
     num_parallel_processes = 1,
-    to_performance = False,
-    to_table = False,
     to_plot_reference = False,
     to_plot_reference_with_decision = False,
     to_collect_results=False,
@@ -45,571 +606,36 @@ def main(
     logfile_path = base_path/'analysis'/'logs'
     models = [f.name for f in logfile_path.glob('*/')]
 
+    if to_process:
+        for m in models:
+            #todo: computer freezes if more than 1 parallel process,
+            # THUS FIX NUM_PARALLEL_PROCESSES=1 because plotting trajectory
+            # 3d and plotting of state causes trouble, needs debugging.
+            process(path=logfile_path/m,num_parallel_processes=1,to_override=
+                to_override,to_plot_traj_3d=to_plot_traj_3d,to_plot_state=
+                to_plot_state)
 
-    for m in models:
-        print(logfile_path/m)
-        #todo: computer freezes if more than 1 parallel process, because
-        # of plotting trajectory 3d and plotting of state, needs debugging.
-        process(path=logfile_path/m,num_parallel_processes=1,to_override=
-            to_override,to_plot_traj_3d=to_plot_traj_3d,to_plot_state=
-            to_plot_state)
+    if to_performance:
+        for n in collider_names:
+            p=compute_performance(collider_name=n,models=models)
+            o='./performance/{}/'.format(n)
+            make_path(o)
+            p.to_csv(o+'performance.csv', index=False)
 
-
-    # if to_process:
-    #     for model in models:
-    #         log_filepaths = sorted((logfile_path/model).rglob('*.csv'))
-    #         log_filepaths = [f for f in log_filepaths if f.name != 'original.csv']
-    #         map = [(f.as_posix(), to_override, to_plot_traj_3d, to_plot_state)
-    #                for f in log_filepaths]
-    #         with Pool(num_parallel_processes) as p:
-    #             p.starmap(process_individual_run, map)
-
-    #
-    # if to_performance:
-    #     for collider_name in collider_names:
-    #         curr_feature_filename = 'features_{}.csv'.format(collider_name)
-    #         outpath = './performance/{}/'.format(collider_name)
-    #         outfilepath = outpath + 'performance.csv'
-    #         if not os.path.exists(outpath):
-    #             make_path(outpath)
-    #         performance = pd.DataFrame([])
-    #         for model in models:
-    #             filepaths = []
-    #             for w in os.walk('./process/'+model+'/'):
-    #                 for f in w[2]:
-    #                     if f==curr_feature_filename:
-    #                         filepaths.append(os.path.join(w[0], f))
-    #             for filepath in filepaths:
-    #                 print('..collecting performance: {}'.format(filepath))
-    #                 df =  pd.read_csv(filepath)
-    #                 # Get model and run information from filepath
-    #                 strings = (
-    #                     df['filepath'].iloc[0]
-    #                         .split('/process/')[-1]
-    #                         .split('/trajectory.csv')[0]
-    #                         .split('/')
-    #                 )
-    #                 if len(strings) == 2:
-    #                     strings.insert(1, 's016_r05_flat_li01_buffer20')
-    #                 # Load the yaml file
-    #                 yamlpath = None
-    #                 config = None
-    #                 yamlcount = 0
-    #                 for w in os.walk('./logs/'+model+'/'):
-    #                     for f in w[2]:
-    #                         if f.find('.yaml')>-1:
-    #                             yamlpath = os.path.join(w[0], f)
-    #                             yamlcount += 1
-    #                 if yamlpath is not None:
-    #                     with open(yamlpath, 'r') as stream:
-    #                         try:
-    #                             config = yaml.safe_load(stream)
-    #                         except yaml.YAMLError as exc:
-    #                             print(exc)
-    #                             config = None
-    #                 # Make Data dictionnairy for the output
-    #                 ddict = {}
-    #                 ddict['model_name'] = strings[0]
-    #                 ddict['has_dda'] = int(strings[0].find('dda') > -1)
-    #                 if ((strings[2].find('mpc_nw_act') > -1) &
-    #                     (filepath.find('mpc_nw_act') > -1)):
-    #                     ddict['has_network_used'] = 0
-    #                 else:
-    #                     ddict['has_network_used'] = 1
-    #                 if config is not None:
-    #                     ddict['has_yaml'] = 1
-    #                     ddict['has_ref'] = 1
-    #                     if 'no_ref' in config['train']:
-    #                         ddict['has_ref'] = int(config['train']['no_ref'] == False)
-    #                     ddict['has_state_q'] = 0
-    #                     ddict['has_state_v'] = 0
-    #                     ddict['has_state_w'] = 0
-    #                     if 'use_imu' in config['train']:
-    #                         if config['train']['use_imu'] == True:
-    #                             ddict['has_state_q'] = 1
-    #                             ddict['has_state_v'] = 1
-    #                             ddict['has_state_w'] = 1
-    #                             if 'imu_no_rot' in config['train']:
-    #                                 if config['train']['imu_no_rot'] == True:
-    #                                     ddict['has_state_q'] = 0
-    #                             if 'imu_no_vels' in config['train']:
-    #                                 if config['train']['imu_no_vels'] == True:
-    #                                     ddict['has_state_v'] = 0
-    #                                     ddict['has_state_w'] = 0
-    #                     ddict['has_fts'] = 0
-    #                     if 'use_fts_tracks' in config['train']:
-    #                         if config['train']['use_fts_tracks']:
-    #                             ddict['has_fts'] = 1
-    #                     ddict['has_decfts'] = 0
-    #                     ddict['has_gztr'] = 0
-    #                     ddict['has_encfts'] = 0
-    #                     if 'attention_fts_type' in config['train']:
-    #                         if config['train']['attention_fts_type'] == 'decoder_fts':
-    #                             ddict['has_decfts'] = 1
-    #                             ddict['has_gztr'] = 0
-    #                             ddict['has_encfts'] = 0
-    #                         elif config['train']['attention_fts_type'] == 'gaze_tracks':
-    #                             ddict['has_decfts'] = 0
-    #                             ddict['has_gztr'] = 1
-    #                             ddict['has_encfts'] = 0
-    #                         elif config['train']['attention_fts_type'] == \
-    #                                 'encoder_fts':
-    #                             ddict['has_decfts'] = 0
-    #                             ddict['has_gztr'] = 0
-    #                             ddict['has_encfts'] = 1
-    #                     ddict['has_attbr'] = 0
-    #                     if 'attention_branching' in config['train']:
-    #                         if config['train']['attention_branching'] == True:
-    #                             ddict['has_attbr'] = 1
-    #                     ddict['buffer'] = 0
-    #                     if 'start_buffer' in config['simulation']:
-    #                         ddict['buffer'] = config['simulation']['start_buffer']
-    #                 else:
-    #                     ddict['has_yaml'] = 0
-    #                 ddict['buffer'] = float(strings[1].split('buffer')[-1]) / 10
-    #                 ddict['subject'] = int(
-    #                     strings[1].split('_')[0].split('-')[2].split('s')[-1])
-    #                 ddict['run'] = int(strings[2].split('_')[-1])
-    #                 ddict['track'] = strings[1].split('_')[0].split('-')[1]
-    #                 li_string = strings[1].split('_')[3].split('li')[-1]
-    #                 if li_string.find('-')>-1:
-    #                     ddict['li'] = int(li_string.split('-')[0])
-    #                     ddict['num_laps'] = (int(li_string.split('-')[-1]) -
-    #                                          int(li_string.split('-')[0]) + 1)
-    #                 else:
-    #                     ddict['li'] = int(li_string)
-    #                     ddict['num_laps'] = 1
-    #                 if ddict['has_dda'] == 0:
-    #                     if strings[2] == 'reference_mpc':
-    #                         ddict['mt'] = -1
-    #                         ddict['st'] = 0
-    #                         ddict['repetition'] = 0
-    #                     else:
-    #                         ddict['mt'] = -1
-    #                         ddict['st'] = int(strings[2].split('_')[1].split('switch-')[-1])
-    #                         ddict['repetition'] = int(strings[2].split('_')[-1])
-    #                 else:
-    #                     if strings[0].find('dda_offline')>-1:
-    #                         ddict['mt'] = -1
-    #                         ddict['st'] = int(strings[2].split('_')[1].split('st-')[-1])
-    #                         ddict['repetition'] = int(strings[2].split('_')[-1])
-    #                     elif strings[2].find('mpc_eval_nw')>-1:
-    #                         ddict['mt'] = -1
-    #                         ddict['st'] = -1
-    #                         ddict['repetition'] = 0
-    #                     elif strings[2].find('mpc_nw_act')>-1:
-    #                         ddict['mt'] = -1
-    #                         ddict['st'] = -1
-    #                         ddict['repetition'] = 0
-    #                     else:
-    #                         ddict['mt'] = int(strings[2].split('_')[1].split('mt-')[-1])
-    #                         ddict['st'] = int(strings[2].split('_')[2].split('st-')[-1])
-    #                         ddict['repetition'] = int(strings[2].split('_')[-1])
-    #                 # Add data dictionnairy as output row
-    #                 for k in sorted(ddict):
-    #                     df[k] = ddict[k]
-    #                 performance = performance.append(df)
-    #         # Save perfromance dataframe
-    #         performance.to_csv(outfilepath, index=False)
-    #
-    #
+    #todo: SKIP THIS
     # if to_table:
-    #
     #     for collider_name in collider_names:
     #         curr_path = './performance/{}/'.format(collider_name)
-    #
     #         performance = pd.read_csv(curr_path + 'performance.csv')
-    #
     #         for online_name in ['online', 'offline']:
     #             for trajectory_name in ['reference', 'other-laps', 'other-track',
     #                                     'multi-laps']:
-    #
-    #                 print('----------------')
-    #                 print(online_name, trajectory_name)
-    #                 print('----------------')
-    #
-    #                 # Subject dictionnairy
-    #                 run_dict = None
-    #                 exclude_run_dict = None
-    #                 if trajectory_name == 'reference':
-    #                     run_dict = {
-    #                     'track': 'flat',
-    #                     'subject': 16,
-    #                     'run': 5,
-    #                     'li': 1,
-    #                     'num_laps': 1,
-    #                     }
-    #                 elif trajectory_name == 'other-laps':
-    #                     run_dict = {
-    #                         'track': 'flat',
-    #                         'num_laps': 1,
-    #                     }
-    #                     exclude_run_dict = {
-    #                         'track': 'flat',
-    #                         'subject': 16,
-    #                         'run': 5,
-    #                         'li': 1,
-    #                         'num_laps': 1,
-    #                     }
-    #                 elif trajectory_name == 'other-track':
-    #                     run_dict = {
-    #                         'track': 'wave',
-    #                         'num_laps': 1,
-    #                     }
-    #                 elif trajectory_name == 'multi-laps':
-    #                     run_dict = {
-    #                         'track': 'flat',
-    #                     }
-    #                     exclude_run_dict = {
-    #                         'num_laps': 1,
-    #                     }
-    #
-    #                 # Network general dictionnairy
-    #                 if online_name=='online':
-    #                     network_dict = {
-    #                         'has_dda': 1,
-    #                         'has_network_used': 1,
-    #                     }
-    #                 else:
-    #                     network_dict = {
-    #                         'has_dda': 1,
-    #                         'has_network_used': 0,
-    #                     }
-    #
-    #                 # Model dictionnairy
-    #                 model_dicts = [
-    #                     {
-    #                         'name': 'Ref + RVW (Baseline)',
-    #                         'specs': {
-    #                             'has_ref': 1,
-    #                             'has_state_q': 1,
-    #                             'has_state_v': 1,
-    #                             'has_state_w': 1,
-    #                             'has_fts': 0,
-    #                             'has_decfts': 0,
-    #                             'has_attbr': 0,
-    #                             'has_gztr': 0,
-    #                         },
-    #                     },
-    #                     {
-    #                         'name': 'Ref + RVW + Fts',
-    #                         'specs': {
-    #                             'has_ref': 1,
-    #                             'has_state_q': 1,
-    #                             'has_state_v': 1,
-    #                             'has_state_w': 1,
-    #                             'has_fts': 1,
-    #                             'has_decfts': 0,
-    #                             'has_attbr': 0,
-    #                             'has_gztr': 0,
-    #                         },
-    #                     },{
-    #                         'name': 'Ref + RVW + AIn',
-    #                         'specs': {
-    #                             'has_ref': 1,
-    #                             'has_state_q': 1,
-    #                             'has_state_v': 1,
-    #                             'has_state_w': 1,
-    #                             'has_fts': 0,
-    #                             'has_decfts': 1,
-    #                             'has_attbr': 0,
-    #                             'has_gztr': 0,
-    #                         },
-    #                     },{
-    #                         'name': 'Ref + RVW + Abr',
-    #                         'specs': {
-    #                             'has_ref': 1,
-    #                             'has_state_q': 1,
-    #                             'has_state_v': 1,
-    #                             'has_state_w': 1,
-    #                             'has_fts': 0,
-    #                             'has_decfts': 0,
-    #                             'has_attbr': 1,
-    #                             'has_gztr': 0,
-    #                         },
-    #                     },{
-    #                         'name': 'Ref (Baseline)',
-    #                         'specs': {
-    #                             'has_ref': 1,
-    #                             'has_state_q': 0,
-    #                             'has_state_v': 0,
-    #                             'has_state_w': 0,
-    #                             'has_fts': 0,
-    #                             'has_decfts': 0,
-    #                             'has_attbr': 0,
-    #                             'has_gztr': 0,
-    #                         },
-    #                     },{
-    #                         'name': 'Ref + Fts',
-    #                         'specs': {
-    #                             'has_ref': 1,
-    #                             'has_state_q': 0,
-    #                             'has_state_v': 0,
-    #                             'has_state_w': 0,
-    #                             'has_fts': 1,
-    #                             'has_decfts': 0,
-    #                             'has_attbr': 0,
-    #                             'has_gztr': 0,
-    #                         },
-    #                     },{
-    #                         'name': 'Ref + AIn',
-    #                         'specs': {
-    #                             'has_ref': 1,
-    #                             'has_state_q': 0,
-    #                             'has_state_v': 0,
-    #                             'has_state_w': 0,
-    #                             'has_fts': 0,
-    #                             'has_decfts': 1,
-    #                             'has_attbr': 0,
-    #                             'has_gztr': 0,
-    #                         },
-    #                     },{
-    #                         'name': 'Ref + ABr',
-    #                         'specs': {
-    #                             'has_ref': 1,
-    #                             'has_state_q': 0,
-    #                             'has_state_v': 0,
-    #                             'has_state_w': 0,
-    #                             'has_fts': 0,
-    #                             'has_decfts': 0,
-    #                             'has_attbr': 1,
-    #                             'has_gztr': 0,
-    #                         },
-    #                     },{
-    #                         'name': 'RVW (Baseline)',
-    #                         'specs': {
-    #                             'has_ref': 0,
-    #                             'has_state_q': 1,
-    #                             'has_state_v': 1,
-    #                             'has_state_w': 1,
-    #                             'has_fts': 0,
-    #                             'has_decfts': 0,
-    #                             'has_attbr': 0,
-    #                             'has_gztr': 0,
-    #                         },
-    #                     },{
-    #                         'name': 'RVW + Fts',
-    #                         'specs': {
-    #                             'has_ref': 0,
-    #                             'has_state_q': 1,
-    #                             'has_state_v': 1,
-    #                             'has_state_w': 1,
-    #                             'has_fts': 1,
-    #                             'has_decfts': 0,
-    #                             'has_attbr': 0,
-    #                             'has_gztr': 0,
-    #                         },
-    #                     },{
-    #                         'name': 'RVW + AIn',
-    #                         'specs': {
-    #                             'has_ref': 0,
-    #                             'has_state_q': 1,
-    #                             'has_state_v': 1,
-    #                             'has_state_w': 1,
-    #                             'has_fts': 0,
-    #                             'has_decfts': 1,
-    #                             'has_attbr': 0,
-    #                             'has_gztr': 0,
-    #                         },
-    #                     },{
-    #                         'name': 'RVW + ABr',
-    #                         'specs': {
-    #                             'has_ref': 0,
-    #                             'has_state_q': 1,
-    #                             'has_state_v': 1,
-    #                             'has_state_w': 1,
-    #                             'has_fts': 0,
-    #                             'has_decfts': 0,
-    #                             'has_attbr': 1,
-    #                             'has_gztr': 0,
-    #                         },
-    #                     },
-    #                 ]
-    #
-    #
-    #
-    #                 # Feature dictionnairy
-    #                 if online_name=='online':
-    #                     feature_dict={
-    #                         'Flight Time [s]': {
-    #                             'varname': 'flight_time',
-    #                             'track': '',
-    #                             'first_line': 'mean',
-    #                             'second_line': 'std',
-    #                             'precision': 2
-    #                             },
-    #                         'Travel Distance [m]': {
-    #                             'varname': 'travel_distance',
-    #                             'track': '',
-    #                             'first_line': 'mean',
-    #                             'second_line': 'std',
-    #                             'precision': 2
-    #                         },
-    #                         'Mean Error [m]': {
-    #                             'varname': 'median_path_deviation',
-    #                             'track': '',
-    #                             'first_line': 'mean',
-    #                             'second_line': 'std',
-    #                             'precision': 2
-    #                         },
-    #                         'Gates Passed': {
-    #                             'varname': 'num_gates_passed',
-    #                             'track': '',
-    #                             'first_line': 'mean',
-    #                             'second_line': 'std',
-    #                             'precision': 2
-    #                         },
-    #                         '% Collision': {
-    #                             'varname': 'num_collisions',
-    #                             'track': '',
-    #                             'first_line': 'percent',
-    #                             'second_line': '',
-    #                             'precision': 0
-    #                         },
-    #                     }
-    #                 else:
-    #                     feature_dict = {
-    #                         'Throttle MSE': {
-    #                             'varname': 'throttle_error_mse-median',
-    #                             'track': '',
-    #                             'first_line': 'mean',
-    #                             'second_line': '',
-    #                             'precision': 3
-    #                         },
-    #                         'Throttle L1': {
-    #                             'varname': 'throttle_error_l1-median',
-    #                             'track': '',
-    #                             'first_line': 'mean',
-    #                             'second_line': '',
-    #                             'precision': 3
-    #                         },
-    #                         'Roll MSE': {
-    #                             'varname': 'roll_error_mse-median',
-    #                             'track': '',
-    #                             'first_line': 'mean',
-    #                             'second_line': '',
-    #                             'precision': 3
-    #                         },
-    #                         'Roll L1': {
-    #                             'varname': 'roll_error_l1-median',
-    #                             'track': '',
-    #                             'first_line': 'mean',
-    #                             'second_line': '',
-    #                             'precision': 3
-    #                         },
-    #                         'Pitch MSE': {
-    #                             'varname': 'pitch_error_mse-median',
-    #                             'track': '',
-    #                             'first_line': 'mean',
-    #                             'second_line': '',
-    #                             'precision': 3
-    #                         },
-    #                         'Pitch L1': {
-    #                             'varname': 'pitch_error_l1-median',
-    #                             'track': '',
-    #                             'first_line': 'mean',
-    #                             'second_line': '',
-    #                             'precision': 3
-    #                         },
-    #                         'Yaw MSE': {
-    #                             'varname': 'yaw_error_mse-median',
-    #                             'track': '',
-    #                             'first_line': 'mean',
-    #                             'second_line': '',
-    #                             'precision': 3
-    #                         },
-    #                         'Yaw L1': {
-    #                             'varname': 'yaw_error_l1-median',
-    #                             'track': '',
-    #                             'first_line': 'mean',
-    #                             'second_line': '',
-    #                             'precision': 3
-    #                         },
-    #                     }
-    #
-    #                 # Make a table
-    #                 if (run_dict is not None) and (model_dicts is not None):
-    #                     table = pd.DataFrame([])
-    #                     for mdict in model_dicts:
-    #
-    #                         #add subject dictionnairy to the model dictionnairy
-    #                         mdict['specs'] = {**mdict['specs'],
-    #                                           **network_dict,
-    #                                           **run_dict}
-    #
-    #                         ddict = {}
-    #                         ddict['Model'] = [mdict['name'], '']
-    #
-    #                         # Select performance data
-    #                         # Runs to include
-    #                         ind = np.array([True for i in range(performance.shape[0])])
-    #                         for k, v in mdict['specs'].items():
-    #                             ind = ind & (performance[k] == v)
-    #                         # Runs to exclude
-    #                         if exclude_run_dict is not None:
-    #                             ind_exclude = np.array([True for i in range(
-    #                                 performance.shape[0])])
-    #                             for k, v in exclude_run_dict.items():
-    #                                 ind_exclude = ind_exclude & (performance[k] == v)
-    #                             # Combine run selection
-    #                             ind = (ind == True) & (ind_exclude == False)
-    #                         # Select current runs
-    #                         curr_performance = performance.copy().loc[ind, :]
-    #
-    #                         ddict['Num Runs'] = [str(curr_performance.shape[0]), '']
-    #
-    #                         print(mdict['name'], ':', curr_performance.shape[0])
-    #                         # print(curr_performance)
-    #
-    #                         if curr_performance.shape[0] > 0:
-    #                             # Compute Average performances
-    #                             for outvar in feature_dict:
-    #                                 ddict.setdefault(outvar, [])
-    #                                 invar = feature_dict[outvar]['varname']
-    #                                 curr_vals = curr_performance[invar].values
-    #                                 #first line value
-    #                                 op1 = feature_dict[outvar]['first_line']
-    #                                 if op1 == 'mean':
-    #                                     val1 = np.nanmean(curr_vals)
-    #                                 elif op1 == 'percent':
-    #                                     val1 = 100 * np.mean((curr_vals > 0).astype(int))
-    #                                 else:
-    #                                     val1 = None
-    #                                 if val1 is None:
-    #                                     ddict[outvar].append('')
-    #                                 else:
-    #                                     ddict[outvar].append(str(np.round(val1, feature_dict[outvar][
-    #                                         'precision'])))
-    #                                 # second line value
-    #                                 op2 = feature_dict[outvar]['second_line']
-    #                                 if op2 == 'std':
-    #                                     val1 = np.nanstd(curr_vals)
-    #                                 else:
-    #                                     val1 = None
-    #                                 if val1 is None:
-    #                                     ddict[outvar].append('')
-    #                                 else:
-    #                                     ddict[outvar].append('('+str(np.round(val1, feature_dict[outvar][
-    #                                         'precision']))+')')
-    #
-    #                         for k in ddict:
-    #                             ddict[k] = [' '.join(ddict[k])]
-    #
-    #                         # Append two lines to the output table
-    #                         table = table.append(
-    #                             pd.DataFrame(ddict,
-    #                                          index=list(range(len(ddict['Model']))))
-    #                         )
-    #
-    #                     outpath = curr_path + '/{}/'.format(online_name)
-    #                     if not os.path.exists(outpath):
-    #                         make_path(outpath)
-    #
-    #                     outfilepath = outpath + 'latex_table_{}.csv'.format(
-    #                         trajectory_name)
-    #                     table.to_latex(outfilepath, index=False)
-    #
-    #
+    #                 make_performance_table(collider_name, curr_path,
+    #                     performance,online_name, trajectory_name)
+
+
+    #todo:continue here
+
     # if to_plot_reference:
     #     # Load track.
     #     track = pd.read_csv(track_filepaths['flat'])
