@@ -74,4 +74,3 @@ for f in filepaths:
         df['id']=df['id'].astype(int)
         df['f']=int(o.stem)
         df.to_csv(o,index=False)
-        print(df)
