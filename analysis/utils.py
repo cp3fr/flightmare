@@ -1411,7 +1411,7 @@ def process_individual_run(
     if not (f/'reference.csv').exists():
         reference = trajectory_from_logfile(filepath=reference_filepath)
         reference.to_csv(f/'reference.csv',index=False)
-    # Co
+    # Copy track csv to output folder.
     if not (f/'track.csv').exists():
         if filepath.as_posix().find('wave') > -1:
             track_filepath = track_filepaths['wave']

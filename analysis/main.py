@@ -10,8 +10,8 @@ def main(
     to_process = True,
     to_override = False,
     to_plot_traj_3d = True,
-    to_plot_state = True,
-    num_parallel_processes = 2,
+    to_plot_state = False,
+    num_parallel_processes = 1,
     to_performance = False,
     to_table = False,
     to_plot_reference = False,
@@ -29,20 +29,26 @@ def main(
 
     def process(
             path,
-            workers=1,
+            num_parallel_processes=1,
+            to_override=False,
+            to_plot_traj_3d=False,
+            to_plot_state=False,
             exclude=['original.csv'],
-            override=False,
             ):
         """Process raw files in parallel."""
         f=sorted(path.rglob('*.csv'))
         for n in exclude:
             f=[_f for _f in f if _f.name!=n]
-        map = [(_f, override) for _f in f]
-        with Pool(workers) as p:
+        map = [(_f, to_override, to_plot_traj_3d, to_plot_state) for _f in f]
+        with Pool(num_parallel_processes) as p:
             p.starmap(process_individual_run, map)
     for m in models:
         print(logfile_path/m)
-        process(path=logfile_path/m, workers=num_parallel_processes)
+        process(logfile_path/m,
+                num_parallel_processes,
+                to_override,
+                to_plot_traj_3d,
+                to_plot_state)
 
 
     # if to_process:
