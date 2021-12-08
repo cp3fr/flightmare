@@ -673,10 +673,12 @@ def make_path(
 
 
 def trajectory_from_logfile(
-        filepath: str
+        filepath: 'str/Path'
         ) -> pd.DataFrame():
     """Returns a trajectory dataframe with standard headers from a flightmare
     log filepath."""
+    if isinstance(filepath,str):
+        filepath=Path(filepath)
     ndict = {
         'time-since-start [s]': 't',
         'position_x [m]': 'px',
@@ -696,9 +698,7 @@ def trajectory_from_logfile(
         'omega_y': 'wy',
         'omega_z': 'wz'
         }
-    if os.path.exists(filepath) is False:
-        return pd.DataFrame([])
-    else:
+    if filepath.exists():
         df = pd.read_csv(filepath)
         # Rename columns according to the name dictionairy.
         for search_name, replacement_name in ndict.items():
@@ -715,6 +715,8 @@ def trajectory_from_logfile(
         df = df.loc[:, sorted_names]
         df = df.sort_values(by=['t'])
         return df
+    else:
+        return pd.DataFrame([])
 
 
 def plot_trajectory(
@@ -818,13 +820,19 @@ def get_pass_collision_events(
         ) -> pd.DataFrame():
     """Returns an events dataframe of pass and collision events from given
     trajectory and track filepaths."""
+    if isinstance(filepath_trajectory,str):
+        filepath_trajectory=Path(filepath_trajectory)
+    if isinstance(filepath_track,str):
+        filepath_track=Path(filepath_track)
     # Load race track information.
     T = pd.read_csv(filepath_track)
     # Define checkpoints and colliders.
     gate_checkpoints = [
-        Checkpoint(T.iloc[i], dims=gate_inner_dimensions) for i in range(T.shape[0])]
+        Checkpoint(T.iloc[i], dims=gate_inner_dimensions) for i in
+        range(T.shape[0])]
     gate_colliders = [
-        Checkpoint(T.iloc[i], dims=gate_outer_dimensions) for i in range(T.shape[0])]
+        Checkpoint(T.iloc[i], dims=gate_outer_dimensions) for i in
+        range(T.shape[0])]
     wall_colliders = get_wall_colliders(dims=wall_collider_dimensions,
                                         center=wall_collider_center)
     # Load a trajectory
@@ -1171,11 +1179,14 @@ def plot_state(
 def compare_trajectories_3d(
         reference_filepath: str,
         data_path: str=None,
+        ax: plt.axis=None,
         ) -> None:
     """
     Comparison of 3D flight trajectories from two given trajectory logfile
     paths, showing 3D poses.
     """
+    if ax == None:
+        fig, ax = plt.subplots(1, 1)
     # Plot reference, MPC, and network trajectories in 3D
     if data_path:
         ref = trajectory_from_logfile(
@@ -1185,7 +1196,8 @@ def compare_trajectories_3d(
             ref.px.values,
             ref.py.values,
             ref.pz.values,
-            c='k')
+            c='k',
+            ax=ax)
         for w in os.walk(data_path):
             for f in w[2]:
                 if (f.find('trajectory.csv') != -1):
@@ -1195,13 +1207,13 @@ def compare_trajectories_3d(
                         color = 'b'
                     filepath = os.path.join(w[0], f)
                     print(filepath)
-                    df = trajectory_from_logfile(
-                        filepath=filepath)
+                    df = trajectory_from_logfile(filepath=filepath)
                     print(df.columns)
                     plot_trajectory(df.px, df.py, df.pz, c=color, ax=ax)
-        ax = format_trajectory_figure(
-            ax, xlims=(-30, 30), ylims=(-30, 30), zlims=(-30, 30), xlabel='px [m]',
-            ylabel='py [m]', zlabel='pz [m]', title=data_path)
+        ax = format_trajectory_figure(ax, xlims=(-30, 30), ylims=(-30, 30),
+            zlims=(-30, 30), xlabel='px [m]', ylabel='py [m]', zlabel='pz [m]',
+            title=data_path)
+    return ax
 
 
 def plot_gates_3d(
@@ -1287,10 +1299,13 @@ def plot_trajectory_with_gates_3d(
         zlims: tuple=(-8, 8),
         view: tuple=(45, 270),
         fig_size: tuple=(20, 10),
+        ax: plt.axis=None,
         ) -> plt.axis:
     """
     Make a 3D trajectory plot with gates
     """
+    if ax==None:
+        fig, ax =plt.subplots(1,1,1)
     if trajectory.shape[0] > 1:
         trajectory_sampling_rate = 1 / np.nanmedian(np.diff(trajectory.t.values))
         step_size = int(trajectory_sampling_rate / sampling_rate)
@@ -1307,9 +1322,8 @@ def plot_trajectory_with_gates_3d(
             trajectory.qw.values,
             axis_length=2,
             c='k',
+            ax=ax,
         )
-    else:
-        ax=None
     ax = plot_gates_3d(
         track=track,
         ax=ax,
@@ -1370,73 +1384,71 @@ def signed_horizontal_angle(
 def process_individual_run(
         filepath,
         to_override=False,
-        to_plot_traj_3d=True,
-        to_plot_state=True,
+        to_plot_traj_3d=False,
+        to_plot_state=False,
         collider_dict={'gate-wall': ['gate', 'wall'],
                        'wall': ['wall']},
         collider_names=['gate-wall','wall'],
         track_filepaths={'flat': './tracks/flat.csv',
                          'wave': './tracks/wave.csv'},
         ) -> None:
+    if isinstance(filepath,str):
+        filepath=Path(filepath)
     print('..processing {}'.format(filepath))
-    reference_filepath = Path(filepath).parent / 'original.csv'
+    reference_filepath = filepath.parent/'original.csv'
     # Make output folder
-    data_path = (filepath
+    f = Path(filepath.as_posix()
                  .replace('.csv', '/')
                  .replace('/logs/', '/process/')
-                 .replace('trajectory_', '')
-                 )
-    make_path(data_path)
-    # Copy trajectory, reference, and track files to output folder
-    if not os.path.isfile(data_path + 'trajectory.csv'):
+                 .replace('trajectory_', ''))
+    if not f.exists():
+        f.mkdir(parents=True,exist_ok=True)
+    # Copy nw/mpc flown trajectory to output folder.
+    if not (f/'trajectory.csv').exists():
         trajectory = trajectory_from_logfile(filepath=filepath)
-        trajectory.to_csv(data_path + 'trajectory.csv',
-                          index=False)
-    if not os.path.isfile(data_path + 'reference.csv'):
+        trajectory.to_csv(f/'trajectory.csv',index=False)
+    # Copy reference trajectory to output folder.
+    if not (f/'reference.csv').exists():
         reference = trajectory_from_logfile(filepath=reference_filepath)
-        reference.to_csv(data_path + 'reference.csv',
-                         index=False)
-    if not os.path.isfile(data_path + 'track.csv'):
-        if filepath.find('wave') > -1:
+        reference.to_csv(f/'reference.csv',index=False)
+    # Co
+    if not (f/'track.csv').exists():
+        if filepath.as_posix().find('wave') > -1:
             track_filepath = track_filepaths['wave']
         else:
             track_filepath = track_filepaths['flat']
-
         track = track_from_logfile(filepath=track_filepath)
         # Make some adjustments
-        track['pz'] += 0.35  # shift gates up in fligthmare
+        track['pz'] += 0.35  # shift gates up in flightmare
         track['dx'] = 0.
         track['dy'] = 3  # in the middle of inner diameter 2.5 and outer 3.0
         track['dz'] = 3  # in the middle of inner diameter 2.5 and outer 3.0
-        track.to_csv(data_path + 'track.csv',
-                     index=False)
-    # Save gate pass and collision events to output folder
-    if not os.path.isfile(data_path + 'events.csv'):
+        track.to_csv(f/'track.csv',index=False)
+    # Save gate pass and collision events to output folder.
+    if not (f/'events.csv').exists():
         E = get_pass_collision_events(
-            filepath_trajectory=data_path + 'trajectory.csv',
-            filepath_track=data_path + 'track.csv')
-        E.to_csv(data_path + 'events.csv', index=False)
-
+            filepath_trajectory=f/'trajectory.csv',
+            filepath_track=f/'track.csv')
+        E.to_csv(f/'events.csv', index=False)
     # Loop across collider conditions
     for collider_name in collider_names:
         curr_colliders = collider_dict[collider_name]
         curr_feature_filename = 'features_{}.csv'.format(collider_name)
-
         # Save performance features to output folder
-        if ((not os.path.isfile(data_path + curr_feature_filename))
+        if ((not (f/curr_feature_filename).exists())
                 or (to_override == True)):
             P = extract_performance_features(
-                filepath_trajectory=data_path + 'trajectory.csv',
-                filepath_reference=data_path + 'reference.csv',
-                filepath_events=data_path + 'events.csv',
+                filepath_trajectory=f/'trajectory.csv',
+                filepath_reference=f/'reference.csv',
+                filepath_events=f/'events.csv',
                 colliders=curr_colliders)
-            P.to_csv(data_path + curr_feature_filename, index=False)
-
+            P.to_csv(f/curr_feature_filename, index=False)
         # Save trajectory plot to output folder
+        # todo: debug here, multiprocessing breaks when plotting
         if to_plot_traj_3d:
-            track = pd.read_csv(data_path + 'track.csv')
-            trajectory = pd.read_csv(data_path + 'trajectory.csv')
-            features = pd.read_csv(data_path + curr_feature_filename)
+            track = pd.read_csv(f/'track.csv')
+            trajectory = pd.read_csv(f/'trajectory.csv')
+            features = pd.read_csv(f/curr_feature_filename)
             for label in ['', 'valid_']:
                 for view, xlims, ylims, zlims in [
                     [(45, 270), (-15, 19), (-17, 17), (-8, 8)],
@@ -1444,14 +1456,10 @@ def process_individual_run(
                     # [(0, 180), (-15, 19), (-17, 17), (-12, 12)],
                     # [(90, 270), (-15, 19), (-15, 15), (-12, 12)],
                 ]:
-                    outpath = (data_path + '{}trajectory-with-gates_{}_'
-                                           '{}x{}.jpg'
-                               .format(label,
-                                       collider_name,
-                                       '%03d' % view[0],
-                                       '%03d' % view[1])
-                               )
-                    if not os.path.isfile(outpath):
+                    outpath = (f/'{}trajectory-with-gates_{}_{}x{}.jpg'
+                        .format(label,collider_name,'%03d' % view[0], '%03d'
+                        % view[1]))
+                    if not outpath.exists():
                         if label == 'valid_':
                             ind = ((trajectory['t'].values >=
                                     features['t_start'].iloc[0]) &
@@ -1460,6 +1468,7 @@ def process_individual_run(
                         else:
                             ind = np.array([True for i in range(
                                 trajectory.shape[0])])
+                        # todo: debug here, multiprocessing breaks when plotting
                         ax = plot_trajectory_with_gates_3d(
                             trajectory=trajectory.iloc[ind, :],
                             track=track,
@@ -1468,23 +1477,25 @@ def process_individual_run(
                             ylims=ylims,
                             zlims=zlims,
                         )
-
                         ax.set_title(outpath)
                         plt.savefig(outpath)
-                        plt.close(plt.gcf())
+                        plt.close()
                         ax = None
 
         # Plot the drone state
+        # todo: debug here, multiprocessing breaks when plotting
         if to_plot_state:
             curr_state_filename = 'state_{}.jpg'.format(collider_name)
-            if not os.path.isfile(data_path + curr_state_filename):
+            if not (f/curr_state_filename).exists():
+                # todo: debug here, multiprocessing breaks when plotting
                 plot_state(
-                    filepath_trajectory=data_path + 'trajectory.csv',
-                    filepath_reference=data_path + 'reference.csv',
-                    filepath_features=data_path + curr_feature_filename,
+                    filepath_trajectory=f/'trajectory.csv',
+                    filepath_reference=f/'reference.csv',
+                    filepath_features=f/curr_feature_filename,
                 )
-                plt.savefig(data_path + curr_state_filename)
+                plt.savefig(f/curr_state_filename)
                 plt.close(plt.gcf())
+
 
 def confidence_interval(x,axis=0):
     """Computes the 95% confidence interval of the standard error of means."""
