@@ -17,181 +17,6 @@ from skspatial.objects import Vector, Points, Line, Point, Plane
 from skspatial.plotting import plot_3d
 
 
-# class Checkpoint(object):
-#     """
-#     Checkpoint object represented as 2D surface in 3D space with x-axis
-#     pointing in the direction of flight/desired passing direction.
-#
-#     Contains useful methods for determining distance of points,
-#     and intersections with the plane.
-#     """
-#
-#     def __init__(self, df, dims=None, dtype='default'):
-#         #set variable names according to the type of data
-#         if dtype=='gazesim':
-#             position_varnames = ['pos_x', 'pos_y', 'pos_z']
-#             rotation_varnames = ['rot_x_quat', 'rot_y_quat', 'rot_z_quat', 'rot_w_quat']
-#             dimension_varnames = ['dim_y', 'dim_z']
-#             dimension_scaling_factor = 2.5
-#         elif dtype=='liftoff':
-#             position_varnames = ['position_x [m]', 'position_y [m]', 'position_z [m]']
-#             rotation_varnames = [ 'rotation_x [quaternion]', 'rotation_y [quaternion]', 'rotation_z [quaternion]',
-#                                   'rotation_w [quaternion]']
-#             dimension_varnames = ['checkpoint-size_y [m]', 'checkpoint-size_z [m]']
-#             dimension_scaling_factor = 1.
-#         else: #default
-#             position_varnames = ['px', 'py', 'pz']
-#             rotation_varnames = ['qx', 'qy', 'qz', 'qw']
-#             dimension_varnames = ['dy', 'dz']
-#             dimension_scaling_factor = 1.
-#         #current gate center position
-#         p = df[position_varnames].values.flatten()
-#         #current gate rotation quaterion
-#         q = df[rotation_varnames].values.flatten()
-#         #if no width and height dimensions were specified
-#         if dims is None:
-#             dims = (df[dimension_varnames[0]] * dimension_scaling_factor, df[dimension_varnames[1]] * dimension_scaling_factor)
-#         #half width and height of the gate
-#         hw = dims[0] / 2. #half width
-#         hh = dims[1] / 2. #half height
-#         #assuming gates are oriented in the direction of flight: x=forward, y=left, z=up
-#         proto = np.array([[ 0.,  0.,  0.,  0.,  0.],  # assume surface, thus no thickness along x axis
-#                           [ hw, -hw, -hw,  hw,  hw],
-#                           [ hh,  hh, -hh, -hh,  hh]])
-#         self._corners = (Rotation.from_quat(q).apply(proto.T).T + p.reshape(3, 1)).astype(float)
-#         self._center = p
-#         self._rotation = q
-#         self._normal = Rotation.from_quat(q).apply(np.array([1, 0, 0]))
-#         self._width = dims[0]
-#         self._height = dims[1]
-#         #1D minmax values
-#         self._x = np.array([np.min(self._corners[0, :]), np.max(self._corners[0, :])])
-#         self._y = np.array([np.min(self._corners[1, :]), np.max(self._corners[1, :])])
-#         self._z = np.array([np.min(self._corners[2, :]), np.max(self._corners[2, :])])
-#         #2D line representations of gate horizontal axis
-#         self._xy = LineString([ ((np.min(self._corners[0, :])), np.min(self._corners[1, :])),
-#                                 ((np.max(self._corners[0, :])), np.max(self._corners[1, :]))])
-#         self._xz = LineString([((np.min(self._corners[0, :])), np.min(self._corners[2, :])),
-#                                ((np.max(self._corners[0, :])), np.max(self._corners[2, :]))])
-#         self._yz = LineString([((np.min(self._corners[1, :])), np.min(self._corners[2, :])),
-#                                ((np.max(self._corners[1, :])), np.max(self._corners[2, :]))])
-#         #plane representation
-#         center_point = Point(list(self._center))
-#         normal_point = Point(list(self._center + self._normal))
-#         normal_vector = Vector.from_points(center_point, normal_point)
-#         self.plane = Plane(point=center_point, normal=normal_vector)
-#
-#         self.x_axis = Line(point=self._corners[:, 0],
-#                       direction=self._corners[:, 1] - self._corners[:, 0])
-#         self.y_axis = Line(point=self._corners[:, 0],
-#                       direction=self._corners[:, 3] - self._corners[:, 0])
-#         self.length_x_axis = self.x_axis.direction.norm()
-#         self.length_y_axis = self.y_axis.direction.norm()
-#
-#     @property
-#     def width(self):
-#         return self._width
-#
-#     @property
-#     def height(self):
-#         return self._height
-#
-#     @property
-#     def corners(self):
-#         return self._corners
-#
-#     @property
-#     def center(self):
-#         return self._center
-#
-#     @property
-#     def rotation(self):
-#         return self._rotation
-#
-#     @property
-#     def x(self):
-#         return self._x
-#
-#     @property
-#     def y(self):
-#         return self._y
-#
-#     @property
-#     def z(self):
-#         return self._z
-#
-#     @property
-#     def xy(self):
-#         return self._xy
-#
-#     @property
-#     def xz(self):
-#         return self._xz
-#
-#     @property
-#     def yz(self):
-#         return self._yz
-#
-#     def get_distance(self, p):
-#         return self.plane.distance_point(p)
-#
-#     def get_signed_distance(self, p):
-#         return self.plane.distance_point_signed(p)
-#
-#     def intersect(self, p0: np.ndarray([]), p1: np.ndarray([])) -> tuple():
-#         """
-#         Returns 2D and 3D intersection points with the gate surface and a
-#         line from two given points (p0, p1).
-#         """
-#         # Initialize relevant variables
-#         point_2d = None
-#         point_3d = None
-#         _x = None
-#         _y = None
-#         _z = None
-#         count = 0
-#         #only proceed if no nan values
-#         if (np.sum(np.isnan(p0).astype(int))==0) & (np.sum(np.isnan(p1).astype(int))==0):
-#             #line between start end end points
-#             line_xy = LineString([(p0[0], p0[1]),
-#                                   (p1[0], p1[1])])
-#             line_xz = LineString([(p0[0], p0[2]),
-#                                   (p1[0], p1[2])])
-#             line_yz = LineString([(p0[1], p0[2]),
-#                                   (p1[1], p1[2])])
-#             if self.xy.intersects(line_xy):
-#                 count += 1
-#                 _x, _y = [val for val in self.xy.intersection(line_xy).coords][0]
-#             if self.xz.intersects(line_xz):
-#                 count += 1
-#                 _x, _z = [val for val in self.xz.intersection(line_xz).coords][0]
-#             if self.yz.intersects(line_yz):
-#                 count += 1
-#                 _y, _z = [val for val in self.yz.intersection(line_yz).coords][0]
-#             #at least two of the three orthogonal lines need to be crossed
-#             if count > 1:
-#                 point_3d = np.array([_x, _y, _z])
-#                 point_2d = self.point2d(point_3d)
-#         return point_2d, point_3d
-#
-#     def point2d(self, p: np.ndarray([])) -> np.ndarray([]):
-#         """
-#         Returns normalized [0-1 range] 2D coordinates of the intersection
-#         point within gate surface.
-#
-#         The origin is the upper left corner (1st corner point)
-#         X-axis is to the right
-#         Y-axis is down
-#         """
-#         # Project the 3D intersection point onto the x and y surface axies.
-#         px_projected = self.x_axis.project_point(p)
-#         py_projected = self.y_axis.project_point(p)
-#         length_px_projected = self.x_axis.point.distance_point(px_projected)
-#         length_py_projected = self.y_axis.point.distance_point(py_projected)
-#         # Return the normalized 2D projection of the intersection point.
-#         return np.array([length_px_projected / self.length_x_axis,
-#                          length_py_projected / self.length_y_axis])
-
 class Checkpoint:
     """
     Checkpoint object represented as 2D surface in 3D space with x-axis
@@ -588,78 +413,6 @@ def get_wall_colliders(
     return objWallCollider
 
 
-# def detect_checkpoint_pass(
-#         t: np.ndarray([]),
-#         px: np.ndarray([]),
-#         py: np.ndarray([]),
-#         pz: np.ndarray([]),
-#         checkpoint: Checkpoint,
-#         distance_threshold: int=None
-#         ) -> np.ndarray([]):
-#     """
-#     Return timestamps when drone passes a checkpoint from given drone
-#     timestamps (t), position (px, py, pz), and checkpoint object.
-#
-#         t: timestamps in seconds,
-#         px, py, pz: drone position in x, y, z in meters
-#         checkpoint: Gate object, i.e. 2D surface in 3D space
-#         distance_threshold: distance threshold in meters for which to
-#             consider candidate sampling point for detecting gate interaction
-#
-#         Update on 12.02.2021
-#         Checks if position data is within a distance threshold from the gate
-#         And for those data checks if the gate was passed
-#     """
-#     position = np.hstack((px.reshape(-1, 1),
-#                                np.hstack((py.reshape(-1, 1),
-#                                           pz.reshape(-1, 1)))))
-#
-#     # Set distance threshold to 60% of the gate surface diagonale.
-#     if distance_threshold is None:
-#         distance_threshold = 0.6 * np.sqrt((checkpoint.width) ** 2
-#                                            + (checkpoint.height) ** 2)
-#     # Select candidate timestamps in three steps:
-#     # First, find all timestamps when quad is close to gate.
-#     gate_center = checkpoint.center.reshape((1, 3)).astype(float)
-#     distance_from_gate_center = np.linalg.norm(position - gate_center, axis=1)
-#     timestamps_near_gate = t[distance_from_gate_center < distance_threshold]
-#     # Second, cluster the timestamps that occur consecutively
-#     dt = np.nanmedian(np.diff(t))
-#     ind = np.diff(timestamps_near_gate) > (4*dt)
-#     if len(ind) == 0:
-#         return []
-#     ind1 = np.hstack((ind, True))
-#     ind0 = np.hstack((True, ind))
-#     timstamp_clusters = np.hstack((
-#         timestamps_near_gate[ind0].reshape(-1, 1),
-#         timestamps_near_gate[ind1].reshape(-1, 1)
-#         ))
-#     # Third, find gate passing events using signed distances from gate plane.
-#     event_timestamps = []
-#     for cluster in range(timstamp_clusters.shape[0]):
-#         start_time = timstamp_clusters[cluster, 0]
-#         end_time = timstamp_clusters[cluster, 1]
-#         ind = (t>=start_time) & (t<=end_time)
-#         curr_time = t[ind]
-#         curr_position = position[ind, :]
-#         curr_signed_distance = np.array([
-#             checkpoint.get_signed_distance(curr_position[i, :]) for i in range(
-#                 curr_position.shape[0]
-#             )
-#         ])
-#         # Find transitions from negative to positive signed distance.
-#         #  where "negative distance" is behind the gate (negative x in gate
-#         #  frame) and "positive distance" is in front of the gate (positive x
-#         #  in gate frame.
-#         ind = ((curr_signed_distance <= 0) & (
-#                 np.diff(np.hstack((curr_signed_distance,
-#                                    curr_signed_distance[-1])) > 0) == 1)
-#                )
-#         if np.sum(ind) > 0:
-#             event_timestamps.append(curr_time[ind][0])
-#     return event_timestamps
-
-
 def make_path(
         path: str
         ) -> bool():
@@ -917,6 +670,7 @@ def extract_performance_features(
         filepath_events: str,
         filepath_reference: str=None,
         colliders: list=['gate', 'wall'],
+        debug: bool=True,
         ) -> pd.DataFrame():
     """
     Compute performance features for a given network trajectory, considering
@@ -938,83 +692,61 @@ def extract_performance_features(
         ind[(E['is-collision'].values == 1) &
             (E['object-name'].values == n)] = True
     E = E.loc[ind, :]
-    # Compute offline features
-    ind = (D['t'].values >= 0) & (D['network_used'].values == 0)
-    if np.sum(ind)>0:
+    # Remove initial buffer time.
+    buffer = float(filepath_trajectory.as_posix().split('buffer')[-1].split(
+        '/')[0]) / 10
+    ind=R['t'].values>buffer
+    R=R.loc[ind,:]
+    ind=D['t'].values>buffer
+    D=D.loc[ind, :]
+    ind=E['t'].values>buffer
+    E=E.loc[ind,:]
+    # Check if network (online) or mpc (offline) control mode.
+    x = D['throttle_mpc'].values
+    nmpc=np.sum(np.isnan(x)==False)
+    ntotal=x.shape[0]
+    print('mpc samples: {}/{}'.format(nmpc,ntotal))
+    control='nw'
+    if nmpc/ntotal>0.8:
+        control='mpc'
+    print('{} control'.format(control))
+    # Compute offline features.
+    mpc_nw_dict = {}
+    if control=='mpc':
         network_used = 0
-        mpc_nw_dict = {}
         for n in ['throttle', 'roll', 'pitch', 'yaw']:
-            if ('{}_mpc'.format(n) not in D.columns) or ('{}_nw'.format(n)
-                    not in D.columns):
-                diff_values = np.nan
-            else:
-                diff_values = (D.loc[ind, '{}_mpc'.format(n)].values -
-                               D.loc[ind, '{}_nw'.format(n)].values)
-            mpc_nw_dict[n] = {
-                'l1': np.nanmean(np.abs(diff_values)),
-                'mse': np.nanmean(np.power(diff_values, 2)),
-                'l1-median': np.nanmedian(np.abs(diff_values)),
-                'mse-median': np.nanmedian(np.power(diff_values, 2)),
-            }
+            mpc_nw_dict.setdefault(n, {})
+            x=(D['{}_mpc'.format(n)].values-D['{}_nw'.format(n)].values)
+            mpc_nw_dict[n]['l1']: np.nanmean(np.abs(x))
+            mpc_nw_dict[n]['mse']: np.nanmean(np.power(x, 2))
+            mpc_nw_dict[n]['l1-median']: np.nanmedian(np.abs(x))
+            mpc_nw_dict[n]['mse-median']: np.nanmedian(np.power(x, 2))
     else:
         network_used = 1
-        mpc_nw_dict = {}
         for n in ['throttle', 'roll', 'pitch', 'yaw']:
-            mpc_nw_dict[n] = {
-                'l1': np.nan,
-                'mse': np.nan,
-                'l1-median': np.nan,
-                'mse-median': np.nan,
-            }
+            mpc_nw_dict.setdefault(n, {})
+            for m in ['l1', 'mse', 'l1-median', 'mse-median']:
+                mpc_nw_dict[n].setdefault(m, np.nan)
+    pprint(mpc_nw_dict)
     # Determine start and end time
-    t_trajectory_start = D['t'].iloc[0]
-    t_trajectory_end = D['t'].iloc[-1]
-    ind = D['network_used'].values == 1
-    if np.sum(ind) > 0:
-        t_network_start = D['t'].values[ind][0]
-        t_network_end = D['t'].values[ind][-1]
-        network_in_control = True
-    else:
-        t_network_start = None
-        t_network_end = None
-        network_in_control = False
-    ind = E['is-collision'].values == 1
-    if np.sum(ind) > 0:
-        t_first_collision = E.loc[ind, 't'].values[0]
-    else:
-        t_first_collision = None
-    if t_network_start is not None:
-        t_start = t_network_start
-    else:
-        t_start = t_trajectory_start
-    if t_first_collision is not None:
-        t_end = t_first_collision
-    else:
-        if t_network_end is not None:
-            t_end = t_network_end
-        else:
-            t_end = t_trajectory_end
-
-    # For consistency, start of the lap is at start/finish gate 9
-    if t_start < 0:
-        t_start = 0
-    if t_end<t_start:
-        t_end=t_start
+    t_start=D['t'].iloc[0]
+    t_end=D['t'].iloc[-1]
+    ind=E['is-collision'].values==1
+    if np.sum(ind)>0:
+        t_end=E.loc[ind, 't'].values[0]
     # Get performance metrics within the start and end time window
-    # ..number of passed gates
+    # ..number of passed gates.
     ind = (E['t'].values >= t_start) & (E['t'].values <= t_end)
     num_gates_passed = np.sum(E.loc[ind, 'is-pass'].values)
-
+    # ..number of collisions.
     ind = ((E['is-collision'].values == 1) &
            (E['t']>=t_start) &
            (E['t']<=t_end))
     num_collisions = np.sum(ind)
-
     num_passes = {}
     for i in range(10):
         ind3 = E['object-id'].values == i
         num_passes[i] = np.sum(E.loc[ind & ind3, 'is-pass'].values)
-
     # Distance and Duration features (considering all time the network was in
     # control)
     if t_end > t_start:
@@ -1079,6 +811,33 @@ def extract_performance_features(
             outdict['{}_error_{}'.format(k1, k2)] = mpc_nw_dict[k1][k2]
     outdict['filepath'] = filepath_trajectory
     P = pd.DataFrame(outdict, index=[0])
+
+    # Debug:check the data
+    if debug:
+        print(D.columns)
+        print(E.columns)
+        print(E)
+        x = D['throttle_mpc'].values
+        print('non-nan mpc samples: {}/{}'.format(np.sum(np.isnan(x) == False),
+                                                  x.shape[0]))
+        print(P.loc[:, ('throttle_error_l1',
+                        'throttle_error_l1-median', 'throttle_error_mse',
+                        'throttle_error_mse-median')])
+        plt.figure()
+        plt.gcf().set_figwidth(15)
+        plt.subplot(2, 1, 1)
+        plt.plot(D.px, D.py, label='nw')
+        plt.plot(R.px, R.py, label='reference')
+        plt.title('DEBUG:\n{}'.format(filepath_trajectory))
+        plt.legend()
+        plt.subplot(2, 1, 2)
+        plt.plot(D['t'], D['throttle_mpc'], label='throttle_mpc')
+        plt.plot(D['t'], D['throttle_nw'], label='throttle_nw')
+        plt.xlabel('t')
+        plt.ylabel('throttle')
+        plt.legend()
+        plt.show()
+
     return P
 
 
@@ -1501,7 +1260,10 @@ def process_individual_run(
                 plt.close(plt.gcf())
 
 
-def confidence_interval(x,axis=0):
+def confidence_interval(
+        x,
+        axis=0
+        ):
     """Computes the 95% confidence interval of the standard error of means."""
     m = np.nanmean(x,axis=axis)
     s = np.nanstd(x,axis=axis,ddof=1) / np.sqrt(x.shape[axis])
@@ -1511,3 +1273,1160 @@ def confidence_interval(x,axis=0):
         return np.vstack((cl,cu))
     else:
         return np.vstack((cl,cu)).T
+
+
+def import_logs(
+        path,
+        num_parallel_processes=1,
+        to_override=False,
+        to_plot_traj_3d=False,
+        to_plot_state=False,
+        exclude=['original.csv'],
+        ) -> None:
+    """Process raw files in parallel."""
+    f = sorted(path.rglob('*.csv'))
+    for n in exclude:
+        f = [_f for _f in f if _f.name != n]
+    map = [(_f, to_override, to_plot_traj_3d, to_plot_state) for _f in f]
+    with Pool(num_parallel_processes) as p:
+        p.starmap(process_individual_run, map)
+
+
+def get_performance(
+        collider_name,
+        models,
+    ) -> pd.DataFrame:
+    """"Collects flight performance metrics across different flight datasets."""
+    curr_feature_filename = 'features_{}.csv'.format(collider_name)
+    performance = pd.DataFrame([])
+    for model in models:
+        filepaths = []
+        for w in os.walk('./process/'+model+'/'):
+            for f in w[2]:
+                if f==curr_feature_filename:
+                    filepaths.append(os.path.join(w[0], f))
+        for filepath in filepaths:
+            print('..collecting performance: {}'.format(filepath))
+            df =  pd.read_csv(filepath)
+            # Get model and run information from filepath
+            strings = (
+                df['filepath'].iloc[0]
+                    .split('/process/')[-1]
+                    .split('/trajectory.csv')[0]
+                    .split('/')
+            )
+            if len(strings) == 2:
+                strings.insert(1, 's016_r05_flat_li01_buffer20')
+            # Load the yaml file
+            yamlpath = None
+            config = None
+            yamlcount = 0
+            for w in os.walk('./logs/'+model+'/'):
+                for f in w[2]:
+                    if f.find('.yaml')>-1:
+                        yamlpath = os.path.join(w[0], f)
+                        yamlcount += 1
+            if yamlpath is not None:
+                with open(yamlpath, 'r') as stream:
+                    try:
+                        config = yaml.safe_load(stream)
+                    except yaml.YAMLError as exc:
+                        print(exc)
+                        config = None
+            # Make Data dictionnairy for the output
+            ddict = {}
+            ddict['model_name'] = strings[0]
+            ddict['has_dda'] = int(strings[0].find('dda') > -1)
+            if ((strings[2].find('mpc_nw_act') > -1) &
+                (filepath.find('mpc_nw_act') > -1)):
+                ddict['has_network_used'] = 0
+            else:
+                ddict['has_network_used'] = 1
+
+            ddict.setdefault('has_yaml', 0)
+            ddict.setdefault('has_ref', 0)
+            if config is not None:
+                ddict['has_yaml'] = 1
+                if 'no_ref' in config['train']:
+                    ddict['has_ref'] = int(config['train']['no_ref'] == False)
+                # Which drone state inputs were used.
+                ddict['has_state_q'] = 0
+                ddict['has_state_v'] = 0
+                ddict['has_state_w'] = 0
+                if 'use_imu' in config['train']:
+                    if config['train']['use_imu'] == True:
+                        ddict['has_state_q'] = 1
+                        ddict['has_state_v'] = 1
+                        ddict['has_state_w'] = 1
+                        if 'imu_no_rot' in config['train']:
+                            if config['train']['imu_no_rot'] == True:
+                                ddict['has_state_q'] = 0
+                        if 'imu_no_vels' in config['train']:
+                            if config['train']['imu_no_vels'] == True:
+                                ddict['has_state_v'] = 0
+                                ddict['has_state_w'] = 0
+                # Whether image features were used.
+                ddict.setdefault('has_img', 0)
+                if 'use_images' in config['train']:
+                    ddict['has_img']=int(config['train']['use_images'])
+                else:
+                    if strings[0].find('_img')>-1:
+                        ddict['has_img']=1
+                # Whether feature tracks were used.
+                ddict.setdefault('has_fts', 0)
+                if 'use_fts_tracks' in config['train']:
+                    ddict['has_fts'] = int(
+                        config['train']['use_fts_tracks'])
+                # Whether encoder features were used.
+                ddict.setdefault('has_encfts', 0)
+                if 'attention_fts_type' in config['train']:
+                    if config['train']['attention_fts_type'] == \
+                            'encoder_fts':
+                        ddict['has_encfts'] = 1
+                # Whether decoder features were used.
+                ddict.setdefault('has_decfts', 0)
+                if 'attention_fts_type' in config['train']:
+                    if config['train']['attention_fts_type'] == \
+                            'decoder_fts':
+                        ddict['has_deccfts'] = 1
+                # Whether gaze tracks used.
+                ddict.setdefault('has_gztr', 0)
+                if 'attention_fts_type' in config['train']:
+                    if config['train']['attention_fts_type'] == \
+                            'gaze_tracks':
+                        ddict['has_gztr'] = 1
+                # Whether attention branching was used
+                ddict.setdefault('has_attbr', 0)
+                if 'attention_branching' in config['train']:
+                    if config['train']['attention_branching'] == True:
+                        ddict['has_attbr'] = 1
+                # Size of the time buffer used.
+                ddict.setdefault('buffer', 0)
+                if 'start_buffer' in config['simulation']:
+                    ddict['buffer'] = config['simulation']['start_buffer']
+            # Update the buffer time.
+            ddict['buffer'] = float(strings[1].split('buffer')[-1]) / 10
+            ddict['subject'] = int(
+                strings[1].split('_')[0].split('-')[2].split('s')[-1])
+            # Whether data is training or testing data.
+            ddict.setdefault('has_train',0)
+            ddict['has_train']=int(strings[1].split('_')[0].split(
+                '-')[3]=='train')
+            ddict.setdefault('has_test', 0)
+            ddict['has_test']=int(strings[1].split('_')[0].split(
+                '-')[3]=='test')
+            # Dataset information
+            ddict['run'] = int(strings[1].split('_')[1].replace('r',''))
+            ddict['track'] = strings[1].split('_')[0].split('-')[1]
+            li_string = strings[1].split('_')[2].replace('li','')
+            if li_string.find('-')>-1:
+                ddict['li'] = int(li_string.split('-')[0])
+                ddict['num_laps'] = (int(li_string.split('-')[-1]) -
+                                     int(li_string.split('-')[0]) + 1)
+            else:
+                ddict['li'] = int(li_string)
+                ddict['num_laps'] = 1
+            if ddict['has_dda'] == 0:
+                if strings[2] == 'reference_mpc':
+                    ddict['mt'] = -1
+                    ddict['st'] = 0
+                    ddict['repetition'] = 0
+                else:
+                    ddict['mt'] = -1
+                    ddict['st'] = int(strings[2].split('_')[1].split('switch-')[-1])
+                    ddict['repetition'] = int(strings[2].split('_')[-1])
+            else:
+                if strings[0].find('dda_offline')>-1:
+                    ddict['mt'] = -1
+                    ddict['st'] = int(strings[2].split('_')[1].split('st-')[-1])
+                    ddict['repetition'] = int(strings[2].split('_')[-1])
+                elif strings[2].find('mpc_eval_nw')>-1:
+                    ddict['mt'] = -1
+                    ddict['st'] = -1
+                    ddict['repetition'] = 0
+                elif strings[2].find('mpc_nw_act')>-1:
+                    ddict['mt'] = -1
+                    ddict['st'] = -1
+                    ddict['repetition'] = 0
+                else:
+                    ddict['mt'] = int(strings[2].split('_')[1].split('mt-')[-1])
+                    ddict['st'] = int(strings[2].split('_')[2].split('st-')[-1])
+                    ddict['repetition'] = int(strings[2].split('_')[-1])
+            # Add data dictionnairy as output row
+            for k in sorted(ddict):
+                df[k] = ddict[k]
+            performance = performance.append(df)
+    return performance
+
+
+def make_summary_table(
+        collider_name,
+        curr_path,
+        performance,
+        online_name,
+        trajectory_name
+        ):
+    print('----------------')
+    print(online_name, trajectory_name)
+    print('----------------')
+
+    # Subject dictionnairy
+    run_dict = None
+    exclude_run_dict = None
+    if trajectory_name == 'reference':
+        run_dict = {
+            'track': 'flat',
+            'subject': 16,
+            'run': 5,
+            'li': 1,
+            'num_laps': 1,
+        }
+    elif trajectory_name == 'other-laps':
+        run_dict = {
+            'track': 'flat',
+            'num_laps': 1,
+        }
+        exclude_run_dict = {
+            'track': 'flat',
+            'subject': 16,
+            'run': 5,
+            'li': 1,
+            'num_laps': 1,
+        }
+    elif trajectory_name == 'other-track':
+        run_dict = {
+            'track': 'wave',
+            'num_laps': 1,
+        }
+    elif trajectory_name == 'multi-laps':
+        run_dict = {
+            'track': 'flat',
+        }
+        exclude_run_dict = {
+            'num_laps': 1,
+        }
+
+    # Network general dictionnairy
+    if online_name == 'online':
+        network_dict = {
+            'has_dda': 1,
+            'has_network_used': 1,
+        }
+    else:
+        network_dict = {
+            'has_dda': 1,
+            'has_network_used': 0,
+        }
+
+    # Model dictionnairy
+    model_dicts = [
+        {
+            'name': 'Ref + RVW (Baseline)',
+            'specs': {
+                'has_ref': 1,
+                'has_state_q': 1,
+                'has_state_v': 1,
+                'has_state_w': 1,
+                'has_fts': 0,
+                'has_decfts': 0,
+                'has_attbr': 0,
+                'has_gztr': 0,
+            },
+        },
+        {
+            'name': 'Ref + RVW + Fts',
+            'specs': {
+                'has_ref': 1,
+                'has_state_q': 1,
+                'has_state_v': 1,
+                'has_state_w': 1,
+                'has_fts': 1,
+                'has_decfts': 0,
+                'has_attbr': 0,
+                'has_gztr': 0,
+            },
+        }, {
+            'name': 'Ref + RVW + AIn',
+            'specs': {
+                'has_ref': 1,
+                'has_state_q': 1,
+                'has_state_v': 1,
+                'has_state_w': 1,
+                'has_fts': 0,
+                'has_decfts': 1,
+                'has_attbr': 0,
+                'has_gztr': 0,
+            },
+        }, {
+            'name': 'Ref + RVW + Abr',
+            'specs': {
+                'has_ref': 1,
+                'has_state_q': 1,
+                'has_state_v': 1,
+                'has_state_w': 1,
+                'has_fts': 0,
+                'has_decfts': 0,
+                'has_attbr': 1,
+                'has_gztr': 0,
+            },
+        }, {
+            'name': 'Ref (Baseline)',
+            'specs': {
+                'has_ref': 1,
+                'has_state_q': 0,
+                'has_state_v': 0,
+                'has_state_w': 0,
+                'has_fts': 0,
+                'has_decfts': 0,
+                'has_attbr': 0,
+                'has_gztr': 0,
+            },
+        }, {
+            'name': 'Ref + Fts',
+            'specs': {
+                'has_ref': 1,
+                'has_state_q': 0,
+                'has_state_v': 0,
+                'has_state_w': 0,
+                'has_fts': 1,
+                'has_decfts': 0,
+                'has_attbr': 0,
+                'has_gztr': 0,
+            },
+        }, {
+            'name': 'Ref + AIn',
+            'specs': {
+                'has_ref': 1,
+                'has_state_q': 0,
+                'has_state_v': 0,
+                'has_state_w': 0,
+                'has_fts': 0,
+                'has_decfts': 1,
+                'has_attbr': 0,
+                'has_gztr': 0,
+            },
+        }, {
+            'name': 'Ref + ABr',
+            'specs': {
+                'has_ref': 1,
+                'has_state_q': 0,
+                'has_state_v': 0,
+                'has_state_w': 0,
+                'has_fts': 0,
+                'has_decfts': 0,
+                'has_attbr': 1,
+                'has_gztr': 0,
+            },
+        }, {
+            'name': 'RVW (Baseline)',
+            'specs': {
+                'has_ref': 0,
+                'has_state_q': 1,
+                'has_state_v': 1,
+                'has_state_w': 1,
+                'has_fts': 0,
+                'has_decfts': 0,
+                'has_attbr': 0,
+                'has_gztr': 0,
+            },
+        }, {
+            'name': 'RVW + Fts',
+            'specs': {
+                'has_ref': 0,
+                'has_state_q': 1,
+                'has_state_v': 1,
+                'has_state_w': 1,
+                'has_fts': 1,
+                'has_decfts': 0,
+                'has_attbr': 0,
+                'has_gztr': 0,
+            },
+        }, {
+            'name': 'RVW + AIn',
+            'specs': {
+                'has_ref': 0,
+                'has_state_q': 1,
+                'has_state_v': 1,
+                'has_state_w': 1,
+                'has_fts': 0,
+                'has_decfts': 1,
+                'has_attbr': 0,
+                'has_gztr': 0,
+            },
+        }, {
+            'name': 'RVW + ABr',
+            'specs': {
+                'has_ref': 0,
+                'has_state_q': 1,
+                'has_state_v': 1,
+                'has_state_w': 1,
+                'has_fts': 0,
+                'has_decfts': 0,
+                'has_attbr': 1,
+                'has_gztr': 0,
+            },
+        },
+    ]
+
+    # Feature dictionnairy
+    if online_name == 'online':
+        feature_dict = {
+            'Flight Time [s]': {
+                'varname': 'flight_time',
+                'track': '',
+                'first_line': 'mean',
+                'second_line': 'std',
+                'precision': 2
+            },
+            'Travel Distance [m]': {
+                'varname': 'travel_distance',
+                'track': '',
+                'first_line': 'mean',
+                'second_line': 'std',
+                'precision': 2
+            },
+            'Mean Error [m]': {
+                'varname': 'median_path_deviation',
+                'track': '',
+                'first_line': 'mean',
+                'second_line': 'std',
+                'precision': 2
+            },
+            'Gates Passed': {
+                'varname': 'num_gates_passed',
+                'track': '',
+                'first_line': 'mean',
+                'second_line': 'std',
+                'precision': 2
+            },
+            '% Collision': {
+                'varname': 'num_collisions',
+                'track': '',
+                'first_line': 'percent',
+                'second_line': '',
+                'precision': 0
+            },
+        }
+    else:
+        feature_dict = {
+            'Throttle MSE': {
+                'varname': 'throttle_error_mse-median',
+                'track': '',
+                'first_line': 'mean',
+                'second_line': '',
+                'precision': 3
+            },
+            'Throttle L1': {
+                'varname': 'throttle_error_l1-median',
+                'track': '',
+                'first_line': 'mean',
+                'second_line': '',
+                'precision': 3
+            },
+            'Roll MSE': {
+                'varname': 'roll_error_mse-median',
+                'track': '',
+                'first_line': 'mean',
+                'second_line': '',
+                'precision': 3
+            },
+            'Roll L1': {
+                'varname': 'roll_error_l1-median',
+                'track': '',
+                'first_line': 'mean',
+                'second_line': '',
+                'precision': 3
+            },
+            'Pitch MSE': {
+                'varname': 'pitch_error_mse-median',
+                'track': '',
+                'first_line': 'mean',
+                'second_line': '',
+                'precision': 3
+            },
+            'Pitch L1': {
+                'varname': 'pitch_error_l1-median',
+                'track': '',
+                'first_line': 'mean',
+                'second_line': '',
+                'precision': 3
+            },
+            'Yaw MSE': {
+                'varname': 'yaw_error_mse-median',
+                'track': '',
+                'first_line': 'mean',
+                'second_line': '',
+                'precision': 3
+            },
+            'Yaw L1': {
+                'varname': 'yaw_error_l1-median',
+                'track': '',
+                'first_line': 'mean',
+                'second_line': '',
+                'precision': 3
+            },
+        }
+
+    # Make a table
+    if (run_dict is not None) and (model_dicts is not None):
+        table = pd.DataFrame([])
+        for mdict in model_dicts:
+
+            # add subject dictionnairy to the model dictionnairy
+            mdict['specs'] = {**mdict['specs'],
+                              **network_dict,
+                              **run_dict}
+
+            ddict = {}
+            ddict['Model'] = [mdict['name'], '']
+
+            # Select performance data
+            # Runs to include
+            ind = np.array([True for i in range(performance.shape[0])])
+            for k, v in mdict['specs'].items():
+                ind = ind & (performance[k] == v)
+            # Runs to exclude
+            if exclude_run_dict is not None:
+                ind_exclude = np.array([True for i in range(
+                    performance.shape[0])])
+                for k, v in exclude_run_dict.items():
+                    ind_exclude = ind_exclude & (performance[k] == v)
+                # Combine run selection
+                ind = (ind == True) & (ind_exclude == False)
+            # Select current runs
+            curr_performance = performance.copy().loc[ind, :]
+
+            ddict['Num Runs'] = [str(curr_performance.shape[0]), '']
+
+            print(mdict['name'], ':', curr_performance.shape[0])
+            # print(curr_performance)
+
+            if curr_performance.shape[0] > 0:
+                # Compute Average performances
+                for outvar in feature_dict:
+                    ddict.setdefault(outvar, [])
+                    invar = feature_dict[outvar]['varname']
+                    curr_vals = curr_performance[invar].values
+                    # first line value
+                    op1 = feature_dict[outvar]['first_line']
+                    if op1 == 'mean':
+                        val1 = np.nanmean(curr_vals)
+                    elif op1 == 'percent':
+                        val1 = 100 * np.mean(
+                            (curr_vals > 0).astype(int))
+                    else:
+                        val1 = None
+                    if val1 is None:
+                        ddict[outvar].append('')
+                    else:
+                        ddict[outvar].append(
+                            str(np.round(val1, feature_dict[outvar][
+                                'precision'])))
+                    # second line value
+                    op2 = feature_dict[outvar]['second_line']
+                    if op2 == 'std':
+                        val1 = np.nanstd(curr_vals)
+                    else:
+                        val1 = None
+                    if val1 is None:
+                        ddict[outvar].append('')
+                    else:
+                        ddict[outvar].append(
+                            '(' + str(
+                                np.round(val1, feature_dict[outvar][
+                                    'precision'])) + ')')
+
+            for k in ddict:
+                ddict[k] = [' '.join(ddict[k])]
+
+            # Append two lines to the output table
+            table = table.append(
+                pd.DataFrame(ddict,
+                             index=list(range(len(ddict['Model']))))
+            )
+
+        outpath = curr_path + '/{}/'.format(online_name)
+        if not os.path.exists(outpath):
+            make_path(outpath)
+
+        outfilepath = outpath + 'latex_table_{}.csv'.format(
+            trajectory_name)
+        table.to_latex(outfilepath, index=False)
+
+
+def get_subject_performance(
+        base_path,
+        to_plot_performance=True,
+        to_plot_dist_successful_flight=True,
+        collider_name='gate-wall',
+        ):
+    """ Collect performance data"""
+    # Process new logfiles.
+    outpath = base_path / 'analysis' / 'performance' / collider_name / \
+              'subject_performance.csv'
+    if not outpath.exists():
+        filepaths = sorted((base_path / 'analysis' / 'process').rglob(
+            '*/features_{}.csv'.format(collider_name)))
+        data = pd.DataFrame([])
+        for f in filepaths:
+            df = pd.read_csv(f)
+            df['model'] = f.parts[-4].split('_')[1]
+            if f.parts[-3].find('trajectory') > -1:
+                df['track'] = f.parts[-3].split('_')[0].split('-')[1]
+                df['subject'] = int(
+                    f.parts[-3].split('_')[0].split('-')[2].replace('s', ''))
+                df['dataset'] = f.parts[-3].split('_')[0].split('-')[3]
+            else:
+                df['track'] = f.parts[-3].split('_')[2]
+                df['subject'] = int(f.parts[-3].split('_')[0].replace('s', ''))
+                df['dataset'] = 'test'
+            if f.as_posix().find('mpc_nw_act')>-1:
+                df['control']='mpc'
+                df['mt'] = -1
+                df['st'] = -1
+            else:
+                df['control']='nw'
+                df['mt'] = int(f.parts[-2].split('_')[1].split('-')[1])
+                df['st'] = int(f.parts[-2].split('_')[2].split('-')[1])
+            df['trial'] = int(f.parts[-2].split('_')[3])
+            data = data.append(df)
+        if not outpath.parent.exists():
+            outpath.parent.mkdir(parents=True, exist_ok=True)
+        data.to_csv(outpath, index=False)
+    # Extract performance from logfiles.
+    inpath = base_path / 'analysis' / 'performance' / collider_name / 'subject_performance.csv'
+    outpath = base_path / 'analysis' / 'performance' / collider_name / 'summary.csv'
+    if (inpath.exists()) & (not outpath.exists()):
+        data = pd.read_csv(inpath)
+        ddict = {}
+        for model in data['model'].unique():
+            for track in data['track'].unique():
+                for dataset in data['dataset'].unique():
+                    print('--------------------------------')
+                    for subject in data['subject'].unique():
+                        ind = (
+                                (data['model'].values == model) &
+                                (data['track'].values == track) &
+                                (data['dataset'].values == dataset) &
+                                (data['subject'].values == subject)
+                        )
+                        num_samples = np.sum(ind)
+                        num_coll_free = np.sum(
+                            data.loc[ind, 'num_collisions'].values == 0)
+                        num_gates_passed = np.sum(
+                            data.loc[ind, 'num_gates_passed'].values == 11)
+                        prop_coll_free = num_coll_free / num_samples
+                        prop_gates_passed = num_gates_passed / num_samples
+                        ddict.setdefault('model', [])
+                        ddict['model'].append(model)
+                        ddict.setdefault('track', [])
+                        ddict['track'].append(track)
+                        ddict.setdefault('dataset', [])
+                        ddict['dataset'].append(dataset)
+                        ddict.setdefault('subject', [])
+                        ddict['subject'].append(subject)
+                        ddict.setdefault('num_samples', [])
+                        ddict['num_samples'].append(num_samples)
+                        ddict.setdefault('num_coll_free', [])
+                        ddict['num_coll_free'].append(num_coll_free)
+                        ddict.setdefault('num_gates_passed', [])
+                        ddict['num_gates_passed'].append(num_gates_passed)
+                        ddict.setdefault('prop_coll_free', [])
+                        ddict['prop_coll_free'].append(prop_coll_free)
+                        ddict.setdefault('prop_gates_passed', [])
+                        ddict['prop_gates_passed'].append(prop_gates_passed)
+                        print(model, track, dataset, subject, num_samples,
+                              num_coll_free, prop_coll_free)
+        summary = pd.DataFrame(ddict)
+        summary.to_csv(outpath, index=False)
+    # Plot performance tables and figure.
+    if to_plot_performance:
+        inpath = base_path / 'analysis' / 'performance' / collider_name / 'subject_performance.csv'
+        inpath2 = base_path / 'analysis' / 'performance' / collider_name / 'summary.csv'
+        outpath = base_path / 'analysis' / 'performance' / collider_name / 'plots'
+        if inpath2.exists():
+            # Load performance data
+            data = pd.read_csv(inpath)
+            summary = pd.read_csv(inpath2)
+            # Loop over different model configurations
+            for model in data['model'].unique():
+                for track in data['track'].unique():
+                    for dataset in data['dataset'].unique():
+                        # Determine if any data is available:
+                        ind = ((data['model'].values == model) &
+                               (data['track'].values == track) &
+                               (data['dataset'].values == dataset))
+                        if np.sum(ind) > 0:
+                            # Make a figure that shows trajectories for all subjects
+                            fig, axs = plt.subplots(5, 4)
+                            fig.set_figwidth(18)
+                            fig.set_figheight(10)
+                            axs = axs.flatten()
+                            i = 0
+                            for subject in data['subject'].unique():
+                                # Determine Success rate
+                                ind = ((summary['model'].values == model) &
+                                       (summary['track'].values == track) &
+                                       (summary['dataset'].values == dataset) &
+                                       (summary['subject'].values == subject))
+                                is_success = True
+                                fontweight = 'normal'
+                                fontcolor = 'black'
+                                frame_highlight = False
+                                gates_passed_rate = ''
+                                collision_free_rate = ''
+                                if np.sum(ind) > 0:
+                                    _num_samples = summary.loc[
+                                        ind, 'num_samples'].iloc[0]
+                                    _num_coll_free = summary.loc[
+                                        ind, 'num_coll_free'].iloc[0]
+                                    _num_gates_passed = summary.loc[
+                                        ind, 'num_gates_passed'].iloc[0]
+                                    u = \
+                                        summary.loc[ind, 'prop_gates_passed'].iloc[
+                                            0]
+                                    v = summary.loc[ind, 'prop_coll_free'].iloc[
+                                        0]
+                                    if not np.isnan(v):
+                                        gates_passed_rate = ' | G: {}/{} ({:.0f}%)'.format(
+                                            _num_gates_passed, _num_samples,
+                                            u * 100)
+                                        collision_free_rate = ' | C: {}/{} ({:.0f}%)'.format(
+                                            _num_coll_free, _num_samples,
+                                            v * 100)
+                                        if (u < 1) | (v < 1):
+                                            fontweight = 'bold'
+                                            frame_highlight = True
+                                            is_success = False
+                                            fontcolor = 'red'
+                                # Plot trajectory
+                                ind = (
+                                        (data['model'].values == model) &
+                                        (data['track'].values == track) &
+                                        (data['dataset'].values == dataset) &
+                                        (data['subject'].values == subject) &
+                                        (data['trial'].values == 0)
+                                )
+                                if np.sum(ind) > 0:
+                                    f = (Path(data.loc[ind, 'filepath'].iloc[0])
+                                         .parent / 'trajectory-with-gates_gate-wall_045x270.jpg')
+                                    im = cv2.imread(f.as_posix())
+                                    # crop image borders
+                                    im = im[270:-340, 250:-250, :]
+                                    # add color frame (if not full success)
+                                    if not is_success:
+                                        im = cv2.copyMakeBorder(im, 20, 20, 20,
+                                                                20,
+                                                                cv2.BORDER_CONSTANT,
+                                                                value=(
+                                                                    255, 0, 0))
+                                    axs[i].imshow(im)
+                                axs[i].axis('off')
+                                axs[i].set_title('s%03d' % subject +
+                                                 gates_passed_rate +
+                                                 collision_free_rate,
+                                                 fontweight=fontweight,
+                                                 color=fontcolor)
+                                # raise the panel counter
+                                i += 1
+                            # remove axis from remaining panels
+                            for i in range(i, axs.shape[0]):
+                                axs[i].axis('off')
+                            plt.tight_layout()
+                            # make output directory
+                            if not outpath.exists():
+                                outpath.mkdir(parents=True, exist_ok=True)
+                            # save the figure
+                            op = (outpath / ('trajectories_{}_{}_{}.jpg'.format(
+                                model, track, dataset)))
+                            fig.savefig(op.as_posix())
+                            plt.close(fig)
+                            fig = None
+                            axs = None
+                            # Pring overall success to prompt
+                            ind = ((summary['model'].values == model) &
+                                   (summary['track'].values == track) &
+                                   (summary['dataset'].values == dataset))
+                            num_samples = np.nansum(
+                                summary.loc[ind, 'num_samples'].values)
+                            num_coll_free = np.nansum(summary.loc[ind,
+                                                                  'num_coll_free'].values)
+                            num_gates_passed = np.nansum(summary.loc[ind,
+                                                                     'num_gates_passed'].values)
+                            prop_coll_free = np.nan
+                            prop_gates_passed = np.nan
+
+                            if num_samples > 0:
+                                prop_coll_free = num_coll_free / num_samples
+                                prop_gates_passed = num_gates_passed / num_samples
+                                print(
+                                    'Success trajectories: {} {} {} | G: {}/{} ({:.0f}%) | C: {}/{} ({:.0f}%)'.format(
+                                        model, track, dataset,
+                                        num_gates_passed, num_samples,
+                                        100 * prop_gates_passed,
+                                        num_coll_free, num_samples,
+                                        100 * prop_coll_free))
+    # Plot proportion of successful laps for each of the tracks
+    if to_plot_dist_successful_flight:
+        inpath = base_path / 'analysis' / 'performance' / collider_name / 'summary.csv'
+        outpath = base_path / 'analysis' / 'performance' / collider_name / 'success_by_subject.csv'
+        if inpath.exists():
+            summary = pd.read_csv(inpath)
+            ddict = {}
+            for subject in summary['subject'].unique():
+                # get laptime
+                f = [v for v in sorted((base_path / 'analysis' / 'logs').rglob(
+                    '*original.csv'))
+                     if v.as_posix().find('s%03d' % subject) > -1]
+                f = f[0]
+                # print('..loading reference trajectory {}'.format(f))
+                df = pd.read_csv(f)
+                laptime = (df['time-since-start [s]'].iloc[-1] -
+                           df['time-since-start [s]'].iloc[0])
+                # get other performance features
+                ind = ((summary['subject'].values == subject) &
+                       (summary['dataset'].values == 'train'))
+                num_samples = np.sum(summary.loc[ind, 'num_samples'].values)
+                num_gates_passed = np.sum(
+                    summary.loc[ind, 'num_gates_passed'].values)
+                num_coll_free = np.sum(summary.loc[ind, 'num_coll_free'].values)
+                prop_gates_passed = num_gates_passed / num_samples
+                prop_coll_free = num_coll_free / num_samples
+                ddict.setdefault('subject', [])
+                ddict['subject'].append(subject)
+                ddict.setdefault('laptime', [])
+                ddict['laptime'].append(laptime)
+                ddict.setdefault('num_samples', [])
+                ddict['num_samples'].append(num_samples)
+                ddict.setdefault('num_gates_passed', [])
+                ddict['num_gates_passed'].append(num_gates_passed)
+                ddict.setdefault('num_coll_free', [])
+                ddict['num_coll_free'].append(num_coll_free)
+                ddict.setdefault('prop_gates_passed', [])
+                ddict['prop_gates_passed'].append(prop_gates_passed)
+                ddict.setdefault('prop_coll_free', [])
+                ddict['prop_coll_free'].append(prop_coll_free)
+            df = pd.DataFrame(ddict)
+            print(df)
+            df.to_csv(outpath, index=False)
+
+            plt.figure()
+            plt.gcf().set_figwidth(15)
+            plt.gcf().set_figheight(10)
+            plt.subplot(2, 1, 1)
+            plt.bar(df['subject'].values - 0.15,
+                    df['prop_gates_passed'],
+                    width=0.3,
+                    label='Gates')
+            plt.bar(df['subject'].values + 0.15,
+                    df['prop_coll_free'],
+                    width=0.3,
+                    label='Collisions')
+            plt.xticks(df['subject'].values)
+            plt.xlabel('Subject')
+            plt.ylabel('Proportion Successful Laps')
+            plt.legend()
+            plt.subplot(2, 1, 2)
+            plt.bar(df['subject'].values,
+                    df['laptime'],
+                    width=0.5,
+                    label='Lap Time')
+            plt.plot([df['subject'].min() - 0.25, df['subject'].max() + 0.25],
+                     np.ones((2,)) * np.nanmedian(df['laptime'].values),
+                     '--r',
+                     lw=3,
+                     label='Median')
+            plt.xticks(df['subject'].values)
+            plt.xlabel('Subject')
+            plt.ylabel('Lap Time [s]')
+            plt.tight_layout()
+            plt.savefig(outpath.as_posix().replace('.csv', '.jpg'))
+
+
+def clean_performance_table(
+        p
+        ):
+    """Clean performance table for subsequent analyses."""
+    p['model']=[n.split('-')[0] for n in p['model'].values]
+    ind=[True if n != 'attbr' else False for n in p['model'].values]
+    p=p.loc[ind,:]
+    return p
+
+
+def get_average_performance(
+        p
+        ):
+    """Collect a network performance summary, i.e. mean across 10 flights of the network per trajectory"""
+    ddict={}
+    for subject in p['subject'].unique():
+        for dataset in p['dataset'].unique():
+            for model in p['model'].unique():
+                for track in p['track'].unique():
+                    for control in p['control'].unique():
+                        ind=(
+                            (p['subject'].values==subject) &
+                            (p['dataset'].values==dataset) &
+                            (p['model'].values==model) &
+                            (p['track'].values==track) &
+                            (p['control'].values==control)
+                            )
+                        n='subject'
+                        ddict.setdefault(n,[])
+                        ddict[n].append(subject)
+                        n='dataset'
+                        ddict.setdefault(n, [])
+                        ddict[n].append(dataset)
+                        n = 'model'
+                        ddict.setdefault(n, [])
+                        ddict[n].append(model)
+                        n = 'track'
+                        ddict.setdefault(n, [])
+                        ddict[n].append(track)
+                        n = 'control'
+                        ddict.setdefault(n, [])
+                        ddict[n].append(control)
+                        n = 'num_trials'
+                        ddict.setdefault(n, [])
+                        ddict[n].append(np.sum(ind))
+                        for i in np.arange(0,11,1):
+                            n = 'sr{}'.format(i)
+                            ddict.setdefault(n, [])
+                            value = np.mean((p.loc[ind,'num_gates_passed'].values>=i).astype(float))
+                            ddict[n].append(value)
+                        for n in ['travel_distance',
+                           'median_path_deviation', 'iqr_path_deviation', 'num_gates_passed','num_collisions', 'network_used',
+                           'pitch_error_l1', 'pitch_error_l1-median', 'pitch_error_mse',
+                           'pitch_error_mse-median', 'roll_error_l1', 'roll_error_l1-median',
+                           'roll_error_mse', 'roll_error_mse-median', 'throttle_error_l1',
+                           'throttle_error_l1-median', 'throttle_error_mse',
+                           'throttle_error_mse-median', 'yaw_error_l1', 'yaw_error_l1-median',
+                           'yaw_error_mse', 'yaw_error_mse-median',]:
+                            ddict.setdefault(n, [])
+                            ddict[n].append(np.nanmean(p.loc[ind,n].values))
+    r=pd.DataFrame(ddict)
+    r=r.sort_values(by=['model','subject','dataset'])
+    return r
+
+
+def plot_success_rate_by_gate(r,
+        dataset='test',
+        control='nw',
+        models=['img', 'ftstr', 'encfts'],
+        names=['RGB Images','Feature Tracks', 'Attention Prediction'],
+        colors=['k', 'b', 'r'],
+        ) -> None:
+    """Plot success rate of different networks as a function of gates passed."""
+    plt.figure()
+    plt.gcf().set_figwidth(6)
+    plt.gcf().set_figheight(3)
+    icolor=0
+    iname=0
+    for model in models:
+        ind=(
+            (r['dataset'].values==dataset) &
+            (r['control'].values==control) &
+            (r['model'].values==model)
+        )
+        c=colors[icolor]
+        m=names[iname]
+        x = np.arange(0, 11, 1)
+        values=r.loc[ind,(['sr{}'.format(i) for i in x])].values
+        ci=confidence_interval(values)
+        y=np.mean(values,axis=0)
+        plt.fill_between(x,ci[0,:],ci[1,:],color=c,alpha=0.1)
+        plt.plot(x,y,'-o',color=c,label='{}'.format(m))
+        icolor+=1
+        iname+=1
+    plt.legend(bbox_to_anchor=(0, 1.02, 1, 0.2), loc="lower left",
+               mode="expand", borderaxespad=0, ncol=3)
+    plt.xticks(x)
+    plt.yticks(np.arange(0,1.1,0.25))
+    plt.xlabel('Gates Passed')
+    plt.ylabel('Success Rate')
+    plt.xlim((0.9,10.1))
+    plt.ylim((0,1.025))
+    plt.grid(axis='y')
+    plt.tight_layout()
+
+
+def get_command_prediction_table(r,
+        dataset='test',
+        control='mpc',
+        models=['img', 'ftstr', 'encfts'],
+        names=['RGB Images', 'Feature Tracks', 'Attention Prediction'],
+        precision=2,
+        ) -> None:
+    """Make a table of command prediction resusults for different networks"""
+    ddict={}
+    imodel=0
+    for model in models:
+        ind=(
+            (r['dataset'].values==dataset) &
+            (r['control'].values==control) &
+            (r['model'].values==model)
+        )
+        m=names[imodel]
+        n='Model Name'
+        ddict.setdefault(n,[])
+        ddict[n].append(m)
+        for cmd in ['throttle','roll','pitch', 'yaw']:
+            for metric in ['mse','l1']:
+                n='{}_{}'.format(cmd,metric)
+                ddict.setdefault(n,[])
+                values=r.loc[ind,'{}_error_{}'.format(cmd,metric)].values
+                y=np.nanmean(values)
+                ddict[n].append(np.round(y,precision))
+        imodel+=1
+    t=pd.DataFrame(ddict)
+    t=t.set_index('Model Name')
+    t=t.T
+    t['Command'] = [n.split('_')[0].capitalize() for n in t.index]
+    t['Metric'] = [n.split('_')[1].upper() for n in t.index]
+    t=t.set_index(['Command','Metric']).T
+    return t
+
+
+def plot_reference_trajectory(
+        base_path,
+        track_dict
+        ):
+    """Plot reference trajectory for given tracks."""
+    # Load track.
+    track = pd.read_csv(track_dict['flat'])
+    ndict = {
+        'pos_x': 'px',
+        'pos_y': 'py',
+        'pos_z': 'pz',
+        'rot_x_quat': 'qx',
+        'rot_y_quat': 'qy',
+        'rot_z_quat': 'qz',
+        'rot_w_quat': 'qw',
+        'dim_x': 'dx',
+        'dim_y': 'dy',
+        'dim_z': 'dz',
+    }
+    track = track.rename(columns=ndict)
+    track = track[list(ndict.values())]
+    track['pz'] += 0.35
+    track['dx'] = 0.
+    track['dy'] = 3
+    track['dz'] = 3
+    # Load reference and downsample to 20 Hz
+    reference = trajectory_from_logfile(
+        filepath=(base_path/'analysis'/'tracks'/'flat.csv').as_posix())
+    sr = 1 / np.nanmedian(np.diff(reference.t.values))
+    reference = reference.iloc[np.arange(0, reference.shape[0], int(sr / 20)), :]
+    # Plot reference, track, and format figure.
+    ax = plot_trajectory(
+        reference.px.values,
+        reference.py.values,
+        reference.pz.values,
+        reference.qx.values,
+        reference.qy.values,
+        reference.qz.values,
+        reference.qw.values,
+        axis_length=2,
+        c='k',
+    )
+    ax = plot_gates_3d(
+        track=track,
+        ax=ax,
+        color='k',
+        width=4,
+        )
+    ax = format_trajectory_figure(
+        ax=ax,
+        xlims=(-15, 19),
+        ylims=(-17, 17),
+        zlims=(-8, 8),
+        xlabel='px [m]',
+        ylabel='py [m]',
+        zlabel='pz [m]',
+        title='',
+        )
+
+    plt.axis('off')
+    plt.grid(b=None)
+    ax.view_init(elev=45,
+                 azim=270)
+    plt.gcf().set_size_inches(20,10)
+
+    plot_path = './plots/'
+    if not os.path.exists(plot_path):
+        make_path(plot_path)
+
+    plt.savefig(plot_path + 'reference_3d.jpg')
+
+
+def plot_reference_trajectory_with_decision(
+        ):
+    data_path = './branching_demo/'
+    # Load track.
+    track = pd.read_csv(data_path + 'flat.csv')
+    ndict = {
+        'pos_x': 'px',
+        'pos_y': 'py',
+        'pos_z': 'pz',
+        'rot_x_quat': 'qx',
+        'rot_y_quat': 'qy',
+        'rot_z_quat': 'qz',
+        'rot_w_quat': 'qw',
+        'dim_x': 'dx',
+        'dim_y': 'dy',
+        'dim_z': 'dz',
+    }
+    track = track.rename(columns=ndict)
+    track = track[list(ndict.values())]
+    track['pz'] += 0.35
+    track['dx'] = 0.
+    track['dy'] = 3
+    track['dz'] = 3
+    # Load reference and downsample to 20 Hz
+    reference = trajectory_from_logfile(
+        filepath=data_path + 'trajectory_reference_original.csv')
+    sr = 1 / np.nanmedian(np.diff(reference.t.values))
+    reference = reference.iloc[
+                np.arange(0, reference.shape[0], int(sr / 20)),
+                :]
+    # Plot reference, track, and format figure.
+    ax = plot_trajectory(
+        reference.px.values,
+        reference.py.values,
+        reference.pz.values,
+        reference.qx.values,
+        reference.qy.values,
+        reference.qz.values,
+        reference.qw.values,
+        axis_length=2,
+        c='b',
+        axis_colors='b',
+    )
+    ax = plot_gates_3d(
+        track=track,
+        ax=ax,
+        color='k',
+        width=4,
+    )
+    ax = format_trajectory_figure(
+        ax=ax,
+        xlims=(-15, 19),
+        ylims=(-17, 17),
+        zlims=(-8, 8),
+        xlabel='px [m]',
+        ylabel='py [m]',
+        zlabel='pz [m]',
+        title='',
+    )
+
+    plt.axis('off')
+    plt.grid(b=None)
+    ax.view_init(elev=45,
+                 azim=270)
+    plt.gcf().set_size_inches(20, 10)
+
+    plot_path = './plots/'
+    if not os.path.exists(plot_path):
+        make_path(plot_path)
+
+    plt.savefig(plot_path + 'reference_flat_with_decision.jpg')
+
