@@ -5,8 +5,16 @@ sys.path.insert(0, base_path.as_posix())
 
 from analysis.utils import *
 
+"""
+README
 
-def process(
+
+  - "mpc_nw_act"=offline evaluation (mpc in control, network predicts commands) 
+  - "mpc2nw"=online evaluation (network in control) 
+"""
+
+
+def import_logs(
         path,
         num_parallel_processes=1,
         to_override=False,
@@ -23,7 +31,7 @@ def process(
         p.starmap(process_individual_run, map)
 
 
-def compute_performance(
+def get_performance(
         collider_name,
         models,
     ) -> pd.DataFrame:
@@ -190,8 +198,7 @@ def compute_performance(
     return performance
 
 
-#todo: figure out what "mpc_nw_act" vs "mpc2nw" means and label accordingly
-def make_performance_table(
+def make_summary_table(
         collider_name,
         curr_path,
         performance,
@@ -586,484 +593,637 @@ def make_performance_table(
         table.to_latex(outfilepath, index=False)
 
 
+def get_subject_performance(
+        base_path,
+        to_plot_performance=True,
+        to_plot_dist_successful_flight=True,
+        collider_name='gate-wall',
+        exclude_files=['mpc_nw_act_'],
+    ):
+    """ Collect performance data"""
+    # Process new logfiles.
+    outpath = base_path / 'analysis' / 'performance' / collider_name / \
+              'subject_performance.csv'
+    if not outpath.exists():
+        filepaths = sorted((base_path / 'analysis' / 'process').rglob(
+            '*/features_{}.csv'.format(collider_name)))
+        for n in exclude_files:
+            filepaths = [f for f in filepaths if f.as_posix().find(n) == -1]
+        data = pd.DataFrame([])
+        for f in filepaths:
+            df = pd.read_csv(f)
+            df['model'] = f.parts[-4].split('_')[1]
+            if f.parts[-3].find('trajectory') > -1:
+                df['track'] = f.parts[-3].split('_')[0].split('-')[1]
+                df['subject'] = int(
+                    f.parts[-3].split('_')[0].split('-')[2].replace('s', ''))
+                df['dataset'] = f.parts[-3].split('_')[0].split('-')[3]
+            else:
+                df['track'] = f.parts[-3].split('_')[2]
+                df['subject'] = int(f.parts[-3].split('_')[0].replace('s', ''))
+                df['dataset'] = 'test'
+            df['mt'] = int(f.parts[-2].split('_')[1].split('-')[1])
+            df['st'] = int(f.parts[-2].split('_')[2].split('-')[1])
+            df['trial'] = int(f.parts[-2].split('_')[3])
+            data = data.append(df)
+        if not outpath.parent.exists():
+            outpath.parent.mkdir(parents=True, exist_ok=True)
+        data.to_csv(outpath, index=False)
+    # Extract performance from logfiles.
+    inpath = base_path / 'analysis' / 'performance' / collider_name / 'subject_performance.csv'
+    outpath = base_path / 'analysis' / 'performance' / collider_name / 'summary.csv'
+    if (inpath.exists()) & (not outpath.exists()):
+        data = pd.read_csv(inpath)
+        ddict = {}
+        for model in data['model'].unique():
+            for track in data['track'].unique():
+                for dataset in data['dataset'].unique():
+                    print('--------------------------------')
+                    for subject in data['subject'].unique():
+                        ind = (
+                                (data['model'].values == model) &
+                                (data['track'].values == track) &
+                                (data['dataset'].values == dataset) &
+                                (data['subject'].values == subject)
+                        )
+                        num_samples = np.sum(ind)
+                        num_coll_free = np.sum(
+                            data.loc[ind, 'num_collisions'].values == 0)
+                        num_gates_passed = np.sum(
+                            data.loc[ind, 'num_gates_passed'].values == 11)
+                        prop_coll_free = num_coll_free / num_samples
+                        prop_gates_passed = num_gates_passed / num_samples
+                        ddict.setdefault('model', [])
+                        ddict['model'].append(model)
+                        ddict.setdefault('track', [])
+                        ddict['track'].append(track)
+                        ddict.setdefault('dataset', [])
+                        ddict['dataset'].append(dataset)
+                        ddict.setdefault('subject', [])
+                        ddict['subject'].append(subject)
+                        ddict.setdefault('num_samples', [])
+                        ddict['num_samples'].append(num_samples)
+                        ddict.setdefault('num_coll_free', [])
+                        ddict['num_coll_free'].append(num_coll_free)
+                        ddict.setdefault('num_gates_passed', [])
+                        ddict['num_gates_passed'].append(num_gates_passed)
+                        ddict.setdefault('prop_coll_free', [])
+                        ddict['prop_coll_free'].append(prop_coll_free)
+                        ddict.setdefault('prop_gates_passed', [])
+                        ddict['prop_gates_passed'].append(prop_gates_passed)
+                        print(model, track, dataset, subject, num_samples,
+                              num_coll_free, prop_coll_free)
+        summary = pd.DataFrame(ddict)
+        summary.to_csv(outpath, index=False)
+    # Plot performance tables and figure.
+    if to_plot_performance:
+        inpath = base_path / 'analysis' / 'performance' / collider_name / 'subject_performance.csv'
+        inpath2 = base_path / 'analysis' / 'performance' / collider_name / 'summary.csv'
+        outpath = base_path / 'analysis' / 'performance' / collider_name / 'plots'
+        if inpath2.exists():
+            # Load performance data
+            data = pd.read_csv(inpath)
+            summary = pd.read_csv(inpath2)
+            # Loop over different model configurations
+            for model in data['model'].unique():
+                for track in data['track'].unique():
+                    for dataset in data['dataset'].unique():
+                        # Determine if any data is available:
+                        ind = ((data['model'].values == model) &
+                               (data['track'].values == track) &
+                               (data['dataset'].values == dataset))
+                        if np.sum(ind) > 0:
+                            # Make a figure that shows trajectories for all subjects
+                            fig, axs = plt.subplots(5, 4)
+                            fig.set_figwidth(18)
+                            fig.set_figheight(10)
+                            axs = axs.flatten()
+                            i = 0
+                            for subject in data['subject'].unique():
+                                # Determine Success rate
+                                ind = ((summary['model'].values == model) &
+                                       (summary['track'].values == track) &
+                                       (summary['dataset'].values == dataset) &
+                                       (summary['subject'].values == subject))
+                                is_success = True
+                                fontweight = 'normal'
+                                fontcolor = 'black'
+                                frame_highlight = False
+                                gates_passed_rate = ''
+                                collision_free_rate = ''
+                                if np.sum(ind) > 0:
+                                    _num_samples = summary.loc[
+                                        ind, 'num_samples'].iloc[0]
+                                    _num_coll_free = summary.loc[
+                                        ind, 'num_coll_free'].iloc[0]
+                                    _num_gates_passed = summary.loc[
+                                        ind, 'num_gates_passed'].iloc[0]
+                                    u = \
+                                        summary.loc[ind, 'prop_gates_passed'].iloc[
+                                            0]
+                                    v = summary.loc[ind, 'prop_coll_free'].iloc[
+                                        0]
+                                    if not np.isnan(v):
+                                        gates_passed_rate = ' | G: {}/{} ({:.0f}%)'.format(
+                                            _num_gates_passed, _num_samples,
+                                            u * 100)
+                                        collision_free_rate = ' | C: {}/{} ({:.0f}%)'.format(
+                                            _num_coll_free, _num_samples,
+                                            v * 100)
+                                        if (u < 1) | (v < 1):
+                                            fontweight = 'bold'
+                                            frame_highlight = True
+                                            is_success = False
+                                            fontcolor = 'red'
+                                # Plot trajectory
+                                ind = (
+                                        (data['model'].values == model) &
+                                        (data['track'].values == track) &
+                                        (data['dataset'].values == dataset) &
+                                        (data['subject'].values == subject) &
+                                        (data['trial'].values == 0)
+                                )
+                                if np.sum(ind) > 0:
+                                    f = (Path(data.loc[ind, 'filepath'].iloc[0])
+                                         .parent / 'trajectory-with-gates_gate-wall_045x270.jpg')
+                                    im = cv2.imread(f.as_posix())
+                                    # crop image borders
+                                    im = im[270:-340, 250:-250, :]
+                                    # add color frame (if not full success)
+                                    if not is_success:
+                                        im = cv2.copyMakeBorder(im, 20, 20, 20,
+                                                                20,
+                                                                cv2.BORDER_CONSTANT,
+                                                                value=(
+                                                                    255, 0, 0))
+                                    axs[i].imshow(im)
+                                axs[i].axis('off')
+                                axs[i].set_title('s%03d' % subject +
+                                                 gates_passed_rate +
+                                                 collision_free_rate,
+                                                 fontweight=fontweight,
+                                                 color=fontcolor)
+                                # raise the panel counter
+                                i += 1
+                            # remove axis from remaining panels
+                            for i in range(i, axs.shape[0]):
+                                axs[i].axis('off')
+                            plt.tight_layout()
+                            # make output directory
+                            if not outpath.exists():
+                                outpath.mkdir(parents=True, exist_ok=True)
+                            # save the figure
+                            op = (outpath / ('trajectories_{}_{}_{}.jpg'.format(
+                                model, track, dataset)))
+                            fig.savefig(op.as_posix())
+                            plt.close(fig)
+                            fig = None
+                            axs = None
+                            # Pring overall success to prompt
+                            ind = ((summary['model'].values == model) &
+                                   (summary['track'].values == track) &
+                                   (summary['dataset'].values == dataset))
+                            num_samples = np.nansum(
+                                summary.loc[ind, 'num_samples'].values)
+                            num_coll_free = np.nansum(summary.loc[ind,
+                                                                  'num_coll_free'].values)
+                            num_gates_passed = np.nansum(summary.loc[ind,
+                                                                     'num_gates_passed'].values)
+                            prop_coll_free = np.nan
+                            prop_gates_passed = np.nan
+
+                            if num_samples > 0:
+                                prop_coll_free = num_coll_free / num_samples
+                                prop_gates_passed = num_gates_passed / num_samples
+                                print(
+                                    'Success trajectories: {} {} {} | G: {}/{} ({:.0f}%) | C: {}/{} ({:.0f}%)'.format(
+                                        model, track, dataset,
+                                        num_gates_passed, num_samples,
+                                        100 * prop_gates_passed,
+                                        num_coll_free, num_samples,
+                                        100 * prop_coll_free))
+    # Plot proportion of successful laps for each of the tracks
+    if to_plot_dist_successful_flight:
+        inpath = base_path / 'analysis' / 'performance' / collider_name / 'summary.csv'
+        outpath = base_path / 'analysis' / 'performance' / collider_name / 'success_by_subject.csv'
+        if inpath.exists():
+            summary = pd.read_csv(inpath)
+            ddict = {}
+            for subject in summary['subject'].unique():
+                # get laptime
+                f = [v for v in sorted((base_path / 'analysis' / 'logs').rglob(
+                    '*original.csv'))
+                     if v.as_posix().find('s%03d' % subject) > -1]
+                f = f[0]
+                # print('..loading reference trajectory {}'.format(f))
+                df = pd.read_csv(f)
+                laptime = (df['time-since-start [s]'].iloc[-1] -
+                           df['time-since-start [s]'].iloc[0])
+                # get other performance features
+                ind = ((summary['subject'].values == subject) &
+                       (summary['dataset'].values == 'train'))
+                num_samples = np.sum(summary.loc[ind, 'num_samples'].values)
+                num_gates_passed = np.sum(
+                    summary.loc[ind, 'num_gates_passed'].values)
+                num_coll_free = np.sum(summary.loc[ind, 'num_coll_free'].values)
+                prop_gates_passed = num_gates_passed / num_samples
+                prop_coll_free = num_coll_free / num_samples
+                ddict.setdefault('subject', [])
+                ddict['subject'].append(subject)
+                ddict.setdefault('laptime', [])
+                ddict['laptime'].append(laptime)
+                ddict.setdefault('num_samples', [])
+                ddict['num_samples'].append(num_samples)
+                ddict.setdefault('num_gates_passed', [])
+                ddict['num_gates_passed'].append(num_gates_passed)
+                ddict.setdefault('num_coll_free', [])
+                ddict['num_coll_free'].append(num_coll_free)
+                ddict.setdefault('prop_gates_passed', [])
+                ddict['prop_gates_passed'].append(prop_gates_passed)
+                ddict.setdefault('prop_coll_free', [])
+                ddict['prop_coll_free'].append(prop_coll_free)
+            df = pd.DataFrame(ddict)
+            print(df)
+            df.to_csv(outpath, index=False)
+
+            plt.figure()
+            plt.gcf().set_figwidth(15)
+            plt.gcf().set_figheight(10)
+            plt.subplot(2, 1, 1)
+            plt.bar(df['subject'].values - 0.15,
+                    df['prop_gates_passed'],
+                    width=0.3,
+                    label='Gates')
+            plt.bar(df['subject'].values + 0.15,
+                    df['prop_coll_free'],
+                    width=0.3,
+                    label='Collisions')
+            plt.xticks(df['subject'].values)
+            plt.xlabel('Subject')
+            plt.ylabel('Proportion Successful Laps')
+            plt.legend()
+            plt.subplot(2, 1, 2)
+            plt.bar(df['subject'].values,
+                    df['laptime'],
+                    width=0.5,
+                    label='Lap Time')
+            plt.plot([df['subject'].min() - 0.25, df['subject'].max() + 0.25],
+                     np.ones((2,)) * np.nanmedian(df['laptime'].values),
+                     '--r',
+                     lw=3,
+                     label='Median')
+            plt.xticks(df['subject'].values)
+            plt.xlabel('Subject')
+            plt.ylabel('Lap Time [s]')
+            plt.tight_layout()
+            plt.savefig(outpath.as_posix().replace('.csv', '.jpg'))
+
+
+def clean_performance_table(p):
+    """Clean performance table for subsequent analyses."""
+    p['model']=[n.split('-')[0] for n in p['model'].values]
+    ind=[True if n != 'attbr' else False for n in p['model'].values]
+    p=p.loc[ind,:]
+    return p
+
+
+def get_average_performance(p):
+    """Collect a network performance summary, i.e. mean across 10 flights of the network per trajectory"""
+    ddict={}
+    for subject in p['subject'].unique():
+        for dataset in p['dataset'].unique():
+            for model in p['model'].unique():
+                for track in p['track'].unique():
+                    ind=(
+                        (p['subject'].values==subject) &
+                        (p['dataset'].values==dataset) &
+                        (p['model'].values==model) &
+                        (p['track'].values==track)
+                    )
+                    n='subject'
+                    ddict.setdefault(n,[])
+                    ddict[n].append(subject)
+                    n='dataset'
+                    ddict.setdefault(n, [])
+                    ddict[n].append(dataset)
+                    n = 'model'
+                    ddict.setdefault(n, [])
+                    ddict[n].append(model)
+                    n = 'track'
+                    ddict.setdefault(n, [])
+                    ddict[n].append(track)
+                    n = 'num_trials'
+                    ddict.setdefault(n, [])
+                    ddict[n].append(np.sum(ind))
+                    for i in np.arange(0,11,1):
+                        n = 'sr{}'.format(i)
+                        ddict.setdefault(n, [])
+                        value = np.mean((p.loc[ind,'num_gates_passed'].values>=i).astype(float))
+                        ddict[n].append(value)
+                    for n in ['travel_distance',
+                       'median_path_deviation', 'iqr_path_deviation', 'num_gates_passed','num_collisions', 'network_used',
+                       'pitch_error_l1', 'pitch_error_l1-median', 'pitch_error_mse',
+                       'pitch_error_mse-median', 'roll_error_l1', 'roll_error_l1-median',
+                       'roll_error_mse', 'roll_error_mse-median', 'throttle_error_l1',
+                       'throttle_error_l1-median', 'throttle_error_mse',
+                       'throttle_error_mse-median', 'yaw_error_l1', 'yaw_error_l1-median',
+                       'yaw_error_mse', 'yaw_error_mse-median',]:
+                        ddict.setdefault(n, [])
+                        ddict[n].append(np.nanmean(p.loc[ind,n].values))
+    r=pd.DataFrame(ddict)
+    r=r.sort_values(by=['model','subject','dataset'])
+    return r
+
+
+def plot_success_rate_by_gate(r,
+        dataset='test',
+        models=['img', 'ftstr', 'encfts'],
+        names=['RGB Images','Feature Tracks', 'Attention Prediction'],
+        colors=['k', 'b', 'r'],
+        ) -> None:
+    """Plot success rate of different networks as a function of gates passed."""
+    plt.figure()
+    plt.gcf().set_figwidth(6)
+    plt.gcf().set_figheight(3)
+    icolor=0
+    iname=0
+    for model in models:
+        ind=(
+            (r['dataset'].values==dataset) &
+            (r['model'].values==model)
+        )
+        c=colors[icolor]
+        m=names[iname]
+        x = np.arange(0, 11, 1)
+        values=r.loc[ind,(['sr{}'.format(i) for i in x])].values
+        ci=confidence_interval(values)
+        y=np.mean(values,axis=0)
+        plt.fill_between(x,ci[0,:],ci[1,:],color=c,alpha=0.1)
+        plt.plot(x,y,'-o',color=c,label='{}'.format(m))
+        icolor+=1
+        iname+=1
+    plt.legend(bbox_to_anchor=(0, 1.02, 1, 0.2), loc="lower left",
+               mode="expand", borderaxespad=0, ncol=3)
+    plt.xticks(x)
+    plt.yticks(np.arange(0,1.1,0.25))
+    plt.xlabel('Gates Passed')
+    plt.ylabel('Success Rate')
+    plt.xlim((0.9,10.1))
+    plt.ylim((0,1.025))
+    plt.grid(axis='y')
+    plt.tight_layout()
+
+
+def get_command_prediction_table(r,
+        dataset='test',
+        models=['img', 'ftstr', 'encfts'],
+        names=['RGB Images', 'Feature Tracks', 'Attention Prediction'],
+        precision=2,
+        ) -> None:
+    """Make a table of command prediction resusults for different networks"""
+    ddict={}
+    imodel=0
+    for model in models:
+        ind=(
+            (r['dataset'].values==dataset) &
+            (r['model'].values==model)
+        )
+        m=names[imodel]
+        n='Model Name'
+        ddict.setdefault(n,[])
+        ddict[n].append(m)
+        for cmd in ['throttle','roll','pitch', 'yaw']:
+            for metric in ['mse','l1']:
+                n='{}_{}'.format(cmd,metric)
+                ddict.setdefault(n,[])
+                values=r.loc[ind,'{}_error_{}'.format(cmd,metric)].values
+                y=np.nanmean(values)
+                ddict[n].append(np.round(y,precision))
+        imodel+=1
+    t=pd.DataFrame(ddict)
+    t=t.set_index('Model Name')
+    t=t.T
+    t['Command'] = [n.split('_')[0].capitalize() for n in t.index]
+    t['Metric'] = [n.split('_')[1].upper() for n in t.index]
+    t=t.set_index(['Command','Metric']).T
+    return t
+
+
+def plot_reference_trajectory(track_dict):
+    """Plot reference trajectory for given tracks."""
+    # Load track.
+    track = pd.read_csv(track_dict['flat'])
+    ndict = {
+        'pos_x': 'px',
+        'pos_y': 'py',
+        'pos_z': 'pz',
+        'rot_x_quat': 'qx',
+        'rot_y_quat': 'qy',
+        'rot_z_quat': 'qz',
+        'rot_w_quat': 'qw',
+        'dim_x': 'dx',
+        'dim_y': 'dy',
+        'dim_z': 'dz',
+    }
+    track = track.rename(columns=ndict)
+    track = track[list(ndict.values())]
+    track['pz'] += 0.35
+    track['dx'] = 0.
+    track['dy'] = 3
+    track['dz'] = 3
+    # Load reference and downsample to 20 Hz
+    reference = trajectory_from_logfile(
+        filepath=(base_path/'analysis'/'tracks'/'flat.csv').as_posix())
+    sr = 1 / np.nanmedian(np.diff(reference.t.values))
+    reference = reference.iloc[np.arange(0, reference.shape[0], int(sr / 20)), :]
+    # Plot reference, track, and format figure.
+    ax = plot_trajectory(
+        reference.px.values,
+        reference.py.values,
+        reference.pz.values,
+        reference.qx.values,
+        reference.qy.values,
+        reference.qz.values,
+        reference.qw.values,
+        axis_length=2,
+        c='k',
+    )
+    ax = plot_gates_3d(
+        track=track,
+        ax=ax,
+        color='k',
+        width=4,
+        )
+    ax = format_trajectory_figure(
+        ax=ax,
+        xlims=(-15, 19),
+        ylims=(-17, 17),
+        zlims=(-8, 8),
+        xlabel='px [m]',
+        ylabel='py [m]',
+        zlabel='pz [m]',
+        title='',
+        )
+
+    plt.axis('off')
+    plt.grid(b=None)
+    ax.view_init(elev=45,
+                 azim=270)
+    plt.gcf().set_size_inches(20,10)
+
+    plot_path = './plots/'
+    if not os.path.exists(plot_path):
+        make_path(plot_path)
+
+    plt.savefig(plot_path + 'reference_3d.jpg')
+
+
+def plot_reference_trajectory_with_decision():
+    data_path = './branching_demo/'
+    # Load track.
+    track = pd.read_csv(data_path + 'flat.csv')
+    ndict = {
+        'pos_x': 'px',
+        'pos_y': 'py',
+        'pos_z': 'pz',
+        'rot_x_quat': 'qx',
+        'rot_y_quat': 'qy',
+        'rot_z_quat': 'qz',
+        'rot_w_quat': 'qw',
+        'dim_x': 'dx',
+        'dim_y': 'dy',
+        'dim_z': 'dz',
+    }
+    track = track.rename(columns=ndict)
+    track = track[list(ndict.values())]
+    track['pz'] += 0.35
+    track['dx'] = 0.
+    track['dy'] = 3
+    track['dz'] = 3
+    # Load reference and downsample to 20 Hz
+    reference = trajectory_from_logfile(
+        filepath=data_path + 'trajectory_reference_original.csv')
+    sr = 1 / np.nanmedian(np.diff(reference.t.values))
+    reference = reference.iloc[
+                np.arange(0, reference.shape[0], int(sr / 20)),
+                :]
+    # Plot reference, track, and format figure.
+    ax = plot_trajectory(
+        reference.px.values,
+        reference.py.values,
+        reference.pz.values,
+        reference.qx.values,
+        reference.qy.values,
+        reference.qz.values,
+        reference.qw.values,
+        axis_length=2,
+        c='b',
+        axis_colors='b',
+    )
+    ax = plot_gates_3d(
+        track=track,
+        ax=ax,
+        color='k',
+        width=4,
+    )
+    ax = format_trajectory_figure(
+        ax=ax,
+        xlims=(-15, 19),
+        ylims=(-17, 17),
+        zlims=(-8, 8),
+        xlabel='px [m]',
+        ylabel='py [m]',
+        zlabel='pz [m]',
+        title='',
+    )
+
+    plt.axis('off')
+    plt.grid(b=None)
+    ax.view_init(elev=45,
+                 azim=270)
+    plt.gcf().set_size_inches(20, 10)
+
+    plot_path = './plots/'
+    if not os.path.exists(plot_path):
+        make_path(plot_path)
+
+    plt.savefig(plot_path + 'reference_flat_with_decision.jpg')
+
+
 def main(
-    to_override = False,
-    to_process = False,
-    to_performance = False,
-    to_table = False,
-    to_plot_traj_3d = True,
-    to_plot_state = True,
-    num_parallel_processes = 1,
-    to_plot_reference = False,
-    to_plot_reference_with_decision = False,
-    to_collect_results=False,
+        base_path,
+        to_override = False,
+        to_import_logs = False,
+        to_get_performance = False,
+        to_make_summary_table = False,
+        to_get_subject_performance=False,
+        to_get_performance_summary=True,
+        to_plot_traj_3d = False,
+        to_plot_state = False,
         ):
     """Processes network flight trajectory logs, checks for collisions
     and gate passes, extract performance features and makes some plots."""
+    # Settings.
     collider_dict = {'gate-wall': ['gate', 'wall'], 'wall': ['wall']}
-    collider_names = collider_dict.keys()
-    track_filepaths = {'flat': './tracks/flat.csv', 'wave': './tracks/wave.csv'}
-    logfile_path = base_path/'analysis'/'logs'
-    models = [f.name for f in logfile_path.glob('*/')]
+    track_dict = {'flat': './tracks/flat.csv', 'wave': './tracks/wave.csv'}
+    path = {}
+    path['logs'] = base_path / 'analysis' / 'logs'
+    path['perf'] = base_path / 'analysis' / 'performance'
 
-    if to_process:
+    models = [f.name for f in path['logs'].glob('*/')]
+
+    #todo: computer freezes if more than 1 parallel process, THUS FIX
+    # NUM_PARALLEL_PROCESSES=1 because plotting trajectory 3d and plotting of
+    # state causes trouble, needs debugging.
+    if to_import_logs:
         for m in models:
-            #todo: computer freezes if more than 1 parallel process,
-            # THUS FIX NUM_PARALLEL_PROCESSES=1 because plotting trajectory
-            # 3d and plotting of state causes trouble, needs debugging.
-            process(path=logfile_path/m,num_parallel_processes=1,to_override=
-                to_override,to_plot_traj_3d=to_plot_traj_3d,to_plot_state=
+            import_logs(path=path['logs'] / m, num_parallel_processes=1, to_override=
+                to_override, to_plot_traj_3d=to_plot_traj_3d, to_plot_state=
                 to_plot_state)
 
-    if to_performance:
-        for n in collider_names:
-            p=compute_performance(collider_name=n,models=models)
+    if to_get_performance:
+        for n in collider_dict:
+            p=get_performance(collider_name=n, models=models)
             o='./performance/{}/'.format(n)
             make_path(o)
             p.to_csv(o+'performance.csv', index=False)
 
-    #todo: SKIP THIS
-    # if to_table:
-    #     for collider_name in collider_names:
-    #         curr_path = './performance/{}/'.format(collider_name)
-    #         performance = pd.read_csv(curr_path + 'performance.csv')
-    #         for online_name in ['online', 'offline']:
-    #             for trajectory_name in ['reference', 'other-laps', 'other-track',
-    #                                     'multi-laps']:
-    #                 make_performance_table(collider_name, curr_path,
-    #                     performance,online_name, trajectory_name)
+    #todo: update this script for the updated dataset exporting
+    if to_make_summary_table:
+        for collider_name in collider_dict:
+            curr_path = './performance/{}/'.format(collider_name)
+            performance = pd.read_csv(curr_path + 'performance.csv')
+            for online_name in ['online', 'offline']:
+                for trajectory_name in ['reference', 'other-laps', 'other-track',
+                                        'multi-laps']:
+                    make_summary_table(collider_name, curr_path,
+                                       performance, online_name, trajectory_name)
+
+    if to_get_subject_performance:
+        for c in collider_dict:
+            get_subject_performance(base_path=base_path, collider_name=c)
+
+    if to_get_performance_summary:
+        for c in collider_dict:
+            p = pd.read_csv(path['perf']/c/'subject_performance.csv')
+            p = clean_performance_table(p)
+            print(p.columns)
+            print(p)
+            r=get_average_performance(p)
+            for n in ['train','test']:
+                plot_success_rate_by_gate(r,dataset=n)
+                plt.savefig(path['perf']/c/'plots'/('success_rate_{'
+                                                   '}.png'.format(n)))
+                plt.close(plt.gcf())
+            for n in ['train', 'test']:
+                t = get_command_prediction_table(r, dataset=n)
+                t.to_latex(path['perf']/c/'plots'/(
+                    'command_prediction_{}.csv'.format(n)), index=True)
+                print(n.upper())
+                print(t)
+                print()
 
 
-    #todo:continue here
-
-    # if to_plot_reference:
-    #     # Load track.
-    #     track = pd.read_csv(track_filepaths['flat'])
-    #     ndict = {
-    #         'pos_x': 'px',
-    #         'pos_y': 'py',
-    #         'pos_z': 'pz',
-    #         'rot_x_quat': 'qx',
-    #         'rot_y_quat': 'qy',
-    #         'rot_z_quat': 'qz',
-    #         'rot_w_quat': 'qw',
-    #         'dim_x': 'dx',
-    #         'dim_y': 'dy',
-    #         'dim_z': 'dz',
-    #     }
-    #     track = track.rename(columns=ndict)
-    #     track = track[list(ndict.values())]
-    #     track['pz'] += 0.35
-    #     track['dx'] = 0.
-    #     track['dy'] = 3
-    #     track['dz'] = 3
-    #     # Load reference and downsample to 20 Hz
-    #     reference = trajectory_from_logfile(
-    #         filepath=(base_path/'analysis'/'tracks'/'flat.csv').as_posix())
-    #     sr = 1 / np.nanmedian(np.diff(reference.t.values))
-    #     reference = reference.iloc[np.arange(0, reference.shape[0], int(sr / 20)), :]
-    #     # Plot reference, track, and format figure.
-    #     ax = plot_trajectory(
-    #         reference.px.values,
-    #         reference.py.values,
-    #         reference.pz.values,
-    #         reference.qx.values,
-    #         reference.qy.values,
-    #         reference.qz.values,
-    #         reference.qw.values,
-    #         axis_length=2,
-    #         c='k',
-    #     )
-    #     ax = plot_gates_3d(
-    #         track=track,
-    #         ax=ax,
-    #         color='k',
-    #         width=4,
-    #         )
-    #     ax = format_trajectory_figure(
-    #         ax=ax,
-    #         xlims=(-15, 19),
-    #         ylims=(-17, 17),
-    #         zlims=(-8, 8),
-    #         xlabel='px [m]',
-    #         ylabel='py [m]',
-    #         zlabel='pz [m]',
-    #         title='',
-    #         )
-    #
-    #     plt.axis('off')
-    #     plt.grid(b=None)
-    #     ax.view_init(elev=45,
-    #                  azim=270)
-    #     plt.gcf().set_size_inches(20,10)
-    #
-    #     plot_path = './plots/'
-    #     if not os.path.exists(plot_path):
-    #         make_path(plot_path)
-    #
-    #     plt.savefig(plot_path + 'reference_3d.jpg')
-    #
-    #
-    # if to_plot_reference_with_decision:
-    #     data_path = './branching_demo/'
-    #     # Load track.
-    #     track = pd.read_csv(data_path+'flat.csv')
-    #     ndict = {
-    #         'pos_x': 'px',
-    #         'pos_y': 'py',
-    #         'pos_z': 'pz',
-    #         'rot_x_quat': 'qx',
-    #         'rot_y_quat': 'qy',
-    #         'rot_z_quat': 'qz',
-    #         'rot_w_quat': 'qw',
-    #         'dim_x': 'dx',
-    #         'dim_y': 'dy',
-    #         'dim_z': 'dz',
-    #     }
-    #     track = track.rename(columns=ndict)
-    #     track = track[list(ndict.values())]
-    #     track['pz'] += 0.35
-    #     track['dx'] = 0.
-    #     track['dy'] = 3
-    #     track['dz'] = 3
-    #     # Load reference and downsample to 20 Hz
-    #     reference = trajectory_from_logfile(
-    #         filepath=data_path+'trajectory_reference_original.csv')
-    #     sr = 1 / np.nanmedian(np.diff(reference.t.values))
-    #     reference = reference.iloc[np.arange(0, reference.shape[0], int(sr / 20)),
-    #                 :]
-    #     # Plot reference, track, and format figure.
-    #     ax = plot_trajectory(
-    #         reference.px.values,
-    #         reference.py.values,
-    #         reference.pz.values,
-    #         reference.qx.values,
-    #         reference.qy.values,
-    #         reference.qz.values,
-    #         reference.qw.values,
-    #         axis_length=2,
-    #         c='b',
-    #         axis_colors='b',
-    #     )
-    #     ax = plot_gates_3d(
-    #         track=track,
-    #         ax=ax,
-    #         color='k',
-    #         width=4,
-    #     )
-    #     ax = format_trajectory_figure(
-    #         ax=ax,
-    #         xlims=(-15, 19),
-    #         ylims=(-17, 17),
-    #         zlims=(-8, 8),
-    #         xlabel='px [m]',
-    #         ylabel='py [m]',
-    #         zlabel='pz [m]',
-    #         title='',
-    #     )
-    #
-    #     plt.axis('off')
-    #     plt.grid(b=None)
-    #     ax.view_init(elev=45,
-    #                  azim=270)
-    #     plt.gcf().set_size_inches(20, 10)
-    #
-    #     plot_path = './plots/'
-    #     if not os.path.exists(plot_path):
-    #         make_path(plot_path)
-    #
-    #     plt.savefig(plot_path + 'reference_flat_with_decision.jpg')
-    #
-    #
-    # if to_collect_results:
-    #
-    #     # Some settings.
-    #     collider_name = 'gate-wall'
-    #
-    #     # Process new logfiles.
-    #     outpath = base_path / 'analysis' / 'performance' / collider_name / \
-    #               'subject_performance.csv'
-    #     print(outpath)
-    #     if not outpath.exists():
-    #         filepaths = sorted((base_path / 'analysis' / 'process').rglob(
-    #             '*/features_{}.csv'.format(collider_name)))
-    #         data = pd.DataFrame([])
-    #         for f in filepaths:
-    #             print(f.parts)
-    #             df = pd.read_csv(f)
-    #             df['model'] = f.parts[-4].split('_')[1]
-    #             if f.parts[-3].find('trajectory') > -1:
-    #                 df['track'] = f.parts[-3].split('_')[0].split('-')[1]
-    #                 df['subject'] = int(
-    #                     f.parts[-3].split('_')[0].split('-')[2].replace('s', ''))
-    #                 df['dataset'] = f.parts[-3].split('_')[0].split('-')[3]
-    #             else:
-    #                 df['track'] = f.parts[-3].split('_')[2]
-    #                 df['subject'] = int(f.parts[-3].split('_')[0].replace('s', ''))
-    #                 df['dataset'] = 'test'
-    #             df['mt'] = int(f.parts[-2].split('_')[1].split('-')[1])
-    #             df['st'] = int(f.parts[-2].split('_')[2].split('-')[1])
-    #             df['trial'] = int(f.parts[-2].split('_')[3])
-    #             data = data.append(df)
-    #         if not outpath.parent.exists():
-    #             outpath.parent.mkdir(parents=True, exist_ok=True)
-    #
-    #         print(outpath)
-    #         data.to_csv(outpath, index=False)
-    #
-    #     # Extract performance from logfiles.
-    #     inpath = base_path / 'analysis' / 'performance' /  collider_name / 'subject_performance.csv'
-    #     outpath = base_path / 'analysis' / 'performance' /  collider_name / 'summary.csv'
-    #     if (inpath.exists()) & (not outpath.exists()):
-    #         data = pd.read_csv(inpath)
-    #         ddict = {}
-    #         for model in data['model'].unique():
-    #             for track in data['track'].unique():
-    #                 for dataset in data['dataset'].unique():
-    #                     print('--------------------------------')
-    #                     for subject in data['subject'].unique():
-    #                         ind = (
-    #                                 (data['model'].values == model) &
-    #                                 (data['track'].values == track) &
-    #                                 (data['dataset'].values == dataset) &
-    #                                 (data['subject'].values == subject)
-    #                         )
-    #                         num_samples = np.sum(ind)
-    #                         num_coll_free = np.sum(
-    #                             data.loc[ind, 'num_collisions'].values == 0)
-    #                         num_gates_passed = np.sum(
-    #                             data.loc[ind, 'num_gates_passed'].values == 11)
-    #                         prop_coll_free = num_coll_free / num_samples
-    #                         prop_gates_passed = num_gates_passed / num_samples
-    #                         ddict.setdefault('model', [])
-    #                         ddict['model'].append(model)
-    #                         ddict.setdefault('track', [])
-    #                         ddict['track'].append(track)
-    #                         ddict.setdefault('dataset', [])
-    #                         ddict['dataset'].append(dataset)
-    #                         ddict.setdefault('subject', [])
-    #                         ddict['subject'].append(subject)
-    #                         ddict.setdefault('num_samples', [])
-    #                         ddict['num_samples'].append(num_samples)
-    #                         ddict.setdefault('num_coll_free', [])
-    #                         ddict['num_coll_free'].append(num_coll_free)
-    #                         ddict.setdefault('num_gates_passed', [])
-    #                         ddict['num_gates_passed'].append(num_gates_passed)
-    #                         ddict.setdefault('prop_coll_free', [])
-    #                         ddict['prop_coll_free'].append(prop_coll_free)
-    #                         ddict.setdefault('prop_gates_passed', [])
-    #                         ddict['prop_gates_passed'].append(prop_gates_passed)
-    #                         print(model, track, dataset, subject, num_samples,
-    #                               num_coll_free, prop_coll_free)
-    #         summary = pd.DataFrame(ddict)
-    #         summary.to_csv(outpath, index=False)
-    #
-    #     # Plot performance tables and figure.
-    #     to_plot_performance = True
-    #     if to_plot_performance:
-    #         inpath = base_path / 'analysis' / 'performance' /  collider_name / 'subject_performance.csv'
-    #         inpath2 = base_path / 'analysis' / 'performance' /  collider_name / 'summary.csv'
-    #         outpath = base_path / 'analysis' / 'performance' /  collider_name / 'plots'
-    #         if inpath2.exists():
-    #             # Load performance data
-    #             data = pd.read_csv(inpath)
-    #             summary = pd.read_csv(inpath2)
-    #             # Loop over different model configurations
-    #             for model in data['model'].unique():
-    #                 for track in data['track'].unique():
-    #                     for dataset in data['dataset'].unique():
-    #                         # Determine if any data is available:
-    #                         ind = ((data['model'].values == model) &
-    #                                (data['track'].values == track) &
-    #                                (data['dataset'].values == dataset))
-    #                         if np.sum(ind) > 0:
-    #                             # Make a figure that shows trajectories for all subjects
-    #                             fig, axs = plt.subplots(5, 4)
-    #                             fig.set_figwidth(18)
-    #                             fig.set_figheight(10)
-    #                             axs = axs.flatten()
-    #                             i = 0
-    #                             for subject in data['subject'].unique():
-    #                                 # Determine Success rate
-    #                                 ind = ((summary['model'].values == model) &
-    #                                        (summary['track'].values == track) &
-    #                                        (summary['dataset'].values == dataset) &
-    #                                        (summary['subject'].values == subject))
-    #                                 is_success = True
-    #                                 fontweight = 'normal'
-    #                                 fontcolor = 'black'
-    #                                 frame_highlight = False
-    #                                 gates_passed_rate = ''
-    #                                 collision_free_rate = ''
-    #                                 if np.sum(ind) > 0:
-    #                                     _num_samples = summary.loc[
-    #                                         ind, 'num_samples'].iloc[0]
-    #                                     _num_coll_free = summary.loc[
-    #                                         ind, 'num_coll_free'].iloc[0]
-    #                                     _num_gates_passed = summary.loc[
-    #                                         ind, 'num_gates_passed'].iloc[0]
-    #                                     u = \
-    #                                     summary.loc[ind, 'prop_gates_passed'].iloc[
-    #                                         0]
-    #                                     v = summary.loc[ind, 'prop_coll_free'].iloc[
-    #                                         0]
-    #                                     if not np.isnan(v):
-    #                                         gates_passed_rate = ' | G: {}/{} ({:.0f}%)'.format(
-    #                                             _num_gates_passed, _num_samples,
-    #                                             u * 100)
-    #                                         collision_free_rate = ' | C: {}/{} ({:.0f}%)'.format(
-    #                                             _num_coll_free, _num_samples,
-    #                                             v * 100)
-    #                                         if (u < 1) | (v < 1):
-    #                                             fontweight = 'bold'
-    #                                             frame_highlight = True
-    #                                             is_success = False
-    #                                             fontcolor = 'red'
-    #                                 # Plot trajectory
-    #                                 ind = (
-    #                                         (data['model'].values == model) &
-    #                                         (data['track'].values == track) &
-    #                                         (data['dataset'].values == dataset) &
-    #                                         (data['subject'].values == subject) &
-    #                                         (data['trial'].values == 0)
-    #                                 )
-    #                                 if np.sum(ind) > 0:
-    #                                     f = (Path(data.loc[ind, 'filepath'].iloc[0])
-    #                                          .parent / 'trajectory-with-gates_gate-wall_045x270.jpg')
-    #                                     im = cv2.imread(f.as_posix())
-    #                                     # crop image borders
-    #                                     im = im[270:-340, 250:-250, :]
-    #                                     # add color frame (if not full success)
-    #                                     if not is_success:
-    #                                         im = cv2.copyMakeBorder(im, 20, 20, 20,
-    #                                                                 20,
-    #                                                                 cv2.BORDER_CONSTANT,
-    #                                                                 value=(
-    #                                                                 255, 0, 0))
-    #                                     axs[i].imshow(im)
-    #                                 axs[i].axis('off')
-    #                                 axs[i].set_title('s%03d' % subject +
-    #                                                  gates_passed_rate +
-    #                                                  collision_free_rate,
-    #                                                  fontweight=fontweight,
-    #                                                  color=fontcolor)
-    #                                 # raise the panel counter
-    #                                 i += 1
-    #                             # remove axis from remaining panels
-    #                             for i in range(i, axs.shape[0]):
-    #                                 axs[i].axis('off')
-    #                             plt.tight_layout()
-    #                             # make output directory
-    #                             if not outpath.exists():
-    #                                 outpath.mkdir(parents=True, exist_ok=True)
-    #                             # save the figure
-    #                             op = (outpath / ('trajectories_{}_{}_{}.jpg'.format(
-    #                                 model, track, dataset)))
-    #                             fig.savefig(op.as_posix())
-    #                             plt.close(fig)
-    #                             fig = None
-    #                             axs = None
-    #                             # Pring overall success to prompt
-    #                             ind = ((summary['model'].values == model) &
-    #                                    (summary['track'].values == track) &
-    #                                    (summary['dataset'].values == dataset))
-    #                             num_samples = np.nansum(
-    #                                 summary.loc[ind, 'num_samples'].values)
-    #                             num_coll_free = np.nansum(summary.loc[ind,
-    #                                                                   'num_coll_free'].values)
-    #                             num_gates_passed = np.nansum(summary.loc[ind,
-    #                                                                      'num_gates_passed'].values)
-    #                             prop_coll_free = np.nan
-    #                             prop_gates_passed = np.nan
-    #
-    #                             if num_samples > 0:
-    #                                 prop_coll_free = num_coll_free / num_samples
-    #                                 prop_gates_passed = num_gates_passed / num_samples
-    #                                 print(
-    #                                     'Success trajectories: {} {} {} | G: {}/{} ({:.0f}%) | C: {}/{} ({:.0f}%)'.format(
-    #                                         model, track, dataset,
-    #                                         num_gates_passed, num_samples,
-    #                                         100 * prop_gates_passed,
-    #                                         num_coll_free, num_samples,
-    #                                         100 * prop_coll_free))
-    #
-    #     # Plot proportion of successful laps for each of the tracks
-    #     to_plot_dist_successful_flight = True
-    #     if to_plot_dist_successful_flight:
-    #         inpath = base_path / 'analysis' / 'performance' /  collider_name / 'summary.csv'
-    #         outpath = base_path / 'analysis' / 'performance' /  collider_name / 'success_by_subject.csv'
-    #         if inpath.exists():
-    #             summary = pd.read_csv(inpath)
-    #             ddict = {}
-    #             for subject in summary['subject'].unique():
-    #                 # get laptime
-    #                 f = [v for v in sorted((base_path/'analysis'/'logs').rglob(
-    #                     '*original.csv'))
-    #                      if v.as_posix().find('s%03d' % subject) > -1]
-    #                 f=f[0]
-    #                 # print('..loading reference trajectory {}'.format(f))
-    #                 df = pd.read_csv(f)
-    #                 laptime = (df['time-since-start [s]'].iloc[-1] -
-    #                            df['time-since-start [s]'].iloc[0])
-    #                 # get other performance features
-    #                 ind = ((summary['subject'].values == subject) &
-    #                        (summary['dataset'].values == 'train'))
-    #                 num_samples = np.sum(summary.loc[ind, 'num_samples'].values)
-    #                 num_gates_passed = np.sum(
-    #                     summary.loc[ind, 'num_gates_passed'].values)
-    #                 num_coll_free = np.sum(summary.loc[ind, 'num_coll_free'].values)
-    #                 prop_gates_passed = num_gates_passed / num_samples
-    #                 prop_coll_free = num_coll_free / num_samples
-    #                 ddict.setdefault('subject', [])
-    #                 ddict['subject'].append(subject)
-    #                 ddict.setdefault('laptime', [])
-    #                 ddict['laptime'].append(laptime)
-    #                 ddict.setdefault('num_samples', [])
-    #                 ddict['num_samples'].append(num_samples)
-    #                 ddict.setdefault('num_gates_passed', [])
-    #                 ddict['num_gates_passed'].append(num_gates_passed)
-    #                 ddict.setdefault('num_coll_free', [])
-    #                 ddict['num_coll_free'].append(num_coll_free)
-    #                 ddict.setdefault('prop_gates_passed', [])
-    #                 ddict['prop_gates_passed'].append(prop_gates_passed)
-    #                 ddict.setdefault('prop_coll_free', [])
-    #                 ddict['prop_coll_free'].append(prop_coll_free)
-    #             df = pd.DataFrame(ddict)
-    #             print(df)
-    #             df.to_csv(outpath, index=False)
-    #
-    #             plt.figure()
-    #             plt.gcf().set_figwidth(15)
-    #             plt.gcf().set_figheight(10)
-    #             plt.subplot(2, 1, 1)
-    #             plt.bar(df['subject'].values - 0.15,
-    #                     df['prop_gates_passed'],
-    #                     width=0.3,
-    #                     label='Gates')
-    #             plt.bar(df['subject'].values + 0.15,
-    #                     df['prop_coll_free'],
-    #                     width=0.3,
-    #                     label='Collisions')
-    #             plt.xticks(df['subject'].values)
-    #             plt.xlabel('Subject')
-    #             plt.ylabel('Proportion Successful Laps')
-    #             plt.legend()
-    #             plt.subplot(2, 1, 2)
-    #             plt.bar(df['subject'].values,
-    #                     df['laptime'],
-    #                     width=0.5,
-    #                     label='Lap Time')
-    #             plt.plot([df['subject'].min() - 0.25, df['subject'].max() + 0.25],
-    #                      np.ones((2,)) * np.nanmedian(df['laptime'].values),
-    #                      '--r',
-    #                      lw=3,
-    #                      label='Median')
-    #             plt.xticks(df['subject'].values)
-    #             plt.xlabel('Subject')
-    #             plt.ylabel('Lap Time [s]')
-    #             plt.tight_layout()
-    #             plt.savefig(outpath.as_posix().replace('.csv', '.jpg'))
-    #
 
 if __name__ == '__main__':
-    main()
+    main(base_path)
