@@ -15,14 +15,14 @@ README
 
 def main(
         base_path,
-        to_override = True,
-        to_import_logs = True,
+        to_override = False,
+        to_import_logs = False,
         to_get_performance = False,
         to_make_summary_table = False,
-        to_get_subject_performance=False,
-        to_get_performance_summary=False,
-        to_plot_traj_3d = True,
-        to_plot_state = True,
+        to_get_subject_performance=True,
+        to_get_performance_summary=True,
+        to_plot_traj_3d = False,
+        to_plot_state = False,
         ):
     """Processes network flight trajectory logs, checks for collisions
     and gate passes, extract performance features and makes some plots."""

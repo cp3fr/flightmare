@@ -733,28 +733,28 @@ def extract_performance_features(
     if np.sum(ind)>0:
         t_end=E.loc[ind, 't'].values[0]
     # Get performance metrics within the start and end time window
-    # ..number of passed gates.
-    ind = (E['t'].values >= t_start) & (E['t'].values <= t_end)
+    # ..total number of passed gates.
+    ind = ((E['t'].values >= t_start) &
+           (E['t'].values <= t_end))
     num_gates_passed = np.sum(E.loc[ind, 'is-pass'].values)
     # ..number of collisions.
-    ind = ((E['is-collision'].values == 1) &
-           (E['t']>=t_start) &
-           (E['t']<=t_end))
+    ind = ((E['t'].values >= t_start) &
+           (E['t'].values <= t_end) &
+           (E['is-collision'].values == 1))
     num_collisions = np.sum(ind)
+    # ..number of individual gate passes.
     num_passes = {}
     for i in range(10):
-        ind3 = E['object-id'].values == i
-        num_passes[i] = np.sum(E.loc[ind & ind3, 'is-pass'].values)
+        ind = ((E['t'].values >= t_start) &
+               (E['t'].values <= t_end) &
+               (E['object-id'].values == i))
+        num_passes[i] = np.sum(E.loc[ind, 'is-pass'].values)
     # Distance and Duration features (considering all time the network was in
     # control)
     if t_end > t_start:
-        total_distance = np.sum(
-            np.linalg.norm(
-                np.diff(
-                    D.loc[((D['t']>=t_start) & (D['t']<=t_end)),
-                        ('px', 'py', 'pz')].values,
-                    axis=0),
-                axis=1))
+        ind = ((D['t'].values>=t_start) & (D['t'].values<=t_end))
+        total_distance = np.sum(np.linalg.norm(np.diff(D.loc[ind, ('px', 'py',
+            'pz')].values,axis=0),axis=1))
         total_duration = t_end - t_start
     else:
         total_distance = 0.
@@ -1194,7 +1194,6 @@ def import_log(
         E.to_csv(f/'events.csv', index=False)
     # Loop across collider conditions
     for collider_name in collider_names:
-        print(collider_name)
         curr_colliders = collider_dict[collider_name]
         curr_feature_filename = 'features_{}.csv'.format(collider_name)
         # Save performance features to output folder
@@ -1885,18 +1884,22 @@ def get_subject_performance(
             for track in data['track'].unique():
                 for dataset in data['dataset'].unique():
                     print('--------------------------------')
+                    print('model, track, dataset, subject, num_samples,'+
+                              'num_coll_free, prop_coll_free')
+                    print('--------------------------------')
                     for subject in data['subject'].unique():
                         ind = (
                                 (data['model'].values == model) &
                                 (data['track'].values == track) &
                                 (data['dataset'].values == dataset) &
-                                (data['subject'].values == subject)
+                                (data['subject'].values == subject) &
+                                (data['control'].values == 'nw')
                         )
                         num_samples = np.sum(ind)
                         num_coll_free = np.sum(
                             data.loc[ind, 'num_collisions'].values == 0)
                         num_gates_passed = np.sum(
-                            data.loc[ind, 'num_gates_passed'].values == 11)
+                            data.loc[ind, 'num_gates_passed'].values >= 10)
                         prop_coll_free = num_coll_free / num_samples
                         prop_gates_passed = num_gates_passed / num_samples
                         ddict.setdefault('model', [])
@@ -2049,6 +2052,7 @@ def get_subject_performance(
                                         num_coll_free, num_samples,
                                         100 * prop_coll_free))
     # Plot proportion of successful laps for each of the tracks
+    #todo: here split by network model
     if to_plot_dist_successful_flight:
         inpath = base_path / 'analysis' / 'performance' / collider_name / 'summary.csv'
         outpath = base_path / 'analysis' / 'performance' / collider_name / 'success_by_subject.csv'
