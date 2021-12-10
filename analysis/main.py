@@ -21,8 +21,8 @@ def main(
         to_make_summary_table = False,
         to_get_subject_performance=False,
         to_get_performance_summary=False,
-        to_plot_traj_3d = False,
-        to_plot_state = False,
+        to_plot_traj_3d = True,
+        to_plot_state = True,
         ):
     """Processes network flight trajectory logs, checks for collisions
     and gate passes, extract performance features and makes some plots."""
@@ -40,9 +40,11 @@ def main(
     # state causes trouble, needs debugging.
     if to_import_logs:
         for m in models:
-            import_logs(path=path['logs'] / m, num_parallel_processes=1, to_override=
-                to_override, to_plot_traj_3d=to_plot_traj_3d, to_plot_state=
-                to_plot_state)
+            filepaths = sorted((path['logs']/m).rglob('*.csv'))
+            filepaths = [f for f in filepaths if f.name!='original.csv']
+            for f in filepaths:
+                import_log(filepath=f,to_override=to_override,to_plot_traj_3d=
+                    to_plot_traj_3d,to_plot_state=to_plot_state)
 
     if to_get_performance:
         for c in collider_dict:

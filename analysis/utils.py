@@ -670,7 +670,7 @@ def extract_performance_features(
         filepath_events: str,
         filepath_reference: str=None,
         colliders: list=['gate', 'wall'],
-        debug: bool=True,
+        debug: bool=False,
         ) -> pd.DataFrame():
     """
     Compute performance features for a given network trajectory, considering
@@ -701,33 +701,31 @@ def extract_performance_features(
     D=D.loc[ind, :]
     ind=E['t'].values>buffer
     E=E.loc[ind,:]
-    # Check if network (online) or mpc (offline) control mode.
+    # Check if network (online) or mpc (offline) control mode,
     x = D['throttle_mpc'].values
     nmpc=np.sum(np.isnan(x)==False)
     ntotal=x.shape[0]
-    print('mpc samples: {}/{}'.format(nmpc,ntotal))
-    control='nw'
     if nmpc/ntotal>0.8:
-        control='mpc'
-    print('{} control'.format(control))
-    # Compute offline features.
+        c='mpc'
+    else:
+        c = 'nw'
+    # Compute control command prediction performance for mpc control mode.
     mpc_nw_dict = {}
-    if control=='mpc':
+    if c=='mpc':
         network_used = 0
         for n in ['throttle', 'roll', 'pitch', 'yaw']:
             mpc_nw_dict.setdefault(n, {})
             x=(D['{}_mpc'.format(n)].values-D['{}_nw'.format(n)].values)
-            mpc_nw_dict[n]['l1']: np.nanmean(np.abs(x))
-            mpc_nw_dict[n]['mse']: np.nanmean(np.power(x, 2))
-            mpc_nw_dict[n]['l1-median']: np.nanmedian(np.abs(x))
-            mpc_nw_dict[n]['mse-median']: np.nanmedian(np.power(x, 2))
+            mpc_nw_dict[n]['l1']=np.nanmean(np.abs(x))
+            mpc_nw_dict[n]['mse']=np.nanmean(np.power(x, 2))
+            mpc_nw_dict[n]['l1-median']=np.nanmedian(np.abs(x))
+            mpc_nw_dict[n]['mse-median']=np.nanmedian(np.power(x, 2))
     else:
         network_used = 1
         for n in ['throttle', 'roll', 'pitch', 'yaw']:
             mpc_nw_dict.setdefault(n, {})
             for m in ['l1', 'mse', 'l1-median', 'mse-median']:
-                mpc_nw_dict[n].setdefault(m, np.nan)
-    pprint(mpc_nw_dict)
+                mpc_nw_dict[n][m]=np.nan
     # Determine start and end time
     t_start=D['t'].iloc[0]
     t_end=D['t'].iloc[-1]
@@ -811,15 +809,16 @@ def extract_performance_features(
             outdict['{}_error_{}'.format(k1, k2)] = mpc_nw_dict[k1][k2]
     outdict['filepath'] = filepath_trajectory
     P = pd.DataFrame(outdict, index=[0])
-
     # Debug:check the data
     if debug:
+        print('-------------------------')
+        print('DEBUG')
+        print('-------------------------')
+        print(filepath_trajectory)
         print(D.columns)
         print(E.columns)
         print(E)
-        x = D['throttle_mpc'].values
-        print('non-nan mpc samples: {}/{}'.format(np.sum(np.isnan(x) == False),
-                                                  x.shape[0]))
+        print('mpc samples: {}/{}'.format(nmpc, ntotal))
         print(P.loc[:, ('throttle_error_l1',
                         'throttle_error_l1-median', 'throttle_error_mse',
                         'throttle_error_mse-median')])
@@ -1141,7 +1140,7 @@ def signed_horizontal_angle(
     return angle
 
 
-def process_individual_run(
+def import_log(
         filepath,
         to_override=False,
         to_plot_traj_3d=False,
@@ -1195,11 +1194,11 @@ def process_individual_run(
         E.to_csv(f/'events.csv', index=False)
     # Loop across collider conditions
     for collider_name in collider_names:
+        print(collider_name)
         curr_colliders = collider_dict[collider_name]
         curr_feature_filename = 'features_{}.csv'.format(collider_name)
         # Save performance features to output folder
-        if ((not (f/curr_feature_filename).exists())
-                or (to_override == True)):
+        if ((not (f/curr_feature_filename).exists()) or to_override):
             P = extract_performance_features(
                 filepath_trajectory=f/'trajectory.csv',
                 filepath_reference=f/'reference.csv',
@@ -1273,23 +1272,6 @@ def confidence_interval(
         return np.vstack((cl,cu))
     else:
         return np.vstack((cl,cu)).T
-
-
-def import_logs(
-        path,
-        num_parallel_processes=1,
-        to_override=False,
-        to_plot_traj_3d=False,
-        to_plot_state=False,
-        exclude=['original.csv'],
-        ) -> None:
-    """Process raw files in parallel."""
-    f = sorted(path.rglob('*.csv'))
-    for n in exclude:
-        f = [_f for _f in f if _f.name != n]
-    map = [(_f, to_override, to_plot_traj_3d, to_plot_state) for _f in f]
-    with Pool(num_parallel_processes) as p:
-        p.starmap(process_individual_run, map)
 
 
 def get_performance(
